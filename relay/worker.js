@@ -37,8 +37,17 @@ const TREE_CHECKS = {
 // Tree damage classes of the bug model → the tree they mean (a key of TREE_CHECKS). Finding one
 // means a tree is infested and someone must take action. Must match damageClass in assets/trees/*.js.
 const INFESTED = { agrilus_planipennis_damage: "ash" };
-// Infested tree reports and tree checks where the AI saw the damage: shown as "take action"
-const needsAction = r => r.kind === "infested" || r.infested === true;
+// Infested tree reports, tree checks, and Detect reports where the AI saw the damage: "take action"
+const needsAction = r => r.kind === "infested" || r.infested === true || r.found?.damage === true;
+// Detect reports (kind "check", from the Detect steps on the site): up to 3 photos for each step.
+// The emerald ash borer's class names (Pyinsect 2.8+, and older). The AI must be this sure (%) before
+// the relay believes it found something.
+const CHECK_STEPS = { tree: "Your tree", damage: "Signs of damage", bug: "The bug" };
+const PHOTOS_PER_STEP = 3, SURE = 50;
+const EAB = new Set(["agrilus_planipennis", "emerald_ash_borer"]);
+// Detect reports where nothing was found are kept in their own private folder (they show where
+// people use the app, but never go on the public map)
+const NOTHING_DIR = "nothing-found";
 // Where reports are saved. Fixed here (not a Cloudflare setting) because the setting kept pointing
 // at the public site repo. Must stay a PRIVATE repo; the relay refuses to save anywhere public.
 const REPORTS_REPO = "edafawd/pyinsect-reports-data";
@@ -57,9 +66,11 @@ const SPECIES_RE = /^[a-z_]{1,48}$/;
 const TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/;
 const recent = new Map(), wrong = new Map();
 const reportCache = new Map();      // id → report JSON (reports never change)
-let listCache = { at: 0, ids: null };
+let listCache = { at: 0, paths: null };
 // map.json (in the private repo): one small line per report, for the reports map and check levels:
-//   { id, kind: "invasive" | "tree" | "infested", name, area: { lat, lon } | null, month: "2026-10", level }
+//   { id, kind: "invasive" | "tree" | "infested" | "check" | "nothing", name, area: { lat, lon } | null,
+//     month: "2026-10", level, found (Detect reports only: { eab, damage, galleries }) }
+// "check" = a Detect report that found something, "nothing" = a Detect report that found nothing.
 // level: "unchecked" (just sent), "ai" (an AI thinks it's a match; not used yet),
 //        "verified" (a person on the team confirmed it), "not_match" (a person said no).
 const INDEX_PATH = "map.json", LEVELS = ["unchecked", "ai", "verified", "not_match"];
@@ -97,12 +108,30 @@ async function submit(request, env) {
 
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (request.method === "GET" && url.pathname === "/map") {
-    // Public: every report with a rough area that hasn't been marked "not a match". Only what,
-    // where (the ~1 km square), when (the month), and how well it was checked. No ids or photos.
+    // Public: every Detect report that found something, has a rough area, and hasn't been marked
+    // "not a match". Only what, where (the ~200 m square), when (the month), and how well it was
+    // checked. No ids, photos, or team spots. (Reports from before the Detect steps were tests, so
+    // the map starts empty, like our numbers.)
     try {
-      const list = (await readIndexCached(env)).filter(e => e.area && e.level !== "not_match")
+      const list = (await readIndexCached(env)).filter(e => e.kind === "check" && e.area && e.level !== "not_match")
         .map(e => ({ kind: e.kind, name: e.name, lat: e.area.lat, lon: e.area.lon, month: e.month, level: e.level }));
       return reply(200, { reports: list });
+    } catch (e) {
+      return reply(502, { error: e.message });
+    }
+  }
+  if (request.method === "GET" && url.pathname === "/stats") {
+    // Public: our numbers for the map screen, from Detect reports not marked "not a match".
+    // "trees" counts every Detect report, including the private "nothing found" ones.
+    try {
+      const list = (await readIndexCached(env)).filter(e => (e.kind === "check" || e.kind === "nothing") && e.level !== "not_match");
+      const stats = { eab: 0, damage: 0, galleries: 0, trees: list.length };
+      for (const e of list) {
+        if (e.found?.eab) stats.eab++;
+        if (e.found?.damage) stats.damage++;
+        stats.galleries += Math.min(PHOTOS_PER_STEP, Number(e.found?.galleries) || 0);
+      }
+      return reply(200, stats);
     } catch (e) {
       return reply(502, { error: e.message });
     }
@@ -120,7 +149,7 @@ async function submit(request, env) {
   }
   if (request.method === "GET") {
     // Says whether the reports page is set up, never what its address or password is
-    return reply(200, { ok: true, service: "pyinsect-relay", version: 14, reports_page: Boolean(viewWord(env) && env.VIEW_PASSWORD) });
+    return reply(200, { ok: true, service: "pyinsect-relay", version: 15, reports_page: Boolean(viewWord(env) && env.VIEW_PASSWORD) });
   }
   if (request.method !== "POST") return reply(405, { error: "Use POST." });
   if (!SITE_ORIGINS.includes(origin)) return reply(403, { error: "Reports are only accepted from the Pyinsect site." });
@@ -135,7 +164,7 @@ async function submit(request, env) {
   if (checked.error) return reply(400, { error: checked.error });
   count(recent, ip, 3600000);
 
-  const { report, photo } = checked;
+  const { report, photo, photos } = checked;
   // Never save into a public repo (it happened when the old GITHUB_REPO setting was reset). Not a 400, so the
   // site keeps the report and sends it again once the setting is fixed.
   try {
@@ -146,10 +175,14 @@ async function submit(request, env) {
     return reply(502, { error: e.message });
   }
   try {
-    // Photo first, so the reports page only lists a report once its photo exists
-    await githubCreate(env, `reports/${report.id}.jpg`, photo, `Photo for ${report.name} report`);
-    await githubCreate(env, `reports/${report.id}.json`, toBase64(JSON.stringify(report, null, 1)),
-      `${needsAction(report) ? "Infested tree report" : report.kind === "tree" ? "Tree check report" : "Invasive species report"}: ${report.name}`);
+    // Photos first, so the reports page only lists a report once its photos exist
+    const dir = report.kind === "nothing" ? NOTHING_DIR : "reports";
+    const files = photos || [photo];
+    for (let i = 0; i < files.length; i++) {
+      await githubCreate(env, `${dir}/${photoName(report.id, i)}`, files[i], `Photo ${i + 1} for ${report.name} report`);
+    }
+    await githubCreate(env, `${dir}/${report.id}.json`, toBase64(JSON.stringify(report, null, 1)),
+      `${report.kind === "nothing" ? "Detect report, nothing found" : report.kind === "check" ? "Detect report" : needsAction(report) ? "Infested tree report" : report.kind === "tree" ? "Tree check report" : "Invasive species report"}: ${report.name}`);
   } catch (e) {
     return reply(502, { error: e.message });
   }
@@ -163,7 +196,11 @@ async function submit(request, env) {
   return reply(201, { ok: true, id: report.id });
 }
 
-// Accepts only well-formed reports and rebuilds them from known fields. Three kinds:
+// A report's photo files: the first is <id>.jpg, then <id>-2.jpg, <id>-3.jpg, ...
+const photoName = (id, i) => i ? `${id}-${i + 1}.jpg` : `${id}.jpg`;
+
+// Accepts only well-formed reports and rebuilds them from known fields. Four kinds:
+//   "check": a Detect report, with photos of the tree, the damage, and the bug (see checkDetect)
 //   invasive (no kind): the bug model found an invasive species
 //   "tree": a photo from the tree check, with the signs the person said they saw (infested: true
 //           when the bug model also found that tree's damage in the photo)
@@ -171,13 +208,10 @@ async function submit(request, env) {
 function checkReport(body) {
   const r = body && body.report, photo = body && body.photo;
   if (!r || typeof r !== "object") return { error: "Missing report." };
+  if (r.kind === "check") return checkDetect(r, body.photos);
 
-  const m = typeof r.id === "string" && r.id.match(ID_RE);
-  if (!m) return { error: "Bad report id." };
-  const when = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
-  if (isNaN(when) || when > Date.now() + 3600000 || when < Date.now() - MAX_AGE_DAYS * 86400000) {
-    return { error: "Report time is out of range." };
-  }
+  const idError = checkId(r);
+  if (idError) return { error: idError };
   // hasOwn: only trees really in the list (not hidden names like "__proto__" that every object has)
   const tree = r.kind === "tree" && typeof r.tree === "string" && Object.hasOwn(TREE_CHECKS, r.tree) ? TREE_CHECKS[r.tree] : null;
   if (r.kind === "tree") {
@@ -194,7 +228,6 @@ function checkReport(body) {
   } else if (!INVASIVE.has(r.species)) {
     return { error: "Only invasive species are reported." };
   }
-  if (typeof r.timestamp !== "string" || !TIMESTAMP_RE.test(r.timestamp)) return { error: "Bad timestamp." };
   const pct = v => typeof v === "number" && v >= 0 && v <= 100;
   if (!tree && !pct(r.confidence)) return { error: "Bad confidence." };
   // Tree reports may send the bug model's guesses too (as extra help for the team), or none
@@ -202,21 +235,11 @@ function checkReport(body) {
     && r.top3.every(t => t && SPECIES_RE.test(t.species) && pct(t.confidence));
   if (!top3Ok && !(tree && r.top3 === undefined)) return { error: "Bad top-3 list." };
 
-  // Rough area for the reports map (optional). Rounded to the ~1 km grid again here, so even a
-  // changed site can't save an exact spot.
-  let area = null;
-  if (r.area !== undefined && r.area !== null) {
-    const { lat, lon } = r.area || {};
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return { error: "Bad area." };
-    area = roughArea(lat, lon);
-  }
-
-  if (typeof photo !== "string" || photo.length > MAX_PHOTO_BYTES * 4 / 3 + 4) return { error: "Photo missing or too large." };
-  let bytes;
-  try { bytes = atob(photo); } catch { return { error: "Photo isn't valid base64." }; }
-  if (bytes.charCodeAt(0) !== 0xFF || bytes.charCodeAt(1) !== 0xD8 || bytes.charCodeAt(2) !== 0xFF) {
-    return { error: "Photo must be a JPEG." };
-  }
+  const where = checkSpot(r);
+  if (where.error) return { error: where.error };
+  const { area, spot } = where;
+  const photoError = checkPhoto(photo);
+  if (photoError) return { error: photoError };
 
   const short = (v, n) => typeof v === "string" ? v.slice(0, n) : "";
   // Display names come from the site; keep them short plain text, else fall back to the id
@@ -240,7 +263,7 @@ function checkReport(body) {
         ...(infested ? { infested: true } : {}),
         signs: r.signs,
         signs_text: r.signs.length ? r.signs.map(s => tree.signs[s]).join(", ") : "None. They were still worried and sent a photo.",
-        ...(area ? { area } : {}),
+        ...(area ? { area, spot } : {}),
         pest: tree.pest,
         top3,
         photo: `${r.id}.jpg`,
@@ -264,7 +287,7 @@ function checkReport(body) {
         action: "Take action: this tree looks infested",
         confidence: r.confidence,
         top3,
-        ...(area ? { area } : {}),
+        ...(area ? { area, spot } : {}),
         photo: `${r.id}.jpg`,
         model: short(r.model, 40),
         app_version: short(r.app_version, 20),
@@ -281,8 +304,110 @@ function checkReport(body) {
       scientific: label(r.scientific, r.species),
       confidence: r.confidence,
       top3,
-      ...(area ? { area } : {}),
+      ...(area ? { area, spot } : {}),
       photo: `${r.id}.jpg`,
+      model: short(r.model, 40),
+      app_version: short(r.app_version, 20),
+    },
+  };
+}
+
+// Shared checks for every kind of report. Each returns an error message, or nothing if it's fine.
+function checkId(r) {
+  const m = typeof r.id === "string" && r.id.match(ID_RE);
+  if (!m) return "Bad report id.";
+  const when = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+  if (isNaN(when) || when > Date.now() + 3600000 || when < Date.now() - MAX_AGE_DAYS * 86400000) return "Report time is out of range.";
+  if (typeof r.timestamp !== "string" || !TIMESTAMP_RE.test(r.timestamp)) return "Bad timestamp.";
+}
+function checkPhoto(photo) {
+  if (typeof photo !== "string" || photo.length > MAX_PHOTO_BYTES * 4 / 3 + 4) return "Photo missing or too large.";
+  let bytes;
+  try { bytes = atob(photo); } catch { return "Photo isn't valid base64."; }
+  if (bytes.charCodeAt(0) !== 0xFF || bytes.charCodeAt(1) !== 0xD8 || bytes.charCodeAt(2) !== 0xFF) return "Photo must be a JPEG.";
+}
+// Where the report came from (optional): "spot" from new pages, "area" from older ones. Rounded again
+// here, so even a changed site can't save an exact spot: the team spot (~75 m, private) and the
+// public map area (~200 m).
+function checkSpot(r) {
+  const given = r.spot ?? r.area;
+  if (given === undefined || given === null) return { area: null, spot: null };
+  const { lat, lon } = given || {};
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return { error: "Bad area." };
+  const spot = teamSpot(lat, lon);
+  return { spot, area: roughArea(spot.lat, spot.lon) };
+}
+
+// A Detect report: items[i] says which step photos[i] belongs to ("tree", "damage" or "bug"), the AI's
+// top 3 guesses for it, and for damage photos what the person says it shows (sign: "holes" or
+// "galleries", optional). What was found is worked out here from the guesses, never taken from the site.
+function checkDetect(r, photos) {
+  const idError = checkId(r);
+  if (idError) return { error: idError };
+  const items = r.items;
+  const max = Object.keys(CHECK_STEPS).length * PHOTOS_PER_STEP;
+  if (!Array.isArray(photos) || !photos.length || photos.length > max) return { error: "A Detect report needs 1 to " + max + " photos." };
+  if (!Array.isArray(items) || items.length !== photos.length) return { error: "Each photo needs one item." };
+  for (const photo of photos) { const e = checkPhoto(photo); if (e) return { error: e }; }
+  const ash = TREE_CHECKS.ash, perStep = {};
+  const pct = v => typeof v === "number" && v >= 0 && v <= 100;
+  for (const it of items) {
+    if (!it || !Object.hasOwn(CHECK_STEPS, it.step)) return { error: "Unknown Detect step." };
+    if ((perStep[it.step] = (perStep[it.step] || 0) + 1) > PHOTOS_PER_STEP) return { error: "Too many photos for one step." };
+    if (it.sign !== undefined && (it.step !== "damage" || !Object.hasOwn(ash.signs, it.sign))) return { error: "Bad sign." };
+    if (!Array.isArray(it.top3) || it.top3.length < 1 || it.top3.length > 3
+        || !it.top3.every(t => t && SPECIES_RE.test(t.species) && pct(t.confidence))) return { error: "Bad top-3 list." };
+  }
+  const where = checkSpot(r);
+  if (where.error) return { error: where.error };
+
+  const label = (v, species) => {
+    const t = typeof v === "string" ? v.replace(/[^\p{L}\p{N} '().,-]/gu, "").trim().slice(0, 60) : "";
+    return t || niceName(species);
+  };
+  const sure = it => it.top3[0].confidence >= SURE ? it.top3[0].species : null;
+  const found = { eab: false, damage: false, galleries: 0, holes: 0, others: [] };
+  const rebuilt = items.map((it, i) => {
+    const best = sure(it);
+    if (it.step === "bug" && EAB.has(best)) found.eab = true;
+    if (best && INFESTED[best] === "ash") found.damage = true;
+    if (it.step === "bug" && best && INVASIVE.has(best) && !EAB.has(best) && !Object.hasOwn(INFESTED, best)) {
+      const name = label(it.top3[0].name, best);
+      if (!found.others.includes(name)) found.others.push(name);
+    }
+    if (it.sign === "galleries") found.galleries++;
+    if (it.sign === "holes") found.holes++;
+    return {
+      step: it.step, step_name: CHECK_STEPS[it.step], photo: photoName(r.id, i),
+      ...(it.sign ? { sign: it.sign, sign_text: ash.signs[it.sign] } : {}),
+      top3: it.top3.map(t => ({ species: t.species, name: label(t.name, t.species), confidence: t.confidence })),
+    };
+  });
+  const something = found.eab || found.damage || found.galleries || found.holes || found.others.length;
+  const name = found.eab && found.damage ? "Emerald ash borer and tree damage"
+    : found.eab ? "Emerald ash borer"
+    : found.damage ? "Emerald ash borer damage"
+    : found.galleries || found.holes ? "Possible emerald ash borer damage"
+    : found.others.length ? found.others[0]
+    : "Tree checked, nothing found";
+  const seen = [found.eab && "an emerald ash borer", found.damage && "emerald ash borer damage (AI)",
+    found.holes && `${found.holes} photo(s) of D-shaped holes`, found.galleries && `${found.galleries} photo(s) of galleries`,
+    ...found.others.map(o => `${o} (invasive)`)].filter(Boolean);
+  const short = (v, n) => typeof v === "string" ? v.slice(0, n) : "";
+  return {
+    photos,
+    report: {
+      id: r.id,
+      timestamp: r.timestamp,
+      kind: something ? "check" : "nothing",
+      name,
+      found,
+      found_text: seen.length ? seen.join(", ") : "Nothing found",
+      pest: ash.pest,
+      ...(where.area ? { area: where.area, spot: where.spot } : {}),
+      items: rebuilt,
+      photos: rebuilt.map(it => it.photo),
+      photo: rebuilt[0].photo,
       model: short(r.model, 40),
       app_version: short(r.app_version, 20),
     },
@@ -308,9 +433,9 @@ async function viewer(request, env, rest) {
   }
 
   try {
-    if (rest === "/api/reports") {
-      // The newest reports, plus each one's check level from map.json
-      const data = await latestReports(env), list = (await readIndex(env)).list;
+    if (rest === "/api/reports" || rest === "/api/nothing") {
+      // The newest reports (or "nothing found" Detect reports), plus each one's check level from map.json
+      const data = await latestReports(env, rest === "/api/nothing" ? NOTHING_DIR : "reports"), list = (await readIndex(env)).list;
       data.levels = Object.fromEntries(data.reports.map(r => [r.id, list.find(e => e.id === r.id)?.level || "unchecked"]));
       return json(200, data);
     }
@@ -324,7 +449,7 @@ async function viewer(request, env, rest) {
       // Reports sent before map.json existed aren't in it yet: add them from the saved report
       let saved = null;
       if (!(await readIndex(env)).list.some(e => e.id === id)) {
-        const res = await githubRead(env, `reports/${id}.json`);
+        const res = await githubRead(env, `reports/${id}.json`) || await githubRead(env, `${NOTHING_DIR}/${id}.json`);
         if (!res) return json(404, { error: "No such report." });
         saved = await res.json();
       }
@@ -335,9 +460,11 @@ async function viewer(request, env, rest) {
       });
       return json(200, { ok: true, id, level });
     }
-    const photo = rest.match(/^\/api\/photo\/([0-9a-f-]{1,40})$/);
-    if (photo && ID_RE.test(photo[1])) {
-      const res = await githubRead(env, `reports/${photo[1]}.jpg`);
+    // A photo: <id> (the first one) or <id>-2, <id>-3, ... (more photos of a Detect report)
+    const photo = rest.match(/^\/api\/photo\/([0-9a-f-]{1,44})$/);
+    const more = photo && !ID_RE.test(photo[1]) ? photo[1].match(/^(.+)-([2-9])$/) : null;
+    if (photo && (ID_RE.test(photo[1]) || (more && ID_RE.test(more[1])))) {
+      const res = await githubRead(env, `reports/${photo[1]}.jpg`) || await githubRead(env, `${NOTHING_DIR}/${photo[1]}.jpg`);
       if (!res) return json(404, { error: "No such photo." });
       return new Response(res.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=31536000, immutable", "X-Robots-Tag": "noindex" } });
     }
@@ -347,28 +474,25 @@ async function viewer(request, env, rest) {
   }
 }
 
-// Newest reports, read from the private repo with the token (5,000 GitHub requests an hour)
-async function latestReports(env) {
-  if (!listCache.ids || Date.now() - listCache.at > LIST_CACHE_MS) {
+// Newest reports in a folder ("reports" or NOTHING_DIR), read from the private repo with the token
+// (5,000 GitHub requests an hour)
+async function latestReports(env, dir) {
+  if (!listCache.paths || Date.now() - listCache.at > LIST_CACHE_MS) {
     const res = await gh(env, `git/trees/HEAD?recursive=1`);
-    let ids = [];
-    if (res.ok) {
-      const tree = (await res.json()).tree || [];
-      const names = new Set(tree.map(t => t.path));
-      ids = tree.map(t => t.path.match(/^reports\/(.+)\.json$/)).filter(Boolean).map(m => m[1])
-        .filter(id => ID_RE.test(id) && names.has(`reports/${id}.jpg`))
-        .sort().reverse();
-    } else if (res.status !== 404 && res.status !== 409) {   // 404/409 = no files yet
-      throw new Error(ghError(res.status));
-    }
-    listCache = { at: Date.now(), ids };
+    let paths = [];
+    if (res.ok) paths = ((await res.json()).tree || []).map(t => t.path);
+    else if (res.status !== 404 && res.status !== 409) throw new Error(ghError(res.status));   // 404/409 = no files yet
+    listCache = { at: Date.now(), paths };
   }
-  const ids = listCache.ids;
+  const names = new Set(listCache.paths);
+  const ids = listCache.paths.map(p => p.startsWith(dir + "/") && p.match(/\/(.+)\.json$/)).filter(Boolean).map(m => m[1])
+    .filter(id => ID_RE.test(id) && names.has(`${dir}/${id}.jpg`))
+    .sort().reverse();
   // Free Workers may make 50 outgoing requests per visit, and a redirect (old repo name) counts
   // twice, so load at most 20 new reports per visit; the page refreshes and gets the rest.
   const missing = ids.slice(0, SHOW).filter(id => !reportCache.has(id)).slice(0, 20);
   await Promise.all(missing.map(async id => {
-    const res = await githubRead(env, `reports/${id}.json`);
+    const res = await githubRead(env, `${dir}/${id}.json`);
     if (res) { try { reportCache.set(id, await res.json()); } catch {} }
   }));
   return { total: ids.length, reports: ids.slice(0, SHOW).filter(id => reportCache.has(id)).map(id => reportCache.get(id)) };
@@ -425,8 +549,10 @@ async function githubCreate(env, path, base64, message) {
 // ---------- map.json: the list for the reports map and check levels ----------
 
 function indexEntry(report, level) {
-  return { id: report.id, kind: needsAction(report) ? "infested" : report.kind === "tree" ? "tree" : "invasive", name: report.name,
-    area: report.area || null, month: String(report.timestamp || report.id).replace(/^(\d{4})-?(\d{2}).*/, "$1-$2"), level };
+  const detect = report.kind === "check" || report.kind === "nothing";
+  return { id: report.id, kind: detect ? report.kind : needsAction(report) ? "infested" : report.kind === "tree" ? "tree" : "invasive", name: report.name,
+    area: report.area || null, month: String(report.timestamp || report.id).replace(/^(\d{4})-?(\d{2}).*/, "$1-$2"), level,
+    ...(detect ? { found: { eab: !!report.found?.eab, damage: !!report.found?.damage, galleries: report.found?.galleries || 0 } } : {}) };
 }
 
 // The list and its version (sha). GitHub needs the version to change the file, and refuses the
@@ -469,15 +595,17 @@ async function githubRead(env, path) {
 
 // ---------- helpers ----------
 
-// The middle of the ~1 km grid square around a spot. Must stay the same as roughArea in
-// assets/app.js (scripts/check.js compares them).
-const AREA_DEG = 0.01;   // 0.01° of latitude ≈ 1.1 km
-function roughArea(lat, lon) {
-  const row = Math.floor(lat / AREA_DEG), rowLat = (row + 0.5) * AREA_DEG;
-  const lonStep = AREA_DEG / Math.max(0.2, Math.cos(rowLat * Math.PI / 180));   // squares stay ~1 km wide
+// The middle of the grid square around a spot: ~200 m squares for the public map (roughArea), ~75 m
+// for the team (teamSpot). Must stay the same as in assets/app.js (scripts/check.js compares them).
+const AREA_DEG = 0.0018, SPOT_DEG = 0.0007;   // 0.0018° of latitude ≈ 200 m, 0.0007° ≈ 78 m
+function snapToGrid(lat, lon, deg) {
+  const row = Math.floor(lat / deg), rowLat = (row + 0.5) * deg;
+  const lonStep = deg / Math.max(0.2, Math.cos(rowLat * Math.PI / 180));   // squares stay square
   const col = Math.floor(lon / lonStep);
-  return { lat: +rowLat.toFixed(4), lon: +((col + 0.5) * lonStep).toFixed(4) };
+  return { lat: +rowLat.toFixed(5), lon: +((col + 0.5) * lonStep).toFixed(5) };
 }
+const roughArea = (lat, lon) => snapToGrid(lat, lon, AREA_DEG);   // public map (~200 m)
+const teamSpot = (lat, lon) => snapToGrid(lat, lon, SPOT_DEG);    // team only (~75 m)
 
 // VIEW_PATH as typed in Cloudflare, tolerating spaces, slashes or a whole pasted link
 function viewWord(env) {
@@ -625,6 +753,13 @@ h2 { font-family: var(--display); font-weight: 500; font-size: 19px; margin: 0; 
 .hero.infested .action { font-weight: 700; color: var(--warn); }
 .row .infested-tag { color: var(--warn); font-weight: 700; }
 .action-banner { margin: 0 0 18px; padding: 12px 16px; border-radius: 12px; background: var(--warn-soft); border-left: 5px solid var(--warn); color: var(--ink); font-weight: 600; }
+/* Detect reports: every photo, with its step and the AI's best guess */
+.strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.strip figure { margin: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; cursor: zoom-in; }
+.strip img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; background: var(--accent-soft); display: block; }
+.strip .muted { font-size: 11px; }
+.flag.check { background: var(--accent); }
+.flag.nothing { background: var(--muted); }
 </style>
 </head>
 <body>
@@ -648,6 +783,7 @@ h2 { font-family: var(--display); font-weight: 500; font-size: 19px; margin: 0; 
   <section id="latest"></section>
   <section class="ledger" id="tallySection" hidden><h2 id="tallyTitle">Species reported</h2><div class="tally" id="tally"></div></section>
   <section class="ledger" id="earlierSection" hidden><h2>Earlier reports</h2><div class="rows" id="earlier"></div></section>
+  <section class="ledger" id="nothingSection" hidden><h2>Trees checked, nothing found</h2><p class="muted">Private: these never go on the public map. They show where people use the app.</p><div class="rows" id="nothing"></div></section>
   <div class="actions" id="logoutBox" hidden><button id="logout" class="btn" type="button">Log out on this device</button></div>
 </div>
 
@@ -725,25 +861,55 @@ function photo(img, id) { getPhoto(id).then(function () { img.src = photoUrls[id
 
 // Tree check reports (kind "tree") have the signs the person saw instead of a confidence
 function isTree(r) { return r.kind === "tree"; }
-// Infested tree reports, and tree checks where the AI saw the damage: someone must take action
-function needsAction(r) { return r.kind === "infested" || r.infested === true; }
-function detail(r) { return isTree(r) ? "Signs seen: " + (r.signs_text || "none") : Number(r.confidence).toFixed(1) + "% confidence"; }
+// Detect reports (the 3 Detect steps): several photos, and what was found in them
+function isCheck(r) { return r.kind === "check" || r.kind === "nothing"; }
+// Infested tree reports, and tree checks or Detect reports where the AI saw the damage: someone must take action
+function needsAction(r) { return r.kind === "infested" || r.infested === true || (r.found && r.found.damage === true); }
+function detail(r) {
+  if (isCheck(r)) return "Found: " + (r.found_text || "nothing") + " · " + (r.items || []).length + " photo(s)";
+  return isTree(r) ? "Signs seen: " + (r.signs_text || "none") : Number(r.confidence).toFixed(1) + "% confidence";
+}
+// A photo's key for /api/photo: "<id>" or "<id>-2"
+function photoKey(file) { return file.replace(/\.jpg$/, ""); }
+
+// Every photo of a Detect report, with its step, what the person said it shows, and the AI's best guess
+function strip(r) {
+  var box = el("div", "strip");
+  (r.items || []).forEach(function (it) {
+    var fig = el("figure"), img = el("img"), key = photoKey(it.photo), best = (it.top3 || [])[0];
+    img.alt = it.step_name; img.loading = "lazy"; photo(img, key);
+    fig.append(img, el("strong", null, it.step_name + (it.sign_text ? ": " + it.sign_text : "")));
+    if (best) fig.append(el("span", "muted", "AI: " + (best.name || niceName(best.species)) + " " + Number(best.confidence).toFixed(0) + "%"));
+    fig.tabIndex = 0; fig.title = "Show the whole photo";
+    fig.onclick = function (e) { e.stopPropagation(); openViewer(r, key, it.step_name); };
+    fig.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); openViewer(r, key, it.step_name); } };
+    box.append(fig);
+  });
+  return box;
+}
+function flagFor(r) {
+  if (needsAction(r)) return el("span", "flag infested", "Infested tree: take action");
+  if (r.kind === "nothing") return el("span", "flag nothing", "Nothing found");
+  if (r.kind === "check") return el("span", "flag check", "Detect report");
+  return el("span", "flag", isTree(r) ? "Tree check" : "Invasive");
+}
 
 function hero(r) {
   var card = el("article", "hero" + (needsAction(r) ? " infested" : "")), img = el("img"), info = el("div", "info");
   img.alt = "Photo of the reported " + r.name; photo(img, r.id);
-  info.append(needsAction(r) ? el("span", "flag infested", "Infested tree: take action") : el("span", "flag", isTree(r) ? "Tree check" : "Invasive"),
-    el("p", "species", r.name || niceName(r.species)));
+  info.append(flagFor(r), el("p", "species", r.name || niceName(r.species)));
   if (needsAction(r)) info.append(el("span", "action", "The AI found " + (r.pest || "pest") + " damage. This tree needs action soon."));
   else if (isTree(r) && r.pest) info.append(el("span", "sci", "Looking for signs of the " + r.pest));
   else if (r.scientific && r.scientific !== r.name) info.append(el("span", "sci", r.scientific));
   var w = when(r.timestamp), facts = el("dl", "facts");
-  [["Reported", w.ago + " · " + w.full], isTree(r) ? ["Signs seen", r.signs_text || "none"] : ["Confidence", Number(r.confidence).toFixed(1) + "%"], ["Model", r.model || "—"], ["Report", r.id]]
+  [["Reported", w.ago + " · " + w.full], isCheck(r) ? ["Found", r.found_text || "nothing"] : isTree(r) ? ["Signs seen", r.signs_text || "none"] : ["Confidence", Number(r.confidence).toFixed(1) + "%"],
+    ["Team spot", r.spot ? r.spot.lat + ", " + r.spot.lon + " (about 75 m)" : "none"], ["Model", r.model || "—"], ["Report", r.id]]
     .forEach(function (kv) { facts.append(el("dt", null, kv[0]), el("dd", null, kv[1])); });
   var dd = el("dd"); dd.append(aiSpan(r.id));
   facts.append(el("dt", null, "AI check"), dd);
   info.append(facts);
-  if (Array.isArray(r.top3) && r.top3.length) {
+  if (isCheck(r)) info.append(el("span", "eyebrow", "All photos (tap one to see it big)"), strip(r));
+  if (!isCheck(r) && Array.isArray(r.top3) && r.top3.length) {
     info.append(el("span", "eyebrow", isTree(r) ? "Bug model's guesses (only useful if a bug is in the photo)" : "Model's top guesses"));
     var alts = el("div", "alts");
     r.top3.forEach(function (a) {
@@ -767,6 +933,7 @@ function row(r) {
   img.alt = ""; img.loading = "lazy"; photo(img, r.id);
   what.append(el("strong", null, r.name || niceName(r.species)), ...(needsAction(r) ? [el("span", "infested-tag", "⚠ Take action · ")] : []),
     el("span", "muted", detail(r) + " · "), aiSpan(r.id), checkBar(r));
+  if (isCheck(r)) what.append(strip(r));
   x.append(img, what, el("span", "when", when(r.timestamp).full));
   x.tabIndex = 0; x.setAttribute("role", "button"); x.title = "Show the whole photo";
   x.onclick = function () { openViewer(r); };
@@ -807,6 +974,7 @@ async function refresh() {
       $("tallySection").hidden = !list.length;
       aiScan(list);
     }
+    refreshNothing();
     status.className = "status";
     status.textContent = data.total + " report" + (data.total === 1 ? "" : "s") + " · checked " +
       new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " · refreshes every 15 seconds";
@@ -816,12 +984,28 @@ async function refresh() {
   }
 }
 
+// "Nothing found" Detect reports: their own private list, under the others
+var nothingIds = "";
+async function refreshNothing() {
+  try {
+    var res = await api("nothing");
+    if (!res.ok) return;
+    var data = await res.json(), list = data.reports || [], ids = list.map(function (r) { return r.id; }).join();
+    if (ids === nothingIds) return;
+    nothingIds = ids;
+    var box = $("nothing"); box.innerHTML = "";
+    list.forEach(function (r) { box.append(row(r)); });
+    $("nothingSection").hidden = !list.length;
+  } catch (e) {}   // try again on the next refresh
+}
+
 function showLogin(msg) {
   clearInterval(timer); timer = null;
   try { localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); } catch (e) {}
   password = null; shownIds = "";
-  ["latest", "earlier", "tally"].forEach(function (id) { $(id).innerHTML = ""; });
-  $("earlierSection").hidden = $("tallySection").hidden = $("logoutBox").hidden = $("aiBox").hidden = $("actionBanner").hidden = true;
+  ["latest", "earlier", "tally", "nothing"].forEach(function (id) { $(id).innerHTML = ""; });
+  nothingIds = "";
+  $("nothingSection").hidden = $("earlierSection").hidden = $("tallySection").hidden = $("logoutBox").hidden = $("aiBox").hidden = $("actionBanner").hidden = true;
   $("login").hidden = false; $("loginMsg").textContent = msg || "";
   $("status").className = "status"; $("status").textContent = "Password needed";
   $("pw").focus();
@@ -841,15 +1025,16 @@ $("login").onsubmit = function (e) {
 $("logout").onclick = function () { showLogin(""); };
 document.addEventListener("visibilitychange", function () { if (!document.hidden && timer) refresh(); });
 
-// Full, uncropped photo with the report's details; click anywhere or press Esc to close
+// Full, uncropped photo with the report's details; click anywhere or press Esc to close.
+// key and label: one photo of a Detect report (else its first photo)
 var viewerReturn = null;
-function openViewer(r) {
+function openViewer(r, key, label) {
   viewerReturn = document.activeElement;
   var img = $("viewerImg");
   img.removeAttribute("src"); img.alt = "Photo of the reported " + (r.name || niceName(r.species));
-  photo(img, r.id);
+  photo(img, key || r.id);
   var cap = $("viewerCaption"); cap.innerHTML = "";
-  cap.append(el("strong", null, r.name || niceName(r.species)));
+  cap.append(el("strong", null, (r.name || niceName(r.species)) + (label ? " · " + label : "")));
   if (!isTree(r) && r.scientific && r.scientific !== r.name) cap.append(el("em", null, r.scientific));
   var w = when(r.timestamp);
   cap.append(el("span", null, detail(r) + " · " + w.full + " · " + (r.model || "")));

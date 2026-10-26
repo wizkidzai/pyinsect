@@ -23,13 +23,14 @@ Kids in elementary and middle school. Please:
 
 | File or folder | What it does |
 |---|---|
-| `index.html` | The main page |
-| `assets/app.js` | The main code: picks photos, runs the model, shows results |
+| `index.html` | The main page: splash, permissions, Home, Detect, Game, and Map screens |
+| `assets/app.js` | The AI and report code: camera, photos, runs the model, sends reports |
+| `assets/flow.js` | The screens and menu bar: splash, permissions, home, the 3 Detect steps, and the results pop-up |
+| `assets/reportsmap.js` | The Map screen: our numbers and the reports map |
 | `assets/site.css` | Colors, fonts, and layout |
 | `assets/species.js` | Common names for each insect |
 | `assets/models/` | Settings for each model version, like the invasive list |
-| `assets/trees/` | Settings for the tree check: the questions, pictures, and words for each tree |
-| `assets/treecheck.js` | Shows the tree check questions, using the files in `assets/trees/` |
+| `assets/trees/` | Settings for each tree: the Detect step words and photos (with credits), and the damage signs |
 | `model/` | The trained AI models (`.onnx` files) |
 | `relay/worker.js` | Runs on Cloudflare and saves reports |
 | `scripts/check.js` | Checks for mistakes. Run `node scripts/check.js` before sharing work |

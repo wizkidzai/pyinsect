@@ -4,15 +4,16 @@ const RELAY_URL = "https://pyinsect-relay.pandadifferent246.workers.dev";
 
 const niceName = s => s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
 
-// Sends one report to the relay (relay/worker.js), which saves it to reports/ in the repo
-async function relaySend(report, photo) {
+// Sends one report to the relay (relay/worker.js), which saves it to reports/ in the repo.
+// photo = one photo (base64 JPEG), or photos = a list of them (Detect reports).
+async function relaySend(report, photo, photos) {
   if (!RELAY_URL) throw new Error("Reporting isn't set up yet (RELAY_URL in assets/reports.js).");
   let res;
   try {
     res = await fetch(RELAY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ report, photo }),
+      body: JSON.stringify(photos ? { report, photos } : { report, photo }),
     });
   } catch {
     throw new Error("Couldn't reach the report server. It will be sent later.");

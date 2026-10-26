@@ -488,7 +488,7 @@ function encounter(species, photo) {
     renderGame();
 
     await new Promise(r => { popupDone = r; openPopup([el("h2", null, `Gotcha! +${pts} points`), ...extra, factCard(species, g.caught[species])],
-      [["Open Innvadex", true, () => { showTab("dex"); $("game").scrollIntoView({ behavior: "smooth" }); }], ["Keep playing", false]]); });
+      [["Open Innvadex", true, () => { showTab("dex"); if (window.flow) window.flow.go("game"); else $("game").scrollIntoView({ behavior: "smooth" }); }], ["Keep playing", false]]); });
   });
 }
 
@@ -824,6 +824,9 @@ $("mapToggle").onchange = e => {
 $("howToPlay").onclick = showInstructions;
 $("gamePopup").addEventListener("keydown", e => { if (e.key === "Escape") { e.stopPropagation(); closePopup(); } });
 renderGame();
-if (!loadGame().seenHowTo) { const g = loadGame(); g.seenHowTo = true; saveGame(g); showInstructions(); }
+// "How to play", the first time only. With the app screens (assets/flow.js) it waits until they open
+// the Game screen, so it doesn't cover the home screen.
+function firstHowTo() { if (!loadGame().seenHowTo) { const g = loadGame(); g.seenHowTo = true; saveGame(g); showInstructions(); } }
+if (!$("screen-game")) firstHowTo();
 
-window.Innvadex = { encounter, native, fakePhoto };
+window.Innvadex = { encounter, native, fakePhoto, firstHowTo, closePopup };

@@ -21,10 +21,15 @@ function setStatus(text, kind) {
   $("statusText").textContent = text;
   $("status").className = "status" + (kind ? " " + kind : "");
 }
-document.querySelector(".eyebrow").textContent = `${MODEL_NAME} · ${CLASS_NAMES.length} insect classes`;
+const eyebrow = document.querySelector(".eyebrow");
+if (eyebrow) eyebrow.textContent = `${MODEL_NAME} · ${CLASS_NAMES.length} insect classes`;
 const readyText = () => `${MODEL_NAME} ready · ${CLASS_NAMES.length} classes`;
 
 // ---------- model ----------
+// modelReady: done when the AI is ready (assets/flow.js waits for it before checking photos)
+let modelLoaded;
+const modelReady = new Promise((ok, bad) => { modelLoaded = { ok, bad }; });
+modelReady.catch(() => {});   // pages that never wait for it shouldn't log an error twice
 async function loadModel() {
   try {
     if (typeof ort === "undefined") throw new Error("the onnxruntime script did not load. Check your internet connection.");
@@ -33,10 +38,12 @@ async function loadModel() {
     setStatus("Starting model…", "busy");
     session = await ort.InferenceSession.create(buf, { executionProviders: ["wasm"] });
     setStatus(readyText(), "ready");
-    $("pickPhotos").disabled = false; if ($("pickFolder")) $("pickFolder").disabled = false; $("openCamera").disabled = false;
+    for (const id of ["pickPhotos", "pickFolder", "openCamera"]) if ($(id)) $(id).disabled = false;
+    modelLoaded.ok();
   } catch (e) {
     console.error(e);
     setStatus(`Model failed to load: ${e.message}`, "error");
+    modelLoaded.bad(e);
   }
 }
 
@@ -172,7 +179,7 @@ function showReportState() {
   const st = $("reportState");
   $("retryReports").hidden = !pending || !RELAY_URL;
   if (!RELAY_URL) { st.textContent = "off. The report server isn't set up yet."; st.className = "state warn"; return; }
-  st.textContent = pending ? `on · ${pending} report(s) waiting to send` : "on · invasive finds are reported automatically";
+  st.textContent = pending ? `on · ${pending} report(s) waiting to send` : "on · reports are sent automatically";
   st.className = pending ? "state warn" : "state on";
 }
 
@@ -210,7 +217,7 @@ function buildReport(bmp, species, confidence, top3) {
   };
 }
 
-// A photo from the tree check (assets/treecheck.js). tree = { id, signs, name, signsText }.
+// A photo from the old tree check (pages before the Detect steps). tree = { id, signs, name, signsText }.
 // The relay makes its own name from the tree and signs; ours is only for this device.
 function buildTreeReport(bmp, tree, top3, infested) {
   const { id, timestamp } = reportIdAndTime();
@@ -255,20 +262,22 @@ function sendPending() {
     for (;;) {
       const list = store.get(PENDING_KEY, []);
       if (!list.length || !RELAY_URL) break;
-      const { report, photo } = list[0];
+      const { report, photo, photos } = list[0];
       try {
-        await relaySend(report, photo);
+        await relaySend(report, photo, photos);
         dropPending(report.id);
         sent++;
         markReport(report.id, "Reported", "sent ok");
         updateMine(report.id, { level: "unchecked" });
       } catch (e) {
-        if (e.rejected) {   // would fail forever; drop it so later reports still go out
+        // A Detect report sent before the relay was updated (version 15): keep it until the relay knows it
+        const relayTooOld = report.kind === "check" && /Unknown kind/.test(e.message);
+        if (e.rejected && !relayTooOld) {   // would fail forever; drop it so later reports still go out
           dropPending(report.id);
           markReport(report.id, `Not reported: ${e.message}`, "sent bad");
           continue;
         }
-        error = e.message;
+        error = relayTooOld ? "the report server needs an update. It will be sent after that." : e.message;
         markReport(report.id, `Waiting to send: ${error}`, "sent bad");
         break;
       }
@@ -280,26 +289,30 @@ function sendPending() {
 }
 
 // ---------- rough area ----------
-// Reports can carry a rough area for the reports map: the middle of a grid square about 1 km wide.
-// The exact spot never leaves the phone. The relay rounds it to the same grid again (roughArea in
-// relay/worker.js must stay the same as this).
-const AREA_KEY = "pyinsect.shareArea", AREA_DEG = 0.01;   // 0.01° of latitude ≈ 1.1 km
-function roughArea(lat, lon) {
-  const row = Math.floor(lat / AREA_DEG), rowLat = (row + 0.5) * AREA_DEG;
-  const lonStep = AREA_DEG / Math.max(0.2, Math.cos(rowLat * Math.PI / 180));   // squares stay ~1 km wide
+// Reports can carry a rounded spot: the middle of a grid square about 75 m wide (teamSpot). Only our
+// team sees that. The public map rounds it again, to a square about 200 m wide (roughArea), so a
+// stranger can't find anyone's house. The exact spot never leaves the phone. The relay rounds it to
+// the same grids again (snapToGrid, AREA_DEG and SPOT_DEG in relay/worker.js must stay the same).
+const AREA_KEY = "pyinsect.shareArea";
+const AREA_DEG = 0.0018, SPOT_DEG = 0.0007;   // 0.0018° of latitude ≈ 200 m, 0.0007° ≈ 78 m
+function snapToGrid(lat, lon, deg) {
+  const row = Math.floor(lat / deg), rowLat = (row + 0.5) * deg;
+  const lonStep = deg / Math.max(0.2, Math.cos(rowLat * Math.PI / 180));   // squares stay square
   const col = Math.floor(lon / lonStep);
-  return { lat: +rowLat.toFixed(4), lon: +((col + 0.5) * lonStep).toFixed(4) };
+  return { lat: +rowLat.toFixed(5), lon: +((col + 0.5) * lonStep).toFixed(5) };
 }
+const roughArea = (lat, lon) => snapToGrid(lat, lon, AREA_DEG);   // public map (~200 m)
+const teamSpot = (lat, lon) => snapToGrid(lat, lon, SPOT_DEG);    // team only (~75 m)
 // Ticked unless they unticked it. Pages without the checkbox (like 2.7/) never send an area.
 const shareArea = () => !!document.querySelector(".area-box") && store.get(AREA_KEY, true);
 let areaCache = null;   // { area, at }: one location ask is reused for 10 minutes
 
-// The rough area, or null (box unticked, location blocked, or no answer within 10 seconds)
+// The team spot (~75 m), or null (box unticked, location blocked, or no answer within 10 seconds)
 function getArea() {
   if (!shareArea() || !navigator.geolocation) return Promise.resolve(null);
   if (areaCache && Date.now() - areaCache.at < 600000) return Promise.resolve(areaCache.area);
   return new Promise(resolve => navigator.geolocation.getCurrentPosition(
-    pos => { areaCache = { area: roughArea(pos.coords.latitude, pos.coords.longitude), at: Date.now() }; resolve(areaCache.area); },
+    pos => { areaCache = { area: teamSpot(pos.coords.latitude, pos.coords.longitude), at: Date.now() }; resolve(areaCache.area); },
     () => resolve(null),
     { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 }));
 }
@@ -322,15 +335,22 @@ async function fileReport(r, card, detail) {
   if (!RELAY_URL) { line.textContent = "Not reported: the report server isn't set up yet."; return; }
   line.textContent = shareArea() ? "Adding your rough area…" : "Sending report…";
   const area = await getArea();
-  if (area) r.report.area = area;
-  card.querySelector(".info").append(el("span", "area-line", area ? "📍 Rough area added (about 1 km)" : "📍 Sent without an area, so it won't show on the map"));
+  if (area) r.report.spot = area;
+  card.querySelector(".info").append(el("span", "area-line", area ? "📍 Rough area added (about 200 m on the map)" : "📍 Sent without an area, so it won't show on the map"));
   line.dataset.report = r.report.id;
   line.textContent = "Sending report…";
+  queueReport(r, detail);
+}
+
+// Adds a report to "Your reports" and the waiting list, then sends it. r = { report, photo } or
+// { report, photos } (a Detect report from assets/flow.js). Returns false if the phone had no room.
+function queueReport(r, detail) {
   addMine(r, detail);
   const list = store.get(PENDING_KEY, []);
   list.push(r);
-  if (!store.set(PENDING_KEY, list)) { markReport(r.report.id, "Not reported: this browser's storage is full.", "sent bad"); return; }
+  if (!store.set(PENDING_KEY, list)) { markReport(r.report.id, "Not reported: this browser's storage is full.", "sent bad"); return false; }
   sendPending();
+  return true;
 }
 
 // ---------- blur check ----------
@@ -410,13 +430,16 @@ function smallPhoto(base64) {
 
 // detail = the small line under the name, like "Agrilus planipennis · 91.2%" or the signs seen
 // Added right away (so its "Reported" status can't get lost); the small photo follows a moment later
-function addMine({ report, photo }, detail) {
+function addMine({ report, photo, photos }, detail) {
   const list = mine.get().filter(m => m.id !== report.id);
+  // The map shows this phone's reports in the public ~200 m square, like everyone else's
+  const area = report.spot ? roughArea(report.spot.lat, report.spot.lon) : report.area || null;
   list.unshift({ id: report.id, name: report.name, detail: detail || mineDetail(report), kind: report.kind || "invasive",
-    area: report.area || null, timestamp: report.timestamp, model: report.model, photo: null, status: "Sending report…", ok: false });
+    area, timestamp: report.timestamp, model: report.model, photo: null, status: "Sending report…", ok: false });
   mine.set(list.slice(0, MINE_MAX));
   renderMine();
-  if (photo) smallPhoto(photo).then(small => { if (small) updateMine(report.id, { photo: small }); });
+  const first = photo || photos?.[0];
+  if (first) smallPhoto(first).then(small => { if (small) updateMine(report.id, { photo: small }); });
 }
 
 function updateMine(id, change) {
@@ -580,6 +603,25 @@ function fillUnsureCard(card, top3, verdict) {
   return false;
 }
 
+// Runs the AI on one photo: the top 3 guesses (confidence in %) and the verdict (see verdictFor).
+// sim is null when there's no fingerprint check.
+async function identify(file) {
+  // The model gets the photo's raw colours, like Pillow in training and in the executor. Browsers
+  // otherwise convert photos with a colour profile (like iPhone "Display P3") first, which changes
+  // the answer. The report photo keeps the normal colours.
+  const raw = await createImageBitmap(file, { colorSpaceConversion: "none" });
+  // Small photos go to the low-res model (when this model has one), like the Oregon executor
+  const small = MODEL.lowres && Math.min(raw.width, raw.height) < MODEL.lowres.smallPx;
+  const s = small ? await getLowresSession() : session;
+  const out = await s.run({ [s.inputNames[0]]: preprocess(raw) });
+  raw.close?.();
+  const probs = softmax(Array.from((out.logits || out[s.outputNames[0]]).data));
+  const sim = !small && out.sim ? out.sim.data[0] : null;   // fingerprint check (main model only)
+  const top3 = [...probs.keys()].sort((a, b) => probs[b] - probs[a]).slice(0, 3)
+    .map(i => ({ species: CLASS_NAMES[i] ?? `idx_${i}`, confidence: probs[i] * 100 }));
+  return { top3, sim, verdict: verdictFor(top3[0], sim) };
+}
+
 function classify(file) {
   total++;
   $("count").textContent = `${total} photo${total === 1 ? "" : "s"}`;
@@ -587,27 +629,14 @@ function classify(file) {
   queue = queue.then(async () => {
     try {
       setStatus(`Analysing ${file.name}…`, "busy");
-      const bmp = await createImageBitmap(file);
-      // The model gets the photo's raw colours, like Pillow in training and in the executor. Browsers
-      // otherwise convert photos with a colour profile (like iPhone "Display P3") first, which changes
-      // the answer. The report photo (bmp) keeps the normal colours.
-      const raw = await createImageBitmap(file, { colorSpaceConversion: "none" });
-      // Small photos go to the low-res model (when this model has one), like the Oregon executor
-      const small = MODEL.lowres && Math.min(raw.width, raw.height) < MODEL.lowres.smallPx;
-      const s = small ? await getLowresSession() : session;
-      const out = await s.run({ [s.inputNames[0]]: preprocess(raw) });
-      raw.close?.();
-      const probs = softmax(Array.from((out.logits || out[s.outputNames[0]]).data));
-      const sim = !small && out.sim ? out.sim.data[0] : null;   // fingerprint check (main model only)
-      const top3 = [...probs.keys()].sort((a, b) => probs[b] - probs[a]).slice(0, 3)
-        .map(i => ({ species: CLASS_NAMES[i] ?? `idx_${i}`, confidence: probs[i] * 100 }));
+      const bmp = await createImageBitmap(file);   // for the report photo (normal colours)
+      const { top3, sim, verdict } = await identify(file);
       if (file.tree) {
         await treePhoto(file, bmp, top3, card, sim);
         bmp.close?.();
         setStatus(readyText(), "ready");
         return;
       }
-      const verdict = verdictFor(top3[0], sim);
       const invasive = fillCard(card, top3, verdict);
       const infested = verdict === "ok" ? damagedTree(top3[0].species) : null;   // tree damage: not a bug, but a tree that needs action
       window.teamAI?.check(file, card);   // team AI check switch (assets/teamai.js)
@@ -669,16 +698,20 @@ async function treePhoto(file, bmp, top3, card, sim) {
 // While the tree check is waiting for its photo, new photos belong to it
 const tagForTree = file => { if (window.treeCheck?.pending) file.tree = window.treeCheck.pending; return file; };
 
+// Where a finished photo goes: the Detect steps (assets/flow.js sets window.photoHandler), or the
+// results cards (checked right away).
+const deliver = file => window.photoHandler ? window.photoHandler(file) : classify(file);
+
 // source = where the photos came from ("pick", "drop", "capture" = the phone's camera app).
 // One photo goes to the crop step first; many photos are checked straight away.
 function handleFiles(list, source) {
-  if (!session) return;
+  if (!session && !window.photoHandler) return;   // the Detect steps only need the AI at the end
   const files = [...list].filter(f => EXT.test(f.name)).sort((a, b) =>
     (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name));
   if (!files.length) { setStatus("No supported images found (jpg, png, bmp, webp).", "error"); return; }
   files.forEach(tagForTree);
   if (files.length === 1) showCrop(files[0], source);
-  else files.forEach(classify);
+  else files.forEach(deliver);
 }
 
 // ---------- camera ----------
@@ -903,8 +936,8 @@ let cropFile = null, cropSource = "", box = null, minBox = null;   // box and mi
 
 function showCrop(file, source) {
   if (!$("crop")) {   // pages without the crop step (like 2.7/): check it right away, as before
-    classify(file);
-    if (source === "camera") $("cards").scrollIntoView({ behavior: "smooth", block: "start" });
+    deliver(file);
+    if (source === "camera") $("cards")?.scrollIntoView({ behavior: "smooth", block: "start" });
     return;
   }
   cropFile = file; cropSource = source;
@@ -917,7 +950,7 @@ function showCrop(file, source) {
     $("checkIt").disabled = false;
     $("checkIt").focus({ preventScroll: true });
   };
-  img.onerror = () => { hideCrop(); classify(file); };   // classify shows "Couldn't read this image"
+  img.onerror = () => { hideCrop(); deliver(file); };   // classify shows "Couldn't read this image"
   img.src = URL.createObjectURL(file);
   $("cropRetake").textContent = source === "camera" || source === "capture" ? "Retake" : "Choose another";
   $("crop").hidden = false;
@@ -948,8 +981,8 @@ async function checkCrop() {
   const file = cropFile, b = box;
   if (!file) return;
   hideCrop();
-  $("cards").scrollIntoView({ behavior: "smooth", block: "start" });
-  if (b.w > 0.999 && b.h > 0.999) { classify(file); return; }   // box untouched: the whole photo
+  $("cards")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (b.w > 0.999 && b.h > 0.999) { deliver(file); return; }   // box untouched: the whole photo
   try {
     const bmp = await createImageBitmap(file);
     const sx = Math.round(b.x * bmp.width), sy = Math.round(b.y * bmp.height);
@@ -964,10 +997,10 @@ async function checkCrop() {
     zoomed.fromCamera = file.fromCamera;
     zoomed.tree = file.tree;
     zoomed.original = file;   // the AI-photo check reads labels that only the original file has
-    classify(zoomed);
+    deliver(zoomed);
   } catch (e) {
     console.error(e);
-    classify(file);   // zooming failed: check the whole photo instead
+    deliver(file);   // zooming failed: use the whole photo instead
   }
 }
 
@@ -1036,7 +1069,7 @@ if ($("crop")) {
   });
 }
 
-$("openCamera").onclick = openCamera;
+if ($("openCamera")) $("openCamera").onclick = openCamera;
 $("closeCamera").onclick = closeCamera;
 $("shutter").onclick = takePhoto;
 $("switchCamera").onclick = () => { facing = facing === "environment" ? "user" : "environment"; startCamera(); };
@@ -1049,16 +1082,18 @@ document.addEventListener("visibilitychange", () => {
 });
 
 // ---------- wiring ----------
-$("pickPhotos").onclick = () => $("photoInput").click();
+if ($("pickPhotos")) $("pickPhotos").onclick = () => $("photoInput").click();
 $("photoInput").onchange = e => { handleFiles(e.target.files, "pick"); e.target.value = ""; };
 if ($("pickFolder")) {  // only on pages that have the folder button
   $("pickFolder").onclick = () => $("folderInput").click();
   $("folderInput").onchange = e => { handleFiles(e.target.files, "pick"); e.target.value = ""; };
 }
 const tray = $("tray");
-["dragenter", "dragover"].forEach(t => tray.addEventListener(t, e => { e.preventDefault(); tray.classList.add("drag"); }));
-["dragleave", "drop"].forEach(t => tray.addEventListener(t, e => { e.preventDefault(); tray.classList.remove("drag"); }));
-tray.addEventListener("drop", e => handleFiles(e.dataTransfer.files, "drop"));
+if (tray) {   // pages with the drop-photos box
+  ["dragenter", "dragover"].forEach(t => tray.addEventListener(t, e => { e.preventDefault(); tray.classList.add("drag"); }));
+  ["dragleave", "drop"].forEach(t => tray.addEventListener(t, e => { e.preventDefault(); tray.classList.remove("drag"); }));
+  tray.addEventListener("drop", e => handleFiles(e.dataTransfer.files, "drop"));
+}
 
 $("retryReports").onclick = () => sendPending();
 window.addEventListener("online", () => sendPending());

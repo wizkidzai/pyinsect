@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pyinsect</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -10,174 +10,258 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=20261024b">
+<link rel="stylesheet" href="assets/site.css?v=20261025a">
 </head>
-<body>
-<div class="wrap">
-  <header>
-    <nav><span class="muted">Pyinsect 2.8 Oregon</span><a href="2.7/">Pyinsect 2.7</a></nav>
-    <span class="eyebrow">Pyinsect</span>
-    <h1>Invasive Species Classifier</h1>
-    <span id="status" class="status busy"><span class="dot"></span><span id="statusText">Loading model…</span></span>
-  </header>
+<body class="app">
+<!-- The screens: splash and permissions (first visit only), then Home, Detect, Game and Map.
+     assets/flow.js shows one at a time and runs the menu bar at the bottom. -->
 
-  <div id="choices" class="choices">
-  <section id="tray" class="tray" aria-labelledby="trayTitle">
-    <h2 id="trayTitle">📷 Report a bug or damage</h2>
-    <p>Take a photo of an insect, drop photos here, or choose photos. Photos are identified on this device. When a photo shows an invasive species, a report with a reduced copy of the photo is sent to the Pyinsect team.</p>
-    <div class="actions">
-      <button id="openCamera" class="btn primary" type="button" disabled>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3Z"/><circle cx="12" cy="13" r="3.5"/></svg>
-        Take photo
-      </button>
-      <button id="pickPhotos" class="btn" type="button" disabled>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>
-        Select photos
-      </button>
+<!-- ===== First visit: splash screen ===== -->
+<section id="splash" class="onboard" aria-labelledby="splashTitle" hidden>
+  <div class="onboard-card">
+    <div class="brand"><img src="assets/favicon.svg" alt="" width="56" height="56"><h1 id="splashTitle">Pyinsect</h1></div>
+    <p class="tagline">Help protect Oregon's ash trees from the emerald ash borer.</p>
+    <div class="intro-box">
+      <img src="assets/trees/eab-on-bark.jpg" alt="A shiny green emerald ash borer on tree bark">
+      <div><h2>🔍 Report</h2><p>Spot the emerald ash borer or its damage, and help the experts find it.</p></div>
     </div>
-    <input id="photoInput" type="file" accept=".jpg,.jpeg,.png,.bmp,.webp,image/*" multiple>
-    <input id="captureInput" type="file" accept="image/*" capture="environment">
-  </section>
-
-  <!-- Filled in from the tree settings (assets/trees/*.js) by assets/treecheck.js -->
-  <section id="treeStart" class="tray" aria-labelledby="treeStartTitle" hidden>
-    <h2 id="treeStartTitle"></h2>
-    <p id="treeStartText"></p>
-    <div class="actions">
-      <button id="startTreeCheck" class="btn primary" type="button">Start</button>
+    <div class="intro-box">
+      <span class="intro-icon" aria-hidden="true">🎮</span>
+      <div><h2>Games</h2><p>Play and learn about invasive species.</p></div>
     </div>
-  </section>
+    <button id="splashNext" class="btn primary big" type="button">Continue</button>
   </div>
+</section>
 
-  <section id="treeCheck" class="tree-check" aria-label="Tree check" hidden>
-    <div id="treeStep" class="tree-step"></div>
-    <div class="tree-nav">
-      <button id="treeBack" class="btn" type="button">Back</button>
-      <button id="treeStartOver" class="btn" type="button" hidden>Start over</button>
-      <button id="treeClose" class="btn" type="button">Close</button>
+<!-- ===== First visit: permissions ===== -->
+<section id="perms" class="onboard" aria-labelledby="permsTitle" hidden>
+  <div class="onboard-card">
+    <h1 id="permsTitle">Two quick questions</h1>
+    <div class="intro-box">
+      <span class="intro-icon" aria-hidden="true">📷</span>
+      <div><h2>Camera</h2><p>Pyinsect uses the camera to detect invasive species.</p></div>
     </div>
-  </section>
+    <div class="intro-box">
+      <span class="intro-icon" aria-hidden="true">🗺️</span>
+      <div><h2>Location</h2><p>Pyinsect uses your location to map invasive species reports. The map only shows a rough area, never your exact spot.</p></div>
+    </div>
+    <p class="hint">When you tap Continue, your browser will ask. You can say yes or no.</p>
+    <p id="permsMsg" class="perms-msg" role="status" hidden></p>
+    <button id="permsNext" class="btn primary big" type="button">Continue</button>
+  </div>
+</section>
 
-  <section id="camera" class="camera" aria-label="Camera" hidden>
-    <div class="viewfinder">
-      <video id="cameraVideo" playsinline muted autoplay></video>
-      <div id="cameraFlash" class="flash"></div>
-      <div id="focusRing" class="focus-ring" hidden></div>
-      <p id="cameraMsg" class="camera-msg" hidden></p>
-    </div>
-    <div id="zoomBar" class="zoom-bar" hidden>
-      <label for="zoom">Zoom</label>
-      <input id="zoom" type="range" min="1" max="4" step="0.1" value="1">
-      <output id="zoomValue" for="zoom">1×</output>
-    </div>
-    <label class="area-toggle"><input class="area-box" type="checkbox" checked> 📍 Add my rough area to my report (about 1 km)</label>
-    <div class="camera-bar">
-      <button id="closeCamera" class="btn" type="button">Close</button>
-      <button id="shutter" class="shutter" type="button" aria-label="Take photo" disabled></button>
-      <button id="switchCamera" class="btn" type="button" hidden>Switch camera</button>
-      <button id="useCameraApp" class="btn" type="button" hidden>Use camera app</button>
-    </div>
-  </section>
+<header class="topbar">
+  <a class="brand small" href="#home"><img src="assets/favicon.svg" alt="" width="28" height="28"><span>Pyinsect</span></a>
+  <span id="status" class="status busy"><span class="dot"></span><span id="statusText">Loading the AI…</span></span>
+</header>
 
-  <section id="crop" class="crop" aria-label="Zoom in on the bug" hidden>
-    <p class="hint">Drag the box or its corners (or pinch) around the bug or damage. Or just tap <strong>Check it</strong> to check the whole photo.</p>
-    <div id="cropStage" class="crop-stage">
-      <img id="cropImg" alt="Your photo">
-      <div id="cropBox" class="crop-box" tabindex="0" role="group" aria-label="Zoom box. Arrow keys move it. Plus and minus make it bigger or smaller.">
-        <span class="handle" data-edge="nw"></span><span class="handle" data-edge="ne"></span>
-        <span class="handle" data-edge="sw"></span><span class="handle" data-edge="se"></span>
+<main id="screens">
+  <!-- ===== Home ===== -->
+  <section id="screen-home" class="screen" aria-label="Home" hidden>
+    <div class="home-hero">
+      <div class="parallax" aria-hidden="true"></div>
+      <div class="hero-text">
+        <span class="kicker">Oregon needs your eyes</span>
+        <h1>Help save Oregon's ash trees</h1>
+        <button class="btn primary big" type="button" data-go="detect">🔍 Check a tree</button>
       </div>
     </div>
-    <label class="area-toggle"><input class="area-box" type="checkbox" checked> 📍 Add my rough area to my report (about 1 km)</label>
-    <div class="crop-bar">
-      <button id="cropCancel" class="btn" type="button">Cancel</button>
-      <button id="cropRetake" class="btn" type="button">Retake</button>
-      <button id="cropWhole" class="btn" type="button">Whole photo</button>
-      <button id="checkIt" class="btn primary" type="button" disabled>Check it</button>
-    </div>
+
+    <section class="panel what-eab" aria-labelledby="whatTitle">
+      <div>
+        <h2 id="whatTitle">What is the emerald ash borer?</h2>
+        <p>A small, shiny green beetle from Asia. Its young (larvae) eat the inside of ash trees, and an infested tree dies in 3 to 5 years. It was first found in Oregon in 2022, in Forest Grove.</p>
+      </div>
+      <img src="assets/trees/eab-on-leaf.jpg" alt="An emerald ash borer on a leaf">
+    </section>
+
+    <section class="stats" aria-label="Facts from the experts">
+      <div class="stat"><strong>100 million+</strong><span>ash trees killed in the eastern U.S. since 2002</span></div>
+      <div class="stat"><strong>3–5 years</strong><span>for an infested tree to die</span></div>
+      <div class="stat"><strong>2022</strong><span>first found in Oregon</span></div>
+      <div class="stat"><strong>#1</strong><span>way it spreads: moving firewood</span></div>
+    </section>
+    <p class="source">Facts from the <a href="https://www.oregon.gov/odf/Documents/forestbenefits/fact-sheet-emerald-ash-borer.pdf" target="_blank" rel="noopener">Oregon Department of Forestry</a>.</p>
+
+    <section class="pic-row" aria-label="The emerald ash borer and its damage">
+      <figure><img src="assets/trees/eab-wings-open.jpg" alt="An emerald ash borer with its wings open, showing a purple-red body" loading="lazy"><figcaption>The beetle</figcaption></figure>
+      <figure><img src="assets/trees/ash-exit-holes.jpg" alt="Small D-shaped holes in ash bark" loading="lazy"><figcaption>D-shaped holes</figcaption></figure>
+      <figure><img src="assets/trees/ash-dead.jpg" alt="A tall ash tree with no leaves, killed by the emerald ash borer" loading="lazy"><figcaption>A killed ash tree</figcaption></figure>
+    </section>
+
+    <section class="panel nearby" aria-labelledby="nearbyTitle">
+      <h2 id="nearbyTitle">📍 Is EAB near you?</h2>
+      <p id="nearbyText">See if the emerald ash borer has been found in your county.</p>
+      <button id="nearbyBtn" class="btn" type="button">Check my area</button>
+    </section>
+
+    <section class="todo" aria-labelledby="todoTitle">
+      <h2 id="todoTitle">What you can do</h2>
+      <div class="todo-grid">
+        <div class="todo-card"><img src="assets/trees/firewood.jpg" alt="A big pile of split firewood" loading="lazy"><p><strong>🪵 Don't move firewood.</strong> Buy it where you burn it.</p></div>
+        <div class="todo-card"><img src="assets/trees/ash-leaves.jpg" alt="An ash leaf made of 7 leaflets" loading="lazy"><p><strong>🌳 Learn to spot ash trees.</strong> Look for 5 to 11 leaflets on one stem.</p></div>
+        <div class="todo-card"><img src="assets/trees/ash-exit-hole-oregon.jpg" alt="A D-shaped hole in tree bark" loading="lazy"><p><strong>🔍 Check your ash trees</strong> for holes and tunnels.</p></div>
+        <button class="todo-card todo-go" type="button" data-go="detect"><img src="assets/trees/eab-top.jpg" alt="" loading="lazy"><p><strong>📷 Report it with Pyinsect.</strong> Take a few photos, and we'll do the rest. →</p></button>
+      </div>
+    </section>
+
+    <footer class="home-foot">
+      <details class="credits">
+        <summary>Photo credits</summary>
+        <ul>
+          <li>Emerald ash borer close-up (background): Sam Droege, USGS, public domain (<a href="https://commons.wikimedia.org/wiki/File:Emerald_Ash_Borer,_back,_maryland_2016-03-03-17.00.jpg" target="_blank" rel="noopener">photo</a>)</li>
+          <li>Beetle on bark, on a leaf, and with wings open: USDA APHIS, public domain</li>
+          <li>Beetle on a table: Shenandoah National Park, public domain</li>
+          <li>D-shaped holes: Daniel Herms, The Ohio State University, Bugwood.org, CC BY 3.0, made smaller (<a href="https://commons.wikimedia.org/wiki/File:Eabexithole.jpg" target="_blank" rel="noopener">photo</a>)</li>
+          <li>D-shaped hole in Oregon: Tom Brumbelow, U.S. Fish and Wildlife Service, public domain</li>
+          <li>Killed ash tree: Famartin, CC BY-SA 4.0, made smaller (<a href="https://commons.wikimedia.org/wiki/File:2020-07-25_10_32_02_Ash_tree_killed_by_Emerald_Ash_Borer_along_Ladybank_Lane_in_the_Chantilly_Highlands_section_of_Oak_Hill,_Fairfax_County,_Virginia.jpg" target="_blank" rel="noopener">photo</a>, <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">license</a>)</li>
+          <li>Firewood: U.S. Forest Service, Northern Region, public domain</li>
+          <li>Ash leaf: born1945, CC BY 2.0, made smaller (<a href="https://commons.wikimedia.org/wiki/File:Oregon_Ash,_Oregon_03.jpg" target="_blank" rel="noopener">photo</a>, <a href="https://creativecommons.org/licenses/by/2.0/" target="_blank" rel="noopener">license</a>)</li>
+        </ul>
+      </details>
+      <p class="muted">Older version: <a href="2.7/">Pyinsect 2.7</a> · <span class="eyebrow"></span></p>
+    </footer>
   </section>
 
-  <section class="ledger reports-map" id="reportsMapSection" aria-labelledby="reportsMapTitle">
-    <div class="ledger-head">
-      <h2 id="reportsMapTitle">🗺️ Reports map</h2>
-    </div>
-    <p class="hint">Invasive bugs and tree damage reported by everyone, in squares about 1 km wide. No photos and no exact spots are ever shown.</p>
+  <!-- ===== Detect: 3 steps, drawn by assets/flow.js from assets/trees/ash.js ===== -->
+  <section id="screen-detect" class="screen" aria-label="Detect" hidden>
+    <div id="detectStep" class="detect-step"></div>
+  </section>
+
+  <!-- ===== Game ===== -->
+  <section id="screen-game" class="screen" aria-label="Game" hidden>
+    <section class="game" id="game" aria-label="Innvadex game">
+      <div class="ledger-head">
+        <h2>Innvadex</h2>
+        <span class="game-score"><span id="gameRank" class="status"></span> <span id="gamePoints" class="status">0 points</span> <span id="gameCoins" class="status"></span> <span id="gameProgress" class="status"></span> <span id="gameProtector" class="status"></span></span>
+      </div>
+      <div id="daily" class="daily"><span class="daily-label">📅 Today's challenge</span> <strong id="dailyText"></strong> <span id="dailyState" class="daily-state"></span></div>
+      <div class="game-bar">
+        <div class="game-tabs" role="tablist">
+          <button class="tab" type="button" role="tab" data-tab="dex" aria-selected="true">My Innvadex</button>
+          <button class="tab" type="button" role="tab" data-tab="badges" aria-selected="false">Badges</button>
+          <button class="tab" type="button" role="tab" data-tab="battle" aria-selected="false">Battle</button>
+          <button class="tab" type="button" role="tab" data-tab="quiz" aria-selected="false">Quiz</button>
+          <button class="tab" type="button" role="tab" data-tab="shop" aria-selected="false">Shop</button>
+          <button class="tab" type="button" role="tab" data-tab="map" aria-selected="false">Map</button>
+          <button class="tab" type="button" role="tab" data-tab="learn" aria-selected="false">Learn about species</button>
+        </div>
+        <span class="actions">
+          <button id="muteBtn" class="btn" type="button" aria-pressed="false">🔊 Sound on</button>
+          <button id="howToPlay" class="btn" type="button">How to play</button>
+        </span>
+      </div>
+      <div id="tab-dex" role="tabpanel"><div id="dexGrid" class="dex-grid"></div></div>
+      <div id="tab-badges" role="tabpanel" hidden><div id="badgeList" class="badge-list"></div></div>
+      <div id="tab-battle" role="tabpanel" hidden><div id="battleList" class="battle-list"></div></div>
+      <div id="tab-quiz" role="tabpanel" hidden><div id="quizBox" class="quiz"></div></div>
+      <div id="tab-shop" role="tabpanel" hidden><div id="shopList" class="battle-list"></div></div>
+      <div id="tab-map" role="tabpanel" hidden>
+        <div class="map-panel">
+          <label class="map-toggle"><input id="mapToggle" type="checkbox"> Save where I catch bugs</label>
+          <p class="hint">Off at first. When it's on, your browser asks to use your location. Spots are rounded to about a city block and saved only on this device. They are never sent anywhere.</p>
+          <p id="mapCount" class="muted"></p>
+          <div id="catchMap" class="catch-map" hidden></div>
+        </div>
+      </div>
+      <div id="tab-learn" role="tabpanel" hidden><div id="learnList" class="learn-list"></div></div>
+    </section>
+  </section>
+
+  <!-- ===== Map ===== -->
+  <section id="screen-map" class="screen" aria-labelledby="mapTitle" hidden>
+    <h1 id="mapTitle" class="screen-title">See how many people have reported, and where</h1>
+    <section class="stats" aria-label="Our reports">
+      <div class="stat"><strong id="statEab">0</strong><span>EAB reports</span></div>
+      <div class="stat"><strong id="statDamage">0</strong><span>damage reports</span></div>
+      <div class="stat"><strong id="statGalleries">0</strong><span>galleries found</span></div>
+      <div class="stat"><strong id="statTrees">0</strong><span>trees checked</span></div>
+    </section>
+    <p id="statsMsg" class="source">From reports sent with Pyinsect.</p>
+    <div id="reportsMap" class="catch-map reports-map-box" aria-label="Map of reports"></div>
     <ul class="map-key" aria-label="What the colors mean">
-      <li><span class="swatch" style="background:#1f8a4c"></span>Verified: a person on our team checked it</li>
-      <li><span class="swatch" style="background:#2f6fb3"></span>AI checked: an AI thinks it's a match</li>
-      <li><span class="swatch" style="background:#8a8f8c"></span>Not checked yet</li>
-      <li><span class="swatch mine"></span>Your reports (only you see these)</li>
+      <li><span class="swatch new"></span>Your newest report</li>
+      <li><span class="swatch older"></span>Your older reports (only you see these)</li>
+      <li><span class="swatch everyone"></span>Everyone's reports</li>
     </ul>
-    <div class="actions">
-      <button id="showReportsMap" class="btn" type="button">Show the map</button>
-      <span id="reportsMapMsg" class="muted" role="status"></span>
-    </div>
-    <div id="reportsMap" class="catch-map reports-map-box" hidden></div>
-  </section>
+    <p id="reportsMapMsg" class="muted" role="status"></p>
+    <p class="hint">Each square is about 200 m wide. No photos and no exact spots are ever shown.</p>
 
-  <section class="game" id="game" aria-label="Innvadex game">
-    <div class="ledger-head">
-      <h2>Innvadex</h2>
-      <span class="game-score"><span id="gameRank" class="status"></span> <span id="gamePoints" class="status">0 points</span> <span id="gameCoins" class="status"></span> <span id="gameProgress" class="status"></span> <span id="gameProtector" class="status"></span></span>
-    </div>
-    <div id="daily" class="daily"><span class="daily-label">📅 Today's challenge</span> <strong id="dailyText"></strong> <span id="dailyState" class="daily-state"></span></div>
-    <div class="game-bar">
-      <div class="game-tabs" role="tablist">
-        <button class="tab" type="button" role="tab" data-tab="dex" aria-selected="true">My Innvadex</button>
-        <button class="tab" type="button" role="tab" data-tab="badges" aria-selected="false">Badges</button>
-        <button class="tab" type="button" role="tab" data-tab="battle" aria-selected="false">Battle</button>
-        <button class="tab" type="button" role="tab" data-tab="quiz" aria-selected="false">Quiz</button>
-        <button class="tab" type="button" role="tab" data-tab="shop" aria-selected="false">Shop</button>
-        <button class="tab" type="button" role="tab" data-tab="map" aria-selected="false">Map</button>
-        <button class="tab" type="button" role="tab" data-tab="learn" aria-selected="false">Learn about species</button>
+    <section class="ledger" id="mineSection" hidden>
+      <div class="ledger-head">
+        <h2>Your reports</h2>
+        <span id="mineCount" class="status"></span>
       </div>
-      <span class="actions">
-        <button id="muteBtn" class="btn" type="button" aria-pressed="false">🔊 Sound on</button>
-        <button id="howToPlay" class="btn" type="button">How to play</button>
-      </span>
-    </div>
-    <div id="tab-dex" role="tabpanel"><div id="dexGrid" class="dex-grid"></div></div>
-    <div id="tab-badges" role="tabpanel" hidden><div id="badgeList" class="badge-list"></div></div>
-    <div id="tab-battle" role="tabpanel" hidden><div id="battleList" class="battle-list"></div></div>
-    <div id="tab-quiz" role="tabpanel" hidden><div id="quizBox" class="quiz"></div></div>
-    <div id="tab-shop" role="tabpanel" hidden><div id="shopList" class="battle-list"></div></div>
-    <div id="tab-map" role="tabpanel" hidden>
-      <div class="map-panel">
-        <label class="map-toggle"><input id="mapToggle" type="checkbox"> Save where I catch bugs</label>
-        <p class="hint">Off at first. When it's on, your browser asks to use your location. Spots are rounded to about a city block and saved only on this device. They are never sent anywhere.</p>
-        <p id="mapCount" class="muted"></p>
-        <div id="catchMap" class="catch-map" hidden></div>
+      <p class="hint">Reports sent from this phone. Tap one to see its photo.</p>
+      <div id="mine" class="rows"></div>
+    </section>
+
+    <details class="reporting" id="reporting">
+      <summary>Reporting · <span id="reportState" class="state">checking…</span></summary>
+      <p>Reports that can't be sent right away (no internet) wait on this device and go out later.</p>
+      <div class="actions">
+        <button id="retryReports" class="btn" type="button" hidden>Send waiting reports</button>
       </div>
-    </div>
-    <div id="tab-learn" role="tabpanel" hidden><div id="learnList" class="learn-list"></div></div>
+    </details>
   </section>
+</main>
 
-  <details class="reporting" id="reporting">
-    <summary>Reporting · <span id="reportState" class="state">checking…</span></summary>
-    <p>When a photo shows an invasive species, a report with a reduced copy of the photo is sent automatically. Nothing to set up. Reports that can't be sent right away (no internet) wait on this device and go out later.</p>
-    <div class="actions">
-      <button id="retryReports" class="btn" type="button" hidden>Send waiting reports</button>
-    </div>
-  </details>
+<!-- ===== Menu bar: always at the bottom ===== -->
+<nav class="menubar" aria-label="Menu" hidden>
+  <a href="#home" data-screen="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg><span>Home</span></a>
+  <a href="#detect" data-screen="detect"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/><ellipse cx="10.5" cy="10.5" rx="2" ry="3"/></svg><span>Detect</span></a>
+  <a href="#game" data-screen="game"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8h12a4 4 0 0 1 4 4v2a3 3 0 0 1-5.4 1.8L15 14H9l-1.6 1.8A3 3 0 0 1 2 14v-2a4 4 0 0 1 4-4Z"/><path d="M7 11v2M6 12h2"/><circle cx="16" cy="11" r=".6" fill="currentColor"/><circle cx="18" cy="13" r=".6" fill="currentColor"/></svg><span>Game</span></a>
+  <a href="#map" data-screen="map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg><span>Map</span></a>
+</nav>
 
-  <section class="ledger" id="mineSection" hidden>
-    <div class="ledger-head">
-      <h2>Your reports</h2>
-      <span id="mineCount" class="status"></span>
-    </div>
-    <p class="hint">Reports sent from this phone. They stay here, even after you close the browser. Tap one to see its photo.</p>
-    <div id="mine" class="rows"></div>
-  </section>
+<!-- ===== Camera and zoom (they open over the screen, above the menu bar) ===== -->
+<section id="camera" class="camera overlay" aria-label="Camera" hidden>
+  <div class="viewfinder">
+    <video id="cameraVideo" playsinline muted autoplay></video>
+    <div id="cameraFlash" class="flash"></div>
+    <div id="focusRing" class="focus-ring" hidden></div>
+    <p id="cameraMsg" class="camera-msg" hidden></p>
+  </div>
+  <div id="zoomBar" class="zoom-bar" hidden>
+    <label for="zoom">Zoom</label>
+    <input id="zoom" type="range" min="1" max="4" step="0.1" value="1">
+    <output id="zoomValue" for="zoom">1×</output>
+  </div>
+  <div class="camera-bar">
+    <button id="closeCamera" class="btn" type="button">Close</button>
+    <button id="shutter" class="shutter" type="button" aria-label="Take photo" disabled></button>
+    <button id="switchCamera" class="btn" type="button" hidden>Switch camera</button>
+    <button id="useCameraApp" class="btn" type="button" hidden>Use camera app</button>
+  </div>
+</section>
 
-  <section class="ledger">
-    <div class="ledger-head">
-      <h2>Results</h2>
-      <span id="count" class="status">0 photos</span>
+<section id="crop" class="crop overlay" aria-label="Zoom in on your photo" hidden>
+  <p class="hint">Drag the box or its corners (or pinch) around the tree, damage, or bug. Or just tap <strong>Next</strong> to use the whole photo.</p>
+  <div id="cropStage" class="crop-stage">
+    <img id="cropImg" alt="Your photo">
+    <div id="cropBox" class="crop-box" tabindex="0" role="group" aria-label="Zoom box. Arrow keys move it. Plus and minus make it bigger or smaller.">
+      <span class="handle" data-edge="nw"></span><span class="handle" data-edge="ne"></span>
+      <span class="handle" data-edge="sw"></span><span class="handle" data-edge="se"></span>
     </div>
-    <div id="cards" class="cards">
-      <div id="empty" class="empty">No photos yet. Tap "Take photo" or "Select photos" above to get started. Each photo you add appears here with its top match and the next two guesses.</div>
-    </div>
-  </section>
+  </div>
+  <div class="crop-bar">
+    <button id="cropCancel" class="btn" type="button">Cancel</button>
+    <button id="cropRetake" class="btn" type="button">Retake</button>
+    <button id="cropWhole" class="btn" type="button">Whole photo</button>
+    <button id="checkIt" class="btn primary" type="button" disabled>Next</button>
+  </div>
+</section>
+<input id="photoInput" type="file" accept=".jpg,.jpeg,.png,.bmp,.webp,image/*" multiple>
+<input id="captureInput" type="file" accept="image/*" capture="environment">
+
+<!-- ===== Results pop-up (after Detect 3) ===== -->
+<div id="results" class="overlay sheet" role="dialog" aria-modal="true" aria-labelledby="resultsTitle" hidden>
+  <div class="sheet-box">
+    <div id="resultsBody"></div>
+    <label id="resultsArea" class="area-toggle" hidden><input class="area-box" type="checkbox" checked> 📍 Add my rough area to the report (the public map shows about 200 m)</label>
+    <div id="resultsActions" class="actions"></div>
+  </div>
 </div>
 
 <div id="viewer" class="viewer" role="dialog" aria-modal="true" aria-label="Full photo" hidden>
@@ -192,15 +276,14 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
-<script src="assets/reports.js?v=20261010g"></script>
+<script src="assets/reports.js?v=20261025a"></script>
 <script src="assets/species.js?v=20261016a"></script>
 <script src="assets/models/pyinsect-2.8-oregon.js?v=20261023a"></script>
 <script src="assets/aicheck.js?v=20261010g"></script>
-<script src="assets/app.js?v=20261024b"></script>
-<script src="assets/teamai.js?v=20261013g"></script>
-<script src="assets/trees/ash.js?v=20261020a"></script>
-<script src="assets/treecheck.js?v=20261020a"></script>
-<script src="assets/reportsmap.js?v=20261013c"></script>
-<script src="assets/game.js?v=20261011c"></script>
+<script src="assets/app.js?v=20261025a"></script>
+<script src="assets/trees/ash.js?v=20261025a"></script>
+<script src="assets/reportsmap.js?v=20261025a"></script>
+<script src="assets/game.js?v=20261025a"></script>
+<script src="assets/flow.js?v=20261025a"></script>
 </body>
 </html>

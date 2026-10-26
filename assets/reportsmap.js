@@ -1,17 +1,14 @@
-// The reports map: everyone's reports that have a rough area, as ~1 km squares colored by how well
-// they were checked. The list comes from the relay (GET /map, no photos or exact spots). This
-// phone's own reports (from "Your reports") are added in their own color, and only this phone
-// sees those. Uses $, el, RELAY_URL, mine, roughArea, AREA_DEG from app.js and reports.js.
+// The map screen: our numbers at the top (from the relay's /stats), then everyone's Detect reports
+// as squares about 200 m wide (from the relay's /map: no photos, ids, or exact spots). Squares, not
+// pins, because we only know the rough area. This phone's own reports are added in their own colors,
+// and only this phone sees those: the newest one, and the older ones.
+// The map has + / − zoom buttons and a "Find me" button (your spot stays on this phone).
+// Uses $, el, RELAY_URL, mine, AREA_DEG from app.js and reports.js. flow.js calls reportsMap.show().
 
 (() => {
-const LEVELS = {
-  verified: { text: "Verified", color: "#1f8a4c", note: "a person on our team checked it" },
-  ai: { text: "AI checked", color: "#2f6fb3", note: "an AI thinks it's a match" },
-  unchecked: { text: "Not checked yet", color: "#8a8f8c", note: "just sent" },
-};
-const MINE_COLOR = "#8e44ad";
-const RANK = { verified: 3, ai: 2, unchecked: 1 };   // a square's color = its best-checked report
-let map = null, layer = null, loading = null;
+const COLORS = { new: "#e8590c", older: "#8e44ad", everyone: "#2f6fb3" };
+const LEVEL_TEXT = { verified: "Checked by our team", ai: "AI checked", unchecked: "Not checked yet" };
+let map = null, layer = null, me = null, loading = null;
 
 function loadLeaflet() {
   if (window.L) return Promise.resolve();
@@ -25,6 +22,25 @@ function loadLeaflet() {
   });
 }
 
+const relay = path => fetch(RELAY_URL.replace(/\/$/, "") + path, { cache: "no-store" }).then(res => {
+  if (!res.ok) throw new Error(`the report server answered ${res.status}`);
+  return res.json();
+});
+
+// Our numbers. They start at 0 and go up as people send reports.
+async function showStats() {
+  try {
+    const s = await relay("/stats");
+    $("statEab").textContent = (s.eab || 0).toLocaleString();
+    $("statDamage").textContent = (s.damage || 0).toLocaleString();
+    $("statGalleries").textContent = (s.galleries || 0).toLocaleString();
+    $("statTrees").textContent = (s.trees || 0).toLocaleString();
+    $("statsMsg").textContent = "From reports sent with Pyinsect.";
+  } catch {
+    $("statsMsg").textContent = "Couldn't get the newest numbers right now. Try again later.";
+  }
+}
+
 // The corners of the grid square around a square's middle (the same grid as roughArea)
 function squareBounds(lat, lon) {
   const lonStep = AREA_DEG / Math.max(0.2, Math.cos(lat * Math.PI / 180));
@@ -32,23 +48,24 @@ function squareBounds(lat, lon) {
 }
 const monthName = m => { const d = new Date(m + "-15T12:00:00"); return isNaN(d) ? m : d.toLocaleDateString([], { month: "long", year: "numeric" }); };
 
-// What's in one square, like "2 × Possible emerald ash borer damage · Verified · October 2026"
-function popup(reports, mineHere) {
-  const box = el("div", "map-popup");
-  const groups = {};
-  for (const r of reports) { const k = `${r.name}|${r.level}|${r.month}`; groups[k] = (groups[k] || 0) + 1; }
+// What's in one square, like "2 × Emerald ash borer damage · Not checked yet · October 2026"
+function popup(sq) {
+  const box = el("div", "map-popup"), groups = {};
+  for (const r of sq.reports) { const k = `${r.name}|${r.level}|${r.month}`; groups[k] = (groups[k] || 0) + 1; }
   for (const [k, n] of Object.entries(groups).sort((a, b) => b[1] - a[1])) {
-    const [name, level, month] = k.split("|");
-    const line = el("p");
-    line.append(el("strong", null, `${n > 1 ? n + " × " : ""}${name}`), el("br"),
-      el("span", "map-level " + level, LEVELS[level]?.text || level), ` · ${monthName(month)}`);
+    const [name, level, month] = k.split("|"), line = el("p");
+    line.append(el("strong", null, `${n > 1 ? n + " × " : ""}${name}`), el("br"), `${LEVEL_TEXT[level] || level} · ${monthName(month)}`);
     box.append(line);
   }
-  if (mineHere.length) box.append(el("p", "map-mine", `🟣 ${mineHere.length === 1 ? "Your report" : mineHere.length + " of your reports"} (only you see this)`));
-  box.append(el("p", "map-note", "About 1 km square. The exact spot is never shared."));
+  if (sq.mine.length) {
+    const newest = sq.mine.some(m => m.newest);
+    box.append(el("p", "map-mine", `${newest ? "🟠 Your newest report" : "🟣 " + (sq.mine.length === 1 ? "Your report" : sq.mine.length + " of your reports")} (only you see this)`));
+  }
+  box.append(el("p", "map-note", "About 200 m square. The exact spot is never shared."));
   return box;
 }
 
+// reports = everyone's (from the relay); myReports = this phone's, newest first
 function draw(reports, myReports) {
   layer?.remove();
   const squares = new Map();   // "lat,lon" → { lat, lon, reports: [], mine: [] }
@@ -58,56 +75,83 @@ function draw(reports, myReports) {
     return squares.get(k);
   };
   for (const r of reports) square(r.lat, r.lon).reports.push(r);
-  for (const m of myReports) square(m.area.lat, m.area.lon).mine.push(m);
+  myReports.forEach((m, i) => square(m.area.lat, m.area.lon).mine.push({ ...m, newest: i === 0 }));
   layer = L.layerGroup();
+  let newest = null;
   for (const sq of squares.values()) {
-    const best = sq.reports.reduce((b, r) => (RANK[r.level] || 0) > (RANK[b] || 0) ? r.level : b, null);
-    const color = best ? LEVELS[best]?.color || LEVELS.unchecked.color : MINE_COLOR;
-    const rect = L.rectangle(squareBounds(sq.lat, sq.lon), {
-      color: sq.mine.length ? MINE_COLOR : color, weight: sq.mine.length ? 3 : 1.5, fillColor: color, fillOpacity: 0.45 });
-    rect.bindPopup(popup(sq.reports, sq.mine));
-    const count = sq.reports.length || sq.mine.length;
+    // A square with your newest report is orange, with older ones of yours purple, else blue
+    const kind = sq.mine.some(m => m.newest) ? "new" : sq.mine.length ? "older" : "everyone";
+    const rect = L.rectangle(squareBounds(sq.lat, sq.lon), { color: COLORS[kind], weight: kind === "everyone" ? 1.5 : 3, fillColor: COLORS[kind], fillOpacity: 0.45 });
+    rect.bindPopup(popup(sq));
+    const count = Math.max(sq.reports.length, sq.mine.length);
     const label = L.marker([sq.lat, sq.lon], { interactive: false, keyboard: false,
       icon: L.divIcon({ className: "map-count", html: String(count), iconSize: [26, 26] }) });
     layer.addLayer(rect).addLayer(label);
+    if (kind === "new") newest = rect;
   }
   layer.addTo(map);
-  if (squares.size) {
-    map.fitBounds(L.latLngBounds([...squares.values()].map(sq => squareBounds(sq.lat, sq.lon)).flat()).pad(0.2), { maxZoom: 13 });
+  if (newest) {
+    map.setView(newest.getBounds().getCenter(), 15);   // your newest report, in the middle (tap it to see more)
+  } else if (squares.size) {
+    map.fitBounds(L.latLngBounds([...squares.values()].map(sq => squareBounds(sq.lat, sq.lon)).flat()).pad(0.2), { maxZoom: 14 });
   } else {
     map.setView([44, -120.5], 6);   // Oregon
   }
   return squares.size;
 }
 
-async function showMap() {
-  const msg = $("reportsMapMsg"), btn = $("showReportsMap");
-  btn.disabled = true; msg.textContent = "Loading the map…";
-  let reports = [];
+// "📍 Find me": moves the map to where you are. The blue dot is only on this phone.
+function addFindMe() {
+  const FindMe = L.Control.extend({
+    options: { position: "topleft" },
+    onAdd() {
+      const b = L.DomUtil.create("button", "find-me");
+      b.type = "button"; b.textContent = "📍 Find me"; b.title = "Move the map to where you are";
+      L.DomEvent.disableClickPropagation(b);
+      b.onclick = () => {
+        if (!navigator.geolocation) { $("reportsMapMsg").textContent = "This browser can't find your location."; return; }
+        b.disabled = true; b.textContent = "Finding you…";
+        navigator.geolocation.getCurrentPosition(pos => {
+          const here = [pos.coords.latitude, pos.coords.longitude];
+          me?.remove();
+          me = L.circleMarker(here, { radius: 8, color: "#fff", weight: 3, fillColor: "#1a73e8", fillOpacity: 1 }).addTo(map).bindTooltip("You are here (only you see this)");
+          map.setView(here, 15);
+          b.disabled = false; b.textContent = "📍 Find me";
+        }, () => {
+          $("reportsMapMsg").textContent = "Turn on location for this site to use Find me.";
+          b.disabled = false; b.textContent = "📍 Find me";
+        }, { timeout: 15000, maximumAge: 60000 });
+      };
+      return b;
+    },
+  });
+  map.addControl(new FindMe());
+}
+
+async function show() {
+  const msg = $("reportsMapMsg");
+  showStats();
+  msg.textContent = "Loading the map…";
+  let reports = [], problem = "";
   try {
     await loadLeaflet();
-    if (!RELAY_URL) throw new Error("the report server isn't set up yet");
-    const res = await fetch(RELAY_URL.replace(/\/$/, "") + "/map", { cache: "no-store" });
-    if (!res.ok) throw new Error(`the report server answered ${res.status}`);
-    reports = (await res.json()).reports || [];
+    reports = (await relay("/map")).reports || [];
   } catch (e) {
-    if (!window.L) { msg.textContent = "The map couldn't load. Check your internet and try again."; btn.disabled = false; return; }
-    msg.textContent = `Couldn't get everyone's reports (${e.message}). Showing only yours.`;
+    if (!window.L) { msg.textContent = "The map couldn't load. Check your internet and try again."; return; }
+    problem = `Couldn't get everyone's reports (${e.message}). Showing only yours.`;
   }
-  const myReports = mine.get().filter(m => m.area && m.level !== "not_match");
-  $("reportsMap").hidden = false;
+  // This phone's Detect reports with an area, newest first
+  const myReports = mine.get().filter(m => m.kind === "check" && m.area && m.level !== "not_match");
   if (!map) {
-    map = L.map("reportsMap", { scrollWheelZoom: false });
+    map = L.map("reportsMap", { scrollWheelZoom: false, zoomControl: true });
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap contributors" }).addTo(map);
+    addFindMe();
   }
   map.invalidateSize();
   const n = draw(reports, myReports);
-  if (!msg.textContent.startsWith("Couldn't")) {
-    msg.textContent = n ? `${reports.length} report${reports.length === 1 ? "" : "s"} from everyone${myReports.length ? `, plus ${myReports.length} of yours` : ""}. Tap a square to see what's there.`
-      : "No reports with an area yet. Yours will show here after you send one with 📍 ticked.";
-  }
-  btn.textContent = "Refresh the map"; btn.disabled = false;
+  msg.textContent = problem || (n ? `${reports.length} report${reports.length === 1 ? "" : "s"} from everyone. Tap a square to see what's there.`
+    : "No reports on the map yet. Yours will show here after you send one.");
 }
 
-if ($("showReportsMap")) $("showReportsMap").onclick = showMap;
+window.reportsMap = { show };
 })();

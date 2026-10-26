@@ -350,3 +350,65 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [x] Its report reaches the relay as an infested tree report and shows "Infested tree: take action" on the reports page.
   - [x] In the tree check, a damage photo ends with the warning and tips; a healthy-bark photo still says "Report made, thank you".
   - [ ] A grown-up redeployed the relay (version 13) before this was merged.
+
+## New user flow: splash, menu bar, home, Detect, results, and map
+
+- **Status:** Building
+- **Asked by:** Eshan, 2026-10-25 (from our notebook sketches; checked with a grown-up)
+- **Who it's for:** The same people as before: everyday people (kids and adults), people in Oregon
+  with an ash tree, and biologists who look at the map.
+- **Problem or need:** The app was one long page. People didn't know where to start, and the steps
+  for checking a tree for the emerald ash borer (EAB) weren't clear.
+- **Why they have it:** Apps like iNaturalist and Seek guide people one step at a time, with a menu
+  bar, pictures, and numbers. Our page had everything stacked up, so it was hard to follow.
+- **Our idea:**
+  - **Splash screen** (first visit only): the Pyinsect name and logo, then two short boxes to read,
+    "Report" and "Games", each with a picture. Only **Continue** is a button.
+  - **Permissions screen** (first visit only): says why we use the camera (to find invasive species)
+    and location (to map reports). **Continue** makes the browser ask right away. If they block it:
+    "That's okay! You can still choose photos."
+  - **Menu bar**, always at the bottom of every screen (even on computers): Home, Detect, Game, Map.
+    Each icon has a word under it and looks like a button. The screen you're on lights up.
+  - **Home screen**: a parallax background (the EAB picture moves slower than the words, so it looks
+    3D), a short "What is the EAB?" with a picture, expert facts (from the Oregon Department of
+    Forestry and USDA), EAB and damage pictures, "Is EAB near you?" (your county, and whether EAB
+    has been found there), and "What you can do", with pictures. The last tip is "Report it with
+    Pyinsect", and it opens Detect. Not much scrolling. A link to the old Pyinsect 2.7 stays at the bottom.
+  - **Detect 1, 2, 3**: "Check your tree", "Check for signs of damage", and "Check for an EAB". Each
+    has a swipeable carousel of real photos, **Take a picture**, **Choose a photo**, and **Skip**. After
+    a photo: **Retake** or **Next**. Up to 3 photos per step. Leaving Detect starts again at Detect 1.
+  - **Results pop-up**: the AI checks all the photos at the end. Calm words (no scary warnings). A
+    **Send report** button sends **one report with all the photos**. Skipping everything says "No activity"
+    and sends nothing. Other invasive bugs are named and reported too.
+  - **Map**: our own numbers at the top (EAB reports, damage reports, galleries found, trees checked,
+    all starting at 0), then the map with + / − zoom and a **📍 Find me** button. Reports are squares,
+    not pins, because we only know the rough area. Colors: your new report, your older reports, and
+    everyone else's.
+  - **Location privacy**: the public map rounds to squares about **200 m** wide. The private team copy
+    keeps a spot rounded to about **75 m**. "Nothing found" checks are private (team only) and kept in
+    their own section, but they count in "trees checked".
+  - We pass reports on to the experts, and the results also show how to contact them directly.
+- **Other ideas we talked about:**
+  - Pins on the map: they look exact, but our data is a rough area, so squares are more honest.
+  - 50 m squares on the public map: a stranger could find a kid's house. A grown-up agreed on 200 m.
+  - The AI checking each photo right away: we chose to show everything together in the results.
+  - Ask for camera and location the first time they're needed: we chose to ask right away.
+- **User flow:**
+  1. A new visitor sees the splash screen and taps Continue.
+  2. They see the permissions screen, tap Continue, and the browser asks for camera and location.
+  3. They land on the home screen. The menu bar is at the bottom with Home lit up.
+  4. They tap Detect (or "Report it with Pyinsect") and see Detect 1, "Check your tree".
+  5. They take or choose up to 3 photos (Retake or Next after each one), or tap Skip.
+  6. Same for Detect 2 (damage) and Detect 3 (the EAB).
+  7. The results pop-up shows what the AI found in each photo, in calm words.
+  8. They tap Send report (or see "No activity" if they skipped everything).
+  9. The map opens with their new report in its own color.
+  10. On their next visit they go straight to the home screen.
+- **Done when:**
+  - [x] A first-time visitor sees the splash and permissions screens. On a second visit they go straight to Home.
+  - [x] The menu bar stays at the bottom of every screen, and the screen you're on is lit up.
+  - [x] Detect takes you through 3 steps, each with Take a picture, Choose a photo, Skip, and up to 3 photos.
+  - [x] Skipping all 3 steps shows "No activity" and sends nothing.
+  - [x] After "Send report", the map opens and your new report is a different color.
+  - [ ] Tried on a real phone (camera, location, and sending a real report).
+  - [ ] A grown-up redeployed the relay (version 15) before this was merged.

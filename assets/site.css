@@ -197,14 +197,19 @@ input[type=file] { display: none; }
 @media (prefers-reduced-motion: reduce) { .focus-ring { animation: none; } }
 /* Crop: the stage shrinks to the photo, so the box's % sizes are % of the photo */
 .crop { display: flex; flex-direction: column; gap: 12px; padding: 12px; border-radius: 28px; scroll-margin-top: 12px; }
-.crop .hint { margin: 0 6px; }
+.crop-title { margin: 4px 6px 0; font-size: 22px; }
+.crop-tip { margin: 0 6px; font-size: 16px; font-weight: 500; }
 .crop-stage { position: relative; width: fit-content; max-width: 100%; margin: 0 auto; border-radius: 16px; overflow: hidden; background: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
 .crop-stage img { display: block; max-width: 100%; max-height: 65vh; -webkit-user-drag: none; pointer-events: none; }
 /* The huge shadow darkens everything outside the box */
-.crop-box { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .5); cursor: move; outline: none; }
-.crop-box:focus-visible { border-color: var(--accent); }
+.crop-box { position: absolute; border: 4px solid #ffd43b; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .5); cursor: move; outline: none; }
+.crop-box:focus-visible { border-color: #fff; }
+/* The box starts as big as the photo, so it can hide. It shrinks in and grows back once, to show where it is. */
+.crop-box.hello { animation: crop-hello 1.4s ease-in-out; }
+@keyframes crop-hello { 0%, 100% { transform: scale(1); } 35%, 65% { transform: scale(.8); } }
+@media (prefers-reduced-motion: reduce) { .crop-box.hello { animation: none; } }
 .crop-box .handle { position: absolute; width: 48px; height: 48px; }   /* big enough to grab with a finger, mostly inside the box so the photo edge doesn't cut it off */
-.crop-box .handle::after { content: ""; position: absolute; width: 18px; height: 18px; border: 4px solid #fff; }
+.crop-box .handle::after { content: ""; position: absolute; width: 22px; height: 22px; border: 6px solid #ffd43b; }
 .handle[data-edge=nw] { left: -16px; top: -16px; cursor: nwse-resize; }
 .handle[data-edge=ne] { right: -16px; top: -16px; cursor: nesw-resize; }
 .handle[data-edge=sw] { left: -16px; bottom: -16px; cursor: nesw-resize; }
@@ -306,7 +311,9 @@ input[type=file] { display: none; }
 .ledger-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .hint { margin: -4px 0 0; font-size: 13px; color: var(--muted); }
 .row .when { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.row .state { font-family: var(--mono); font-size: 12px; }
+/* A long status (like "couldn't send") wraps instead of squeezing the name to one letter per line */
+.row .when { max-width: 14em; }
+.row .state { font-family: var(--mono); font-size: 12px; white-space: normal; }
 .row .state.on { color: var(--accent); }
 .row .state.warn { color: var(--alert); }
 .row[role=button], .card img { cursor: zoom-in; }
@@ -518,6 +525,7 @@ body.app.onboarding { padding-bottom: 0; overflow: hidden; }
 .todo-go:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .home-foot { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
 .home-foot p { margin: 0; }
+.home-foot #permsAgain { align-self: flex-start; }
 .credits summary { cursor: pointer; color: var(--muted); }
 .credits ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; }
 
@@ -558,7 +566,8 @@ body.app.onboarding { padding-bottom: 0; overflow: hidden; }
 .step-actions .take { flex: 1 1 220px; }
 .step-actions .skip, .step-actions .next { flex: 0 0 auto; min-width: 120px; }
 .step-actions .skip { border: 1.5px solid color-mix(in srgb, var(--accent) 50%, transparent); }
-.link.back { color: var(--muted); }
+.detect-step > .pick, .detect-step > .back { align-self: flex-start; }
+.detect-step > .pick { border: 1.5px solid color-mix(in srgb, var(--accent) 50%, transparent); }
 
 /* Camera, zoom step and results open over the screen, above the menu bar */
 .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: var(--menu-h); z-index: 120; overflow: auto; }

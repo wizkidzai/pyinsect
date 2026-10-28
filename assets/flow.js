@@ -94,17 +94,34 @@ $("permsNext").onclick = async () => {
     s.getTracks().forEach(t => t.stop());   // we only wanted to ask; the camera opens again when they take a photo
     camera = true;
   } catch {}
+  // Only "Don't allow" counts as no. Saying yes but the computer can't find the spot yet (no GPS,
+  // or too slow) still counts as yes, because the permission is what we asked for.
   place = await new Promise(ok => navigator.geolocation
-    ? navigator.geolocation.getCurrentPosition(() => ok(true), () => ok(false), { timeout: 30000, maximumAge: 600000 })
+    ? navigator.geolocation.getCurrentPosition(() => ok(true), err => ok(err.code !== err.PERMISSION_DENIED), { timeout: 30000, maximumAge: 600000 })
     : ok(false));
   store.set(WELCOME_KEY, true);
   btn.disabled = false;
   if (camera && place) { startApp(); return; }
-  msg.textContent = "That's okay! You can still choose photos." + (place ? "" : " Without your location, your reports just won't show on the map.");
+  msg.textContent = "That's okay! You can still choose photos." + (place ? "" : " Without your location, your reports just won't show on the map.")
+    + " To change your answer later, tap the 🔒 next to the web address and allow Camera and Location.";
   btn.textContent = "Go to the home screen";
   btn.dataset.done = "1";
   btn.focus();
 };
+
+// "Change permissions" at the bottom of Home opens the permissions screen again.
+// If they said no before, the browser won't ask again, so the message says how to change it.
+$("permsAgain").onclick = () => {
+  const btn = $("permsNext");
+  delete btn.dataset.done;
+  btn.textContent = "Continue";
+  $("permsMsg").hidden = true;
+  $("permsBack").hidden = false;
+  document.body.classList.add("onboarding");
+  $("perms").hidden = false;
+  btn.focus();
+};
+$("permsBack").onclick = startApp;
 
 // ---------- home: parallax and "Is EAB near you?" ----------
 // The background picture moves slower than the page, so it looks deeper (parallax)
@@ -254,12 +271,12 @@ function renderStep() {
   button(list.length ? (last ? "See results →" : "Next →") : "Skip", list.length ? "primary big next" : "big skip", nextStep);
   box.append(actions);
   if (list.length < MAX_PHOTOS) {
-    const pick = el("button", "link", "Or choose a photo from your phone");
+    const pick = el("button", "btn pick", "🖼️ Or choose a photo from your phone");
     pick.type = "button"; pick.onclick = () => $("photoInput").click();
     box.append(pick);
   }
   if (step > 0) {
-    const back = el("button", "link back", "← Back");
+    const back = el("button", "btn back", "← Back");
     back.type = "button"; back.onclick = () => { step--; renderStep(); window.scrollTo(0, 0); };
     box.append(back);
   }

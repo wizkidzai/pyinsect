@@ -947,6 +947,8 @@ function showCrop(file, source) {
   img.onload = () => {
     minBox = { w: Math.min(1, MIN_CROP / img.naturalWidth), h: Math.min(1, MIN_CROP / img.naturalHeight) };
     setBox({ x: 0, y: 0, w: 1, h: 1 });
+    const box = $("cropBox");   // restart the "here I am" shrink-and-grow (site.css: .crop-box.hello)
+    box.classList.remove("hello"); void box.offsetWidth; box.classList.add("hello");
     $("checkIt").disabled = false;
     $("checkIt").focus({ preventScroll: true });
   };

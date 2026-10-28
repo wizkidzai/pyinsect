@@ -412,3 +412,29 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [x] After "Send report", the map opens and your new report is a different color.
   - [ ] Tried on a real phone (camera, location, and sending a real report).
   - [ ] A grown-up redeployed the relay (version 15) before this was merged.
+
+## Change permissions button
+
+- **Status:** Building
+- **Asked by:** Eshan, 2026-10-27
+- **Who it's for:** Anyone who used Pyinsect before and answered the camera or location question.
+- **Problem or need:** They want to change their answer, but the permissions screen only shows on
+  the first visit, so there was no way back to it.
+- **Why they have it:** People tap "Don't allow" by accident, or change their mind later. Without
+  location, their reports don't show on the map.
+- **Our idea:** One **⚙️ Change permissions** button at the bottom of Home, near the photo credits.
+  It opens the permissions screen again, with a **← Back to Home** button. If the browser won't ask
+  again (because they said no before), the message says to tap the 🔒 next to the web address.
+- **Other ideas we talked about:**
+  - A Back button on the first-visit permissions screen: it doesn't help on later visits.
+  - Putting the button near "Check my area" or at the top of Home: we picked the bottom, so it
+    stays out of the way.
+- **User flow:**
+  1. They scroll to the bottom of Home and tap ⚙️ Change permissions.
+  2. The permissions screen opens. They tap Continue, and the browser asks again (if it can).
+  3. If they allow both, they go back to Home. If not, the message says how to change it with the 🔒.
+  4. Or they tap ← Back to Home without changing anything.
+- **Done when:**
+  - [ ] The button is at the bottom of Home and opens the permissions screen.
+  - [ ] ← Back to Home goes back to Home.
+  - [ ] After saying no, the message explains how to change it with the 🔒.

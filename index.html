@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=20261025a">
+<link rel="stylesheet" href="assets/site.css?v=20261027a">
 </head>
 <body class="app">
 <!-- The screens: splash and permissions (first visit only), then Home, Detect, Game and Map.
@@ -48,6 +48,7 @@
     <p class="hint">When you tap Continue, your browser will ask. You can say yes or no.</p>
     <p id="permsMsg" class="perms-msg" role="status" hidden></p>
     <button id="permsNext" class="btn primary big" type="button">Continue</button>
+    <button id="permsBack" class="btn big" type="button" hidden>← Back to Home</button>
   </div>
 </section>
 
@@ -107,6 +108,7 @@
     </section>
 
     <footer class="home-foot">
+      <button id="permsAgain" class="btn" type="button">⚙️ Change permissions</button>
       <details class="credits">
         <summary>Photo credits</summary>
         <ul>
@@ -237,7 +239,8 @@
 </section>
 
 <section id="crop" class="crop overlay" aria-label="Zoom in on your photo" hidden>
-  <p class="hint">Drag the box or its corners (or pinch) around the tree, damage, or bug. Or just tap <strong>Next</strong> to use the whole photo.</p>
+  <h2 class="crop-title">✂️ Zoom in on what you found</h2>
+  <p class="crop-tip">Drag the box onto the tree, damage, or bug. Pull the corners (or pinch) to make it bigger or smaller. Then tap <strong>Next</strong>.</p>
   <div id="cropStage" class="crop-stage">
     <img id="cropImg" alt="Your photo">
     <div id="cropBox" class="crop-box" tabindex="0" role="group" aria-label="Zoom box. Arrow keys move it. Plus and minus make it bigger or smaller.">
@@ -280,10 +283,10 @@
 <script src="assets/species.js?v=20261016a"></script>
 <script src="assets/models/pyinsect-2.8-oregon.js?v=20261023a"></script>
 <script src="assets/aicheck.js?v=20261010g"></script>
-<script src="assets/app.js?v=20261025a"></script>
+<script src="assets/app.js?v=20261027a"></script>
 <script src="assets/trees/ash.js?v=20261025a"></script>
 <script src="assets/reportsmap.js?v=20261025a"></script>
 <script src="assets/game.js?v=20261025a"></script>
-<script src="assets/flow.js?v=20261025a"></script>
+<script src="assets/flow.js?v=20261027a"></script>
 </body>
 </html>

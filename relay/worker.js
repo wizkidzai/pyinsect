@@ -151,7 +151,7 @@ async function submit(request, env) {
   }
   if (request.method === "GET") {
     // Says whether the reports page is set up, never what its address or password is
-    return reply(200, { ok: true, service: "pyinsect-relay", version: 15, reports_page: Boolean(viewWord(env) && env.VIEW_PASSWORD) });
+    return reply(200, { ok: true, service: "pyinsect-relay", version: 16, reports_page: Boolean(viewWord(env) && env.VIEW_PASSWORD) });
   }
   if (request.method !== "POST") return reply(405, { error: "Use POST." });
   if (!SITE_ORIGINS.includes(origin)) return reply(403, { error: "Reports are only accepted from the Pyinsect site." });
@@ -373,7 +373,9 @@ function checkDetect(r, photos) {
     const best = sure(it);
     if (it.step === "bug" && EAB.has(best)) found.eab = true;
     if (best && INFESTED[best] === "ash") found.damage = true;
-    if (it.step === "bug" && best && INVASIVE.has(best) && !EAB.has(best) && !Object.hasOwn(INFESTED, best)) {
+    // Other invasive finds: bugs in the bug step, and signs of other invasive species (like elm bark beetle
+    // galleries or spongy moth egg masses) in the damage or bug step
+    if (it.step !== "tree" && best && INVASIVE.has(best) && !EAB.has(best) && !Object.hasOwn(INFESTED, best)) {
       const name = label(it.top3[0].name, best);
       if (!found.others.includes(name)) found.others.push(name);
     }

@@ -298,6 +298,9 @@ function photoLine(p) {
   const best = p.top3[0], sure = p.verdict === "ok" && best.confidence >= SURE ? best.species : null;
   if (p.step === "tree") return "Photo saved. A person on our team will look at it.";
   if (sure && TREE.damageClass === sure) return "This looks like emerald ash borer damage.";
+  if (p.step === "damage" && sure && INVASIVE.has(sure) && !EAB.has(sure)) {
+    return `This looks like ${commonName(sure)}. It's a sign of an invasive species, so we'll report it.`;
+  }
   if (p.step === "damage") {
     const said = p.sign === "holes" ? "a D-shaped hole" : p.sign === "galleries" ? "a gallery" : null;
     return said ? `You marked ${said}. Our team will take a close look.` : "The AI didn't find damage here. Our team will still look.";
@@ -333,7 +336,7 @@ function summarize(list) {
     if (p.step === "bug" && EAB.has(sure)) found.eab = true;
     if (sure && sure === TREE.damageClass) found.damage = true;
     if (p.sign) found.signs = true;
-    if (p.step === "bug" && sure && INVASIVE.has(sure) && !EAB.has(sure) && sure !== TREE.damageClass) {
+    if (p.step !== "tree" && sure && INVASIVE.has(sure) && !EAB.has(sure) && sure !== TREE.damageClass) {
       const name = commonName(sure);
       if (!found.others.includes(name)) found.others.push(name);
     }

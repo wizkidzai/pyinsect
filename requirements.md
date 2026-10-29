@@ -295,6 +295,30 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [x] On for everyone: open the normal link (no `?team`), add a photo, and the card says "Verified by AI: …".
   - [x] On for everyone: just opening the page doesn't download the AI checker.
 
+## Find the bug for me (auto box)
+
+- **Status:** Building
+- **Asked by:** edafawd, 2026-10-28
+- **Who it's for:** Anyone who takes or picks a photo where the bug is small, new or returning.
+- **Problem or need:** In "Camera zoom and crop", people must drag the box around the bug
+  themselves. Many people just tap **Check it**, so the whole photo is checked and the bug is tiny.
+- **Why they have it:** Moving the box is an extra step, and on a small phone screen it is fiddly.
+  On test photos, checking a box around the bug got 84% right instead of 78% for the whole photo.
+- **Our idea:** A small "insect finder" AI (9 MB, made from a bigger detector's answers) looks at
+  the photo when the box appears and puts the box around the bug. People can still move it.
+  - No bug found, or the bug already fills half the photo: the box stays on the whole photo.
+  - Damage and egg masses are still judged on the whole photo (see the model's whole-photo rule).
+- **Other ideas we talked about:**
+  - The big detector (Grounding DINO, about 700 MB): too big to download on a phone.
+- **User flow:**
+  1. Take or pick a photo. The photo shows with a box.
+  2. After a moment the box jumps onto the bug.
+  3. Tap **Check it**, or move the box first.
+- **Done when:**
+  - [ ] On a photo with a small bug, the box moves onto the bug by itself.
+  - [ ] On a photo with no bug, the box stays on the whole photo.
+  - [ ] The finder model only downloads when the crop step opens.
+
 ## Pyinsect 2.8 Oregon model
 
 - **Asked by:** edafawd, 2026-10-16

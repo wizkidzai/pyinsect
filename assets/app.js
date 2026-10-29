@@ -603,9 +603,21 @@ function fillUnsureCard(card, top3, verdict) {
   return false;
 }
 
+// Damage (like bark beetle galleries) and egg masses are judged on the whole photo, never on a
+// zoomed-in part: the tree around them is part of the evidence. Same rule as the Oregon executor.
+const wholeScene = species => /_(damage|egg_mass)$/.test(species);
+
 // Runs the AI on one photo: the top 3 guesses (confidence in %) and the verdict (see verdictFor).
-// sim is null when there's no fingerprint check.
+// sim is null when there's no fingerprint check. For a zoomed-in photo (file.original is the whole
+// photo), the whole photo is checked too, and its answer wins when either answer is damage or an egg mass.
 async function identify(file) {
+  const result = await identifyOne(file);
+  if (!file.original) return result;
+  const whole = await identifyOne(file.original);
+  return wholeScene(whole.top3[0].species) || wholeScene(result.top3[0].species) ? whole : result;
+}
+
+async function identifyOne(file) {
   // The model gets the photo's raw colours, like Pillow in training and in the executor. Browsers
   // otherwise convert photos with a colour profile (like iPhone "Display P3") first, which changes
   // the answer. The report photo keeps the normal colours.

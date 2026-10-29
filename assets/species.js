@@ -5,6 +5,18 @@ const COMMON_NAMES = {
   // Pyinsect 2.8 Oregon (merged look-alike classes, damage photos, and Other insect)
   "agrilus_anxius_politus": "Bronze Birch Borer / Willow Gall Limb Borer",
   "agrilus_planipennis_damage": "Emerald Ash Borer damage",
+  // Pyinsect 2.8 Oregon damage_girdler (Oct 27 2026): damage of other insects, egg masses, Rose Stem Girdler
+  "agrilus_cuprescens": "Rose Stem Girdler",
+  "agrilus_anxius_politus_damage": "Bronze Birch Borer damage",
+  "scolytus_multistriatus_damage": "Smaller European Elm Bark Beetle damage",
+  "scolytus_ventralis_damage": "Fir Engraver damage",
+  "dendroctonus_ponderosae_rufipennis_damage": "Mountain Pine Beetle / Spruce Beetle damage",
+  "ips_typographus_damage": "European Spruce Bark Beetle damage",
+  "pissodes_strobi_damage": "White Pine Weevil damage",
+  "tent_web_damage": "Fall Webworm / Tent Caterpillar web",
+  "termite_damage": "Termite damage",
+  "bark_beetle_damage_other": "Bark / ambrosia beetle damage, other species",
+  "lymantria_dispar_egg_mass": "Spongy Moth egg mass",
   "argynnis_hydaspe_zerene": "Hydaspe Fritillary / Zerene Fritillary",
   "bombus": "Bumble bee",
   "buprestis_adjecta_intricata": "Jewel Beetles",
@@ -414,6 +426,19 @@ const COMMON_NAMES = {
   "zootermopsis_angusticollis": "Pacific Dampwood Termite"
 };
 
-// "popillia_japonica" → "Popillia japonica"
-const sciName = s => { const t = s.replace(/_/g, " "); return t.charAt(0).toUpperCase() + t.slice(1); };
+// Classes that are a group of several species, or a sign of a species (damage, egg mass), get a
+// clearer scientific name than the plain class name.
+const SCI_NAMES = {
+  "tent_web_damage": "Hyphantria cunea, Malacosoma",
+  "termite_damage": "Coptotermes, Zootermopsis, Incisitermes",
+  "bark_beetle_damage_other": "Trypodendron, Ips pini, Dendroctonus brevicomis, Orthotomicus, Anisandrus, Xyleborus, Sinodendron",
+};
+// "popillia_japonica" → "Popillia japonica", "ips_typographus_damage" → "Ips typographus, damage"
+const sciName = s => {
+  if (SCI_NAMES[s]) return SCI_NAMES[s];
+  const sign = s.endsWith("_damage") ? ", damage" : s.endsWith("_egg_mass") ? ", egg mass" : "";
+  const base = sign ? s.replace(/_(damage|egg_mass)$/, "") : s;
+  const t = base.replace(/_/g, " ") + sign;
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
 const commonName = s => COMMON_NAMES[s] || niceName(s);

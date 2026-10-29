@@ -22,6 +22,8 @@ const INVASIVE = new Set([
   "agrilus_planipennis_damage", "cydalima_perspectalis", "drosophila_melanogaster_suzukii",
   "drosophila_suzukii", "ips_typographus", "lymantria_monacha", "operophtera_brumata",
   "scolytus_multistriatus",
+  // Pyinsect 2.8 Oregon damage_girdler (Oct 27 2026): signs of invasive species (galleries, egg masses)
+  "scolytus_multistriatus_damage", "ips_typographus_damage", "lymantria_dispar_egg_mass",
   // Older names (Pyinsect 2.7 and before), so reports still waiting on a phone go through
   "ambrosia_beetle", "argentine_ant", "asian_giant_hornet", "asian_lady_beetle",
   "asian_longhorned_beetle", "balsam_woolly_adelgid", "brown_marmorated_stink_bug",

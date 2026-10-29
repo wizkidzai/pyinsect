@@ -308,6 +308,22 @@ function photoLine(p) {
   return `This looks like a ${commonName(sure)}. It isn't invasive. Thanks for checking!`;
 }
 
+// The AI's top 3 guesses for one photo: common name, scientific name, and how sure it was (%).
+// Not for tree photos: the bug AI would just name whichever bug looks closest to bark.
+function guessList(top3) {
+  const box = el("div", "guesses");
+  box.append(el("p", "guesses-title", "The AI's top 3 guesses:"));
+  const ol = el("ol");
+  for (const g of top3) {
+    const li = el("li");
+    li.append(el("span", "guess-name", commonName(g.species)), " ", el("i", "guess-sci", sciName(g.species)),
+              el("span", "guess-pct", `${g.confidence.toFixed(1)}%`));
+    ol.append(li);
+  }
+  box.append(ol);
+  return box;
+}
+
 // What was found in all the photos (the relay works this out again by itself)
 function summarize(list) {
   const found = { eab: false, damage: false, signs: false, others: [] };
@@ -376,6 +392,7 @@ async function showResults() {
       const row = el("div", "result-row"), img = el("img"), words = el("div");
       img.src = p.url; img.alt = "";
       words.append(el("p", null, photoLine(p)));
+      if (p.step !== "tree" && p.ai !== "ai") words.append(guessList(p.top3));
       if (p.blurry && p.ai !== "ai") words.append(el("p", "muted", "A bit blurry, but we'll still send it."));
       row.append(img, words);
       sec.append(row);

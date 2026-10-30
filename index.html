@@ -9,8 +9,8 @@
 <meta name="theme-color" content="#2f6b45">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Devanagari:wght@400;600&display=swap">
-<link rel="stylesheet" href="assets/site.css?v=20261029b">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="assets/site.css?v=20261030a">
 </head>
 <body class="app">
 <!-- The screens: splash and permissions (first visit only), then Home, Detect, Game and Map.
@@ -36,6 +36,7 @@
 <!-- ===== First visit: permissions ===== -->
 <section id="perms" class="onboard" aria-labelledby="permsTitle" hidden>
   <div class="onboard-card">
+    <div class="brand"><img src="assets/favicon.svg" alt="" width="44" height="44"><span class="brand-name">Pyinsect</span></div>
     <h1 id="permsTitle">Two quick questions</h1>
     <div class="intro-box">
       <span class="intro-icon" aria-hidden="true">📷</span>
@@ -175,11 +176,13 @@
 
       <!-- Battles & Forests, and Badges (they open from the two halves on the game home) -->
       <div id="gameBattles" class="game-page" hidden>
-        <div class="page-top"><a class="btn back-btn" href="#game">← <span data-i18n="Back">Back</span></a><h2 data-i18n="Battles &amp; Forests">Battles &amp; Forests</h2><button class="gear-btn" type="button" data-settings aria-label="Settings">⚙️</button></div>
+        <div class="game-top"><a class="btn back-btn" href="#game">← <span data-i18n="Back">Back</span></a><span class="brand small"><img src="assets/favicon.svg" alt="" width="28" height="28"><span>Pyinsect</span></span><button class="gear-btn" type="button" data-settings aria-label="Settings">⚙️</button></div>
+        <h2 class="page-title" data-i18n="Battles &amp; Forests">Battles &amp; Forests</h2>
         <div id="battleList" class="battle-list"></div>
       </div>
       <div id="gameBadges" class="game-page" hidden>
-        <div class="page-top"><a class="btn back-btn" href="#game">← <span data-i18n="Back">Back</span></a><h2 data-i18n="Badges">Badges</h2><button class="gear-btn" type="button" data-settings aria-label="Settings">⚙️</button></div>
+        <div class="game-top"><a class="btn back-btn" href="#game">← <span data-i18n="Back">Back</span></a><span class="brand small"><img src="assets/favicon.svg" alt="" width="28" height="28"><span>Pyinsect</span></span><button class="gear-btn" type="button" data-settings aria-label="Settings">⚙️</button></div>
+        <h2 class="page-title" data-i18n="Badges">Badges</h2>
         <div class="me-card">
           <span class="game-me"><button id="trainerBtn" class="status trainer-btn" type="button"></button> <button id="buddyBtn" class="status buddy-btn" type="button"></button></span>
           <p class="game-stats"><span id="gameRank"></span> · <span id="gamePoints"></span> · <span id="gameProgress"></span> · <span id="gameProtector"></span></p>
@@ -242,6 +245,7 @@
 <!-- ===== Camera and zoom (they open over the screen, above the menu bar) ===== -->
 <section id="camera" class="camera overlay" aria-label="Camera" hidden>
   <div class="viewfinder">
+    <span class="logo-chip" aria-hidden="true"><img src="assets/favicon.svg" alt="" width="22" height="22">Pyinsect</span>
     <video id="cameraVideo" playsinline muted autoplay></video>
     <div id="cameraFlash" class="flash"></div>
     <div id="focusRing" class="focus-ring" hidden></div>
@@ -261,6 +265,7 @@
 </section>
 
 <section id="crop" class="crop overlay" aria-label="Zoom in on your photo" hidden>
+  <span class="brand small"><img src="assets/favicon.svg" alt="" width="28" height="28"><span>Pyinsect</span></span>
   <p class="hint">Drag the box or its corners (or pinch) around the tree, damage, or bug. Or just tap <strong>Next</strong> to use the whole photo.</p>
   <div id="cropStage" class="crop-stage">
     <img id="cropImg" alt="Your photo">
@@ -282,6 +287,7 @@
 <!-- ===== Results pop-up (after Detect 3) ===== -->
 <div id="results" class="overlay sheet" role="dialog" aria-modal="true" aria-labelledby="resultsTitle" hidden>
   <div class="sheet-box">
+    <span class="brand small"><img src="assets/favicon.svg" alt="" width="28" height="28"><span>Pyinsect</span></span>
     <div id="resultsBody"></div>
     <label id="resultsArea" class="area-toggle" hidden><input class="area-box" type="checkbox" checked> 📍 Add my rough area to the report (the public map shows about 200 m)</label>
     <div id="resultsActions" class="actions"></div>
@@ -289,6 +295,7 @@
 </div>
 
 <div id="viewer" class="viewer" role="dialog" aria-modal="true" aria-label="Full photo" hidden>
+  <span class="logo-chip" aria-hidden="true"><img src="assets/favicon.svg" alt="" width="22" height="22">Pyinsect</span>
   <button id="viewerClose" class="btn close" type="button">Close</button>
   <img id="viewerImg" alt="">
   <div id="viewerCaption" class="caption"></div>
@@ -297,7 +304,7 @@
 <!-- Game page 3: the game's camera -->
 <div id="gameCamera" class="game-camera" role="dialog" aria-modal="true" aria-label="Camera" hidden>
   <video id="gameVideo" playsinline muted autoplay></video>
-  <div class="gc-top"><p id="gcSpecies" class="gc-species" aria-live="polite"></p><button class="gear-btn" type="button" data-settings aria-label="Settings">⚙️</button></div>
+  <div class="gc-top"><span class="logo-chip" aria-hidden="true"><img src="assets/favicon.svg" alt="" width="22" height="22">Pyinsect</span><p id="gcSpecies" class="gc-species" aria-live="polite"></p><button class="gear-btn" type="button" data-settings aria-label="Settings">⚙️</button></div>
   <div id="gcChallenge" class="gc-challenge" hidden></div>
   <div class="gc-side">
     <button id="gcFlash" class="gc-btn" type="button" aria-label="Flash" aria-pressed="false">⚡</button>
@@ -324,8 +331,9 @@
 <script src="assets/app.js?v=20261028b"></script>
 <script src="assets/trees/ash.js?v=20261025a"></script>
 <script src="assets/reportsmap.js?v=20261029b"></script>
-<script src="assets/game-i18n.js?v=20261029b"></script>
-<script src="assets/game.js?v=20261029b"></script>
+<script src="assets/game-i18n.js?v=20261030a"></script>
+<script src="assets/i18n/zh.js?v=20261030a"></script>
+<script src="assets/game.js?v=20261030a"></script>
 <script src="assets/flow.js?v=20261029b"></script>
 </body>
 </html>

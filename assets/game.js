@@ -179,7 +179,7 @@ const TRAINERS = [
 // Gyms are named after real Oregon places. You beat them in order: each one opens when your
 // Innvadex has `unlock` kinds of bugs AND you've beaten the gym before it. Later gyms are harder:
 //   level    = how smart the leader is (see foeMove)
-//   bugLevel = how strong the leader's bugs are (yours go up to Lv 3, the Champion's are Lv 4)
+//   bugLevel = how strong the leader's bugs are (yours go up to Lv 10, by catching the same bug again and again)
 // For the cutscenes: `place` and `story` (where you are), `intro` (the leader says hello),
 // `tip` (a real-world tip the leader gives you after you win).
 const GYMS = [
@@ -268,12 +268,13 @@ const GYMS = [
     tip: "Emerald ash borers leave D-shaped holes in ash trees. Spotting them early can save a whole forest!",
     say: { hi: "You made it to the top! My Legendary bugs are the toughest in Oregon.", next: "A Legendary bug never gives up!", lose: "Amazing! You've earned the Mount Hood Badge!", win: "The mountain wins this time. Keep training!" } },
   { id: "champion", emoji: "🏆", name: "Oregon Champion", place: "the Champion's Hall", badge: "Champion Trophy", leader: "Champion Juniper", face: "🦸", champion: true,
-    level: 3, bugLevel: 4, unlock: 6, reward: 250,
-    team: ["agrilus_planipennis", "anoplophora_glabripennis", "lycorma_delicatula", "vespa_mandarinia", "lymantria_dispar", "popillia_japonica"],
+    level: 3, bugLevel: 10, unlock: 6, reward: 250,
+    // Every bug in the game, all at Level 10 (the list comes from the model, so it's read when you battle)
+    get team() { return gameSpecies(); },
     story: "This is the Champion's Hall. Only Bug Rangers with every forest badge are allowed inside.",
     intro: "I'm Juniper, the Oregon Champion. I've protected every forest in this state, from the coast to the mountains.",
     tip: "A real champion never stops learning. Keep watching for invasive bugs everywhere you go!",
-    say: { hi: "You beat every forest. Now face me, with my Level 4 bugs! This is the final battle!", next: "A Champion never gives up!", lose: "Incredible! You are the new Oregon Champion!", win: "Not yet! Train hard and come back, Bug Ranger." } },
+    say: { hi: "You beat every forest. Now face me, with every bug in Oregon at Level 10! This is the final battle!", next: "A Champion never gives up!", lose: "Incredible! You are the new Oregon Champion!", win: "Not yet! Train hard and come back, Bug Ranger." } },
 ];
 // One badge per gym
 BADGES.push(...GYMS.map(gym => ({ id: `gym-${gym.id}`, emoji: gym.emoji, name: gym.badge, desc: "Win at {gym}.", gym: gym.name, earned: g => g.gyms.includes(gym.id) })));
@@ -298,7 +299,8 @@ const signatureBug = gym => [...gym.team].sort((a, b) => Object.keys(RARITY).ind
 // ---------- version 3: evolution, ranks, sounds ----------
 
 // Catch the same kind of bug 3 times and it levels up. Each level makes it stronger in battles.
-const CATCHES_PER_LEVEL = 3, MAX_LEVEL = 3, LEVEL_BONUS = { hp: 6, atk: 2 };
+// Every 3 catches of the same bug is one more level, all the way to Level 10 (as strong as the Champion's)
+const CATCHES_PER_LEVEL = 3, MAX_LEVEL = 10, LEVEL_BONUS = { hp: 6, atk: 2 };
 const bugLevel = n => Math.min(MAX_LEVEL, 1 + Math.floor(n / CATCHES_PER_LEVEL));
 
 // Ranks go up with your points
@@ -953,6 +955,7 @@ const HOW_TO_PLAY = [
   { scene: "forest",  ...PIP,   text: "If it isn't invasive, leave it be. You still get protector points!" },
   { scene: "lab",     ...HAZEL, text: "Do the daily challenge and today's minigame for bonus points." },
   { scene: "victory", ...HAZEL, text: "Start a monthly challenge by connecting the bugs in the shape shown. Finish it to give its badge color!" },
+  { scene: "forest",  ...PIP,   text: "Catch the same bug again and again to level it up. Every 3 catches is one more level, all the way to Level 10!" },
   { scene: "mthood",  ...HAZEL, text: "Battle trainers and the {n} forests with the bugs you caught, then face the Oregon Champion!", vars: { n: GYMS.length - 1 } },
   { scene: "danger",  ...PIP,   text: "Don't touch bugs with bare hands. Some sting or bite." },
   { scene: "danger",  ...PIP,   text: "Never carry an invasive bug (or firewood) to a new place." },
@@ -1450,16 +1453,19 @@ function cutscene(slides) {
     const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const wrap = el("div", "cutscene");
     wrap.setAttribute("role", "dialog"); wrap.setAttribute("aria-modal", "true"); wrap.setAttribute("aria-label", t("Story"));
-    wrap.lang = gameLang;
+    wrap.lang = langTag();
     const stage = el("div", "cs-stage"), decor = el("div", "cs-decor"), actor = el("div", "cs-actor"), face = el("span", "cs-face");
     actor.append(face);
     const box = el("div", "cs-box"), who = el("strong"), text = el("p"), next = el("button", "btn primary");
     const skip = el("button", "btn cs-skip", `${t("Skip")} ⏭`);
+    const logo = el("span", "logo-chip cs-logo"), logoImg = el("img");
+    logoImg.src = "assets/favicon.svg"; logoImg.alt = ""; logoImg.width = logoImg.height = 22;
+    logo.append(logoImg, "Pyinsect"); logo.setAttribute("aria-hidden", "true");
     next.type = skip.type = "button";
     text.setAttribute("aria-live", "polite");
     box.append(who, text, next);
     stage.append(decor, actor);
-    wrap.append(stage, box, skip);
+    wrap.append(stage, box, skip, logo);
 
     let i = -1, typing = null, full = "";
     const finishTyping = () => { clearInterval(typing); typing = null; text.textContent = full; face.classList.remove("talking"); };
@@ -2065,7 +2071,7 @@ function bugPop() {
 // The browser reads the cutscenes out loud, in the game's language (if the device has that voice).
 // Devices often have several voices. The good ones sound like real people ("Natural", "Neural",
 // Google, Siri, and so on), and the old ones sound like robots, so we pick the best one we can.
-const VOICE_LANG = { en: "en-US", es: "es-ES", fr: "fr-FR", hi: "hi-IN" };
+const VOICE_LANG = GAME_LANG_TAGS;   // en-US, es-ES, ... (see assets/game-i18n.js)
 // Small changes only. Pitch that's very high or very low is what makes a voice sound robotic.
 const VOICE_STYLE = { Pip: { pitch: 1.2, rate: 1.05 }, Squawk: { pitch: 1.3, rate: 1.1 }, Bramble: { pitch: 1.1 }, Thistle: { pitch: .92 }, "Boss Burdock": { pitch: .85, rate: .92 } };
 // Characters who get a different voice than Professor Hazel, when the device has more than one good voice
@@ -2114,7 +2120,7 @@ function showCertificate() {
   const g = loadGame();
   const cert = el("div", "certificate");
   const sign = el("div", "cert-sign");
-  sign.append(el("span", null, "👩‍🏫 Professor Hazel"), el("span", null, new Date().toLocaleDateString(gameLang)), el("span", null, "🦸 Champion Juniper"));
+  sign.append(el("span", null, "👩‍🏫 Professor Hazel"), el("span", null, new Date().toLocaleDateString(langTag())), el("span", null, "🦸 Champion Juniper"));
   cert.append(el("p", "cert-top", "🌲 🦫 🌲"), el("h2", null, t("Forest Protector Certificate")), el("p", null, t("This certificate goes to")),
     el("p", "cert-name", `${trainerLook(g)} ${g.trainer.name || t("Ranger")}`),
     el("p", null, t("for beating all {n} forests, becoming the Oregon Champion, and helping protect Oregon from invasive bugs.", { n: GYMS.length - 1 })),
@@ -2158,12 +2164,13 @@ function route(sub) {
 
 // ---- monthly challenges ----
 const monthId = (y, m) => `${y}-${String(m).padStart(2, "0")}`;
-const monthName = id => { const [y, m] = id.split("-").map(Number); return new Date(y, m - 1, 15).toLocaleDateString(gameLang, { month: "long", year: "numeric" }); };
-// Every month's challenges, from the first month to this one (newest first)
-function monthlyChallenges() {
-  const list = [], now = new Date();
+const monthName = id => { const [y, m] = id.split("-").map(Number); return new Date(y, m - 1, 15).toLocaleDateString(langTag(), { month: "long", year: "numeric" }); };
+// Every month's challenges, from the first month to this one (newest first).
+// ahead = 1 also makes next month's, for the preview (they can't be started yet).
+function monthlyChallenges(ahead = 0) {
+  const list = [], now = new Date(), last = new Date(now.getFullYear(), now.getMonth() + ahead, 1);
   let [y, m] = MONTHLY_START, i = 0;
-  while (y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth() + 1)) {
+  while (y < last.getFullYear() || (y === last.getFullYear() && m <= last.getMonth() + 1)) {
     for (let k = 0; k < MONTHLY_PER_MONTH; k++) {
       const n = i * MONTHLY_PER_MONTH + k, kind = MONTHLY_KINDS[n % MONTHLY_KINDS.length];
       list.push({ id: `${monthId(y, m)}-${kind.id}`, month: monthId(y, m), kind, shape: SHAPES[n % SHAPES.length] });
@@ -2173,6 +2180,9 @@ function monthlyChallenges() {
   }
   return list.reverse();
 }
+// Next month's challenges, and the day they start
+const comingChallenges = () => { const now = new Date(), next = monthId(now.getFullYear() + (now.getMonth() === 11), (now.getMonth() + 1) % 12 + 1); return monthlyChallenges(1).filter(ch => ch.month === next); };
+const startDay = ch => { const [y, m] = ch.month.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleDateString(langTag(), { month: "long", day: "numeric" }); };
 const challengeState = (g, ch) => g.monthly[ch.id] || null;
 const challengeStatus = (g, ch) => { const st = challengeState(g, ch); return !st ? "new" : st.done ? "done" : "going"; };
 const STATUS_NAMES = { done: "Completed", going: "In progress", new: "Not started" };
@@ -2186,7 +2196,7 @@ function monthlyProgress(g, ev) {
     if (ch.kind.distinct) { st.kinds = st.kinds || []; if (st.kinds.includes(ev.species)) continue; st.kinds.push(ev.species); }
     st.count++;
     if (st.count >= ch.kind.n) {
-      st.done = new Date().toLocaleDateString(gameLang);
+      st.done = new Date().toLocaleDateString(langTag());
       lines.push(`${ch.kind.emoji} ${t("Monthly challenge done: {name}! Its badge has its color now.", { name: t(ch.kind.name) })}`);
     }
   }
@@ -2206,12 +2216,13 @@ function renderMonthly(g) {
   list.innerHTML = "";
   $("monthlyView").textContent = icons ? `☰ ${t("List view")}` : `▦ ${t("Icon view")}`;
   $("monthlyView").setAttribute("aria-label", icons ? t("Show as a list") : t("Show as icons"));
-  const all = monthlyChallenges();
-  for (const status of ["done", "going", "new"]) {
-    const group = all.filter(ch => challengeStatus(g, ch) === status);
+  const all = monthlyChallenges(), coming = comingChallenges();
+  for (const status of ["done", "coming", "going", "new"]) {
+    const group = status === "coming" ? coming : all.filter(ch => challengeStatus(g, ch) === status);
     if (!group.length) continue;
-    list.append(el("h3", "monthly-group", `${t(STATUS_NAMES[status])} (${group.length})`));
-    const box = el("div", icons ? "monthly-icons" : "monthly-rows");
+    list.append(el("h3", "monthly-group", status === "coming"
+      ? `🔜 ${t("Coming next month")}` : `${t(STATUS_NAMES[status])} (${group.length})`));
+    const box = el("div", (icons ? "monthly-icons" : "monthly-rows") + (status === "coming" ? " coming" : ""));
     for (const ch of group) {
       const st = challengeState(g, ch), item = el("button", "monthly-item");
       item.type = "button";
@@ -2222,7 +2233,7 @@ function renderMonthly(g) {
         const info = el("span", "monthly-info"), bar = el("div", "track"), fill = el("div", "fill");
         fill.style.width = `${Math.min(1, (st?.count || 0) / ch.kind.n) * 100}%`; bar.append(fill);
         info.append(name, el("span", "muted", `${t(ch.kind.text, { n: ch.kind.n })} · ${monthName(ch.month)}`), bar);
-        item.append(badgeSlot(ch, status === "done"), info, el("span", "monthly-count", `${st?.count || 0}/${ch.kind.n}`));
+        item.append(badgeSlot(ch, status === "done"), info, el("span", "monthly-count", status === "coming" ? "🔒" : `${st?.count || 0}/${ch.kind.n}`));
       }
       box.append(item);
     }
@@ -2232,7 +2243,8 @@ function renderMonthly(g) {
 
 // ---- the challenge page ----
 function renderChallenge(id) {
-  const page = $("gameChallenge"), ch = monthlyChallenges().find(c => c.id === id);
+  const page = $("gameChallenge"), ch = monthlyChallenges(1).find(c => c.id === id);
+  const soon = comingChallenges().some(c => c.id === id);   // next month's: a preview only
   page.innerHTML = "";
   if (!ch) { goGame(); return; }
   const g = loadGame(), st = challengeState(g, ch), status = challengeStatus(g, ch);
@@ -2244,18 +2256,19 @@ function renderChallenge(id) {
   top.append(back, brand, gear);
   // The heading, when it was made, and the badge (no color until it's done)
   const head = el("div", "challenge-head"), words = el("div");
-  words.append(el("h1", null, t(ch.kind.name)), el("p", "muted", t("Made in {month}", { month: monthName(ch.month) })));
+  words.append(el("h1", null, t(ch.kind.name)), el("p", "muted", soon ? t("Coming next month") : t("Made in {month}", { month: monthName(ch.month) })));
   head.append(words, badgeSlot(ch, status === "done", true));
   // Connect the bugs to start (or keep going)
   const pad = el("section", "connect");
-  const said = status === "done" ? `✅ ${t("You finished this challenge on {date}!", { date: st.done })}`
+  const said = soon ? `🔒 ${t("This challenge starts on {date}. Come back then!", { date: startDay(ch) })}`
+    : status === "done" ? `✅ ${t("You finished this challenge on {date}!", { date: st.done })}`
     : status === "going" ? t("{count} of {n} done. Connect the bugs to open the camera.", { count: st.count, n: ch.kind.n })
     : t("Connect the bugs in the shape to start the challenge!");
   pad.append(el("p", "connect-say", said));
   if (status === "going") { const bar = el("div", "track"), fill = el("div", "fill"); fill.style.width = `${st.count / ch.kind.n * 100}%`; bar.append(fill); pad.append(bar); }
-  if (status !== "done") pad.append(connectPad(ch.shape, () => {
+  if (status !== "done" && !soon) pad.append(connectPad(ch.shape, () => {
     const g = loadGame();
-    if (!g.monthly[ch.id]) { g.monthly[ch.id] = { started: new Date().toLocaleDateString(gameLang), count: 0 }; saveGame(g); renderGame(); }
+    if (!g.monthly[ch.id]) { g.monthly[ch.id] = { started: new Date().toLocaleDateString(langTag()), count: 0 }; saveGame(g); renderGame(); }
     sound("badge");
     goGame(`camera/${ch.id}`);
   }));
@@ -2319,7 +2332,7 @@ function connectPad(shape, done) {
 let camStream = null, camFacing = "environment", camTimer = null, camGuessing = false, camChallenge = null, camTorch = false;
 let camQuietUntil = 0;   // the live guess waits, so a photo's result stays on screen
 async function openGameCamera(challengeId) {
-  camChallenge = monthlyChallenges().find(c => c.id === challengeId) || null;
+  camChallenge = monthlyChallenges().find(c => c.id === challengeId) || null;   // (next month's previews aren't in this list)
   $("gameCamera").hidden = false;
   document.body.classList.add("camera-open");
   renderCameraChallenge();

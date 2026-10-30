@@ -23,9 +23,9 @@
     radial-gradient(30rem 26rem at 45% 52%, rgba(150, 225, 205, .45), transparent 65%),
     linear-gradient(160deg, #eef6ef 0%, #f3f1ea 100%);
 
-  --display: "Bricolage Grotesque", "Noto Sans Devanagari", "Segoe UI", system-ui, sans-serif;
-  --body: "IBM Plex Sans", "Noto Sans Devanagari", "Segoe UI", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", "Noto Sans Devanagari", ui-monospace, Consolas, monospace;
+  --display: "Bricolage Grotesque", "Noto Sans SC", "Noto Sans TC", "Noto Sans KR", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", "Malgun Gothic", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Noto Sans SC", "Noto Sans TC", "Noto Sans KR", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", "Malgun Gothic", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", "Noto Sans SC", "Noto Sans TC", "Noto Sans KR", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", "Malgun Gothic", ui-monospace, Consolas, monospace;
   --surface: #ffffff;
 }
 @media (prefers-color-scheme: dark) {
@@ -519,8 +519,6 @@ input[type=file] { display: none; }
 .lang-pick select { font: 500 14px var(--body); color: var(--ink); padding: 9px 12px; border-radius: 999px; border: 1px solid var(--glass-edge); background: var(--glass-strong); cursor: pointer; }
 .lang-pick select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-/* Hindi uses the Devanagari script */
-:lang(hi) .cs-box p, :lang(hi) .speech { line-height: 1.7; }
 
 /* The Innva-Orb: a glowing green-and-purple ball */
 .innva-orb { position: absolute; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px; pointer-events: none; z-index: 2; border-radius: 50%;
@@ -1021,3 +1019,18 @@ body[data-screen="game"] #screens { padding-top: 14px; }
 .scene-card .scene-play { color: var(--accent); }
 .scene-card:hover { transform: translateY(-1px); }
 .scene-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* Next month's challenges: a preview, locked until the month starts */
+.monthly-icons.coming .monthly-item, .monthly-rows.coming .monthly-item { border-style: dashed; opacity: .8; }
+.monthly-icons.coming .badge-slot::after { content: "🔒"; position: absolute; font-size: 16px; transform: translate(18px, 18px); }
+.badge-slot { position: relative; }
+
+/* The Pyinsect logo on every screen. On cameras, photos, and cutscenes it's a small chip in the corner. */
+.logo-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 6px; border-radius: 999px; font-family: var(--display); font-weight: 700; font-size: 14px;
+  color: #fff; background: rgba(0, 0, 0, .45); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); pointer-events: none; }
+.logo-chip img { border-radius: 6px; }
+.viewfinder > .logo-chip, .viewer > .logo-chip, .cs-logo { position: absolute; top: 12px; left: 12px; z-index: 3; }
+.cutscene .cs-logo { top: 16px; left: 14px; }
+.gc-top .logo-chip { flex: none; align-self: center; }
+.page-title { margin: 0; font-size: 24px; }
+#perms .brand-name { font-family: var(--display); font-weight: 700; font-size: 22px; }
+.crop > .brand, .sheet-box > .brand { align-self: center; }

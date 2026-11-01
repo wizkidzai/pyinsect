@@ -1,0 +1,4 @@
+
+# Wrangler (the game server tool, see server/README.md)
+node_modules/
+.wrangler/

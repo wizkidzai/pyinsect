@@ -1,0 +1,13 @@
+# Innvadex game server (see README.md). Deploy: npx wrangler@4.151.1 deploy
+name = "innvadex-server"
+main = "index.js"
+compatibility_date = "2026-10-01"
+
+# The lobby: one Durable Object (SQLite storage, the kind the free plan allows)
+[[durable_objects.bindings]]
+name = "LOBBY"
+class_name = "Lobby"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Lobby"]

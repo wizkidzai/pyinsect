@@ -684,3 +684,37 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [x] After "Send report", the map opens and your new report is a different color.
   - [ ] Tried on a real phone (camera, location, and sending a real report).
   - [ ] A grown-up redeployed the relay (version 15) before this was merged.
+
+## Innvadex: live online battles and quick bot battles
+
+- **Status:** Building
+- **Asked by:** edafawd, 2026-10-31
+- **Who it's for:** Our team, for the FLL demo (and then every Innvadex player).
+- **Problem or need:** You can only battle the computer's trainers and gyms, never another person.
+  And to battle a bot you have to go through the trainer and gym list.
+- **Why they have it:** Showing judges that two players can battle each other with the bugs they
+  caught makes the game more exciting, and more catching means more real invasive bugs reported.
+- **Our idea:**
+  - **Battle a friend online:** one player taps "Make a room" and gets a 4-letter code. The other
+    types the code and taps "Join". They take turns live (Tackle, special move, or Switch bug), with
+    the same rules as the trainer battles. The connection goes straight between the two devices
+    (PeerJS, free, no accounts). Only your nickname, avatar, and bugs are shared. No chat.
+  - **Battle a bot:** a button for a quick battle any time, picking Easy, Medium, or Hard. The bot
+    gets random invasive bugs, as many as your team, a bit weaker, the same, or a bit stronger.
+  - The code is in a new file, `assets/game-online.js`, so the game file barely changes.
+- **Other ideas we talked about:**
+  - Battle a friend's team played by the bot (nobody has to be online together): not live.
+  - Pass-and-play on one device: easy, but not online.
+- **User flow:**
+  1. Both players open the Game screen → Battles. They see "Battle a friend online" and "Battle a bot".
+  2. Player 1 taps "Make a room" and sees a code, like "KTMB".
+  3. Player 2 taps "Join a room", types KTMB, and taps "Join".
+  4. Both see the battle. The one whose turn it is picks a move; the other sees "Waiting for …".
+  5. When all of one player's bugs faint, the battle ends. The winner gets +15 points.
+  6. If someone leaves or loses the connection, the other sees "… left the battle."
+- **Done when:**
+  - [x] Two browsers can make and join a room, battle to the end, and both see the same result.
+  - [x] A wrong code says the room wasn't found.
+  - [x] Closing one browser tells the other that the player left.
+  - [x] "Battle a bot" starts a battle at the chosen level.
+  - [ ] Tried on two real phones (on different Wi-Fi or mobile data).

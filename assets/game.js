@@ -876,6 +876,8 @@ function renderBattles(g) {
     item.append(el("span", "bug-emoji", foe.emoji), who, b);
     list.append(item);
   };
+  // Quick battles: a friend online, or a bot (assets/game-online.js)
+  if (typeof onlineBattleRows === "function") onlineBattleRows(list, g);
   list.append(el("h3", null, t("Trainers")));
   TRAINERS.forEach(tr => row(tr, false));
   list.append(el("h3", null, t("Forests (beat them in order)")));

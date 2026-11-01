@@ -718,3 +718,43 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [x] Closing one browser tells the other that the player left.
   - [x] "Battle a bot" starts a battle at the chosen level.
   - [ ] Tried on two real phones (on different Wi-Fi or mobile data).
+
+## Innvadex: online lobby, friends, and watching battles
+
+- **Status:** Building
+- **Asked by:** edafawd, 2026-11-01
+- **Who it's for:** Our team, for the FLL demo (and then every Innvadex player).
+- **Problem or need:** Room codes only work if your friend is online and you tell them the code. There's
+  no place to meet other players, find your friends, or see what they're doing.
+- **Why they have it:** A busy online world makes the game exciting, so players keep catching (and
+  reporting) real invasive bugs. There aren't many players yet, so bots fill the lobby.
+- **Our idea:**
+  - **The game server** (`server/`, a free Cloudflare Worker with a Durable Object) keeps the lobby.
+    It rolls the dice in every online battle, so both players see the same thing and nobody can cheat.
+  - **Online names:** you pick a made-up name like "BraveBeetle42" (nobody types their real name).
+  - **The lobby:** who's online, "Find a match" (a player, or a bot after a few seconds), "Make a room"
+    and "Join a room" with a code, "Find a player" by name, and Challenge.
+  - **Friends:** add friends (they say yes or no), see what they're doing right now (in the lobby,
+    catching bugs, battling someone, watching), challenge them, and **watch** their battle live.
+  - **Bots:** about 20 bots are always online. They wander around, catch bugs, battle each other (so
+    there's always a battle to watch), and say yes to every challenge and friend request. They're marked "bot".
+  - No chat. Only names, avatars, wins, and bugs are shared.
+- **Other ideas we talked about:**
+  - Typing your own username: kids might use their real name, so we picked made-up names.
+  - Phone-to-phone room codes only (the last version): no lobby, friends, or watching.
+- **User flow:**
+  1. Game screen → Battles → "Online lobby" → **Go online**.
+  2. The first time, pick your online name from 4 made-up names.
+  3. In the lobby: Find a match, Make a room, Join a room, or Find a player by name.
+  4. Tap **Add friend** next to someone. They see the request and tap Accept (bots always do).
+  5. Friends show what they're doing. Tap **Challenge** to battle, or **Watch** to see their battle live.
+  6. After a battle, "Back to the lobby". "Leave lobby" goes offline.
+- **Done when:**
+  - [x] Two browsers pick names and see each other and the bots in the lobby.
+  - [x] A friend request is accepted, and a bot says yes right away.
+  - [x] A challenge is accepted and battled to the end; both see the same winner, only the winner gets points.
+  - [x] Find a match pairs two players; alone, a bot steps in.
+  - [x] A room code works.
+  - [x] You can watch a live battle, and your friends see that you're watching.
+  - [ ] A grown-up deployed the game server (server/README.md) before this was merged.
+  - [ ] Tried on two real phones.

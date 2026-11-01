@@ -1028,6 +1028,21 @@ body[data-screen="game"] #screens { padding-top: 14px; }
   .foe.quick .foe-buttons { grid-column: 1 / -1; justify-content: flex-start; }
 }
 .room-code { font-family: var(--mono); font-size: 44px; font-weight: 700; letter-spacing: .25em; text-align: center; margin: 4px 0; color: var(--accent); }
-.room-join { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.room-input { font: 700 28px var(--mono); letter-spacing: .2em; text-transform: uppercase; width: 7.5em; max-width: 100%; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--glass-edge); background: var(--glass-strong); color: var(--ink); }
 .battle-whose { font-weight: 700; margin: 0; min-height: 1.4em; }
+/* The Innvadex online lobby (assets/game-online.js) */
+.lobby-me { margin: 0; font-weight: 600; }
+.lobby-play { flex-wrap: wrap; }
+.lobby-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.lobby-input { font: 600 16px var(--mono); padding: 8px 12px; border-radius: 12px; border: 1px solid var(--glass-edge); background: var(--glass-strong); color: var(--ink); width: 14em; max-width: 100%; min-width: 0; }
+.lobby-input.code { text-transform: uppercase; letter-spacing: .2em; width: 6em; }
+.lobby-note { margin: 0; font-weight: 600; color: var(--accent); }
+.lobby-lists { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto; }
+.lobby-lists h3 { margin: 8px 0 0; font-size: 15px; }
+.person { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 8px 12px; border-radius: 14px; background: var(--glass); border: 1px solid var(--glass-edge); }
+.person.away { opacity: .6; }
+.person.challenge { border-color: var(--accent); }
+.person .foe-who .muted { font-size: 13px; }
+@media (max-width: 560px) { .person { grid-template-columns: minmax(0, 1fr); } .person .foe-buttons { justify-content: flex-start; } }
+.bot-tag { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); vertical-align: middle; }
+.btn.small { padding: 5px 10px; font-size: 13px; }
+.name-options { display: flex; flex-wrap: wrap; gap: 8px; }

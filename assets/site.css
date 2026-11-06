@@ -866,12 +866,10 @@ body.app.onboarding { padding-bottom: 0; overflow: hidden; }
 .chip-btn { font: 600 12px var(--body); padding: 4px 9px; border-radius: 999px; border: 1.5px solid color-mix(in srgb, var(--accent) 55%, transparent); background: transparent; color: var(--ink); cursor: pointer; }
 .chip-btn[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #fff; }
 @media (prefers-color-scheme: dark) { .chip-btn[aria-pressed=true] { color: #0d1411; } }
-.step-actions { display: flex; flex-wrap: wrap; gap: 10px; }
-.step-actions .take { flex: 1 1 220px; }
-.step-actions .skip, .step-actions .next { flex: 0 0 auto; min-width: 120px; }
-.step-actions .skip { border: 1.5px solid color-mix(in srgb, var(--accent) 50%, transparent); }
-.detect-step > .pick, .detect-step > .back { align-self: flex-start; }
-.detect-step > .pick { border: 1.5px solid color-mix(in srgb, var(--accent) 50%, transparent); }
+.step-ask { margin: 0; font-weight: 600; }
+.step-actions { display: flex; gap: 8px; }   /* the tiles share the menu bar look (see .menubar a) */
+.step-actions .step-tile { flex: 1 1 0; min-width: 0; min-height: 76px; padding: 8px 4px; font: 600 13px/1.15 var(--body); text-align: center; cursor: pointer; }
+.step-actions .step-tile svg { width: 28px; height: 28px; flex: none; }
 
 /* Camera, zoom step and results open over the screen, above the menu bar */
 .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: var(--menu-h); z-index: 120; overflow: auto; }
@@ -904,13 +902,13 @@ body.app.onboarding { padding-bottom: 0; overflow: hidden; }
 
 /* Menu bar: always at the bottom. Each item looks like a button; the screen you're on is lit up. */
 .menubar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 200; align-self: auto; display: flex; justify-content: center; gap: 6px; height: var(--menu-h); padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); border-radius: 0; border-width: 1px 0 0; font-family: var(--body); background: var(--glass-strong); }
-.menubar a { flex: 1; max-width: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px; border-radius: 16px; color: var(--ink); font-size: 12px; font-weight: 600; text-decoration: none; background: rgba(255, 255, 255, .3); border: 1px solid var(--glass-edge); box-shadow: 0 2px 8px rgba(25, 45, 35, .1); transition: transform .12s, background .15s; -webkit-tap-highlight-color: transparent; }
+.menubar a, .step-tile { flex: 1; max-width: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px; border-radius: 16px; color: var(--ink); font-size: 12px; font-weight: 600; text-decoration: none; background: rgba(255, 255, 255, .3); border: 1px solid var(--glass-edge); box-shadow: 0 2px 8px rgba(25, 45, 35, .1); transition: transform .12s, background .15s; -webkit-tap-highlight-color: transparent; }
 .menubar a svg { width: 24px; height: 24px; }
-.menubar a:hover { background: var(--accent-soft); color: var(--ink); }
-.menubar a:active { transform: scale(.95); }
-.menubar a[aria-current=page] { color: #fff; border-color: rgba(255, 255, 255, .35); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 78%, #fff) 0%, var(--accent) 100%); box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 40%, transparent); }
-@media (prefers-color-scheme: dark) { .menubar a { background: rgba(255, 255, 255, .06); } .menubar a[aria-current=page] { color: #0d1411; } }
-.menubar a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.menubar a:hover, .step-tile:hover { background: var(--accent-soft); color: var(--ink); }
+.menubar a:active, .step-tile:active { transform: scale(.95); }
+.menubar a[aria-current=page], .step-tile.next { color: #fff; border-color: rgba(255, 255, 255, .35); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 78%, #fff) 0%, var(--accent) 100%); box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 40%, transparent); }
+@media (prefers-color-scheme: dark) { .menubar a, .step-tile { background: rgba(255, 255, 255, .06); } .menubar a[aria-current=page], .step-tile.next { color: #0d1411; } }
+.menubar a:focus-visible, .step-tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Map screen */
 .map-key .swatch.new { background: #e8590c; }

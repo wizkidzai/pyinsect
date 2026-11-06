@@ -962,6 +962,8 @@ function showCrop(file, source) {
     // The insect finder (assets/insect-finder.js) moves the box onto the bug by itself. The person
     // can still move it. If it finds no bug, the box stays on the whole photo, like before.
     window.findInsect?.(img, minBox).then(b => { if (b && cropFile === file) setBox(b); }).catch(console.error);
+    const box = $("cropBox");   // restart the "here I am" shrink-and-grow (site.css: .crop-box.hello)
+    box.classList.remove("hello"); void box.offsetWidth; box.classList.add("hello");
     $("checkIt").disabled = false;
     $("checkIt").focus({ preventScroll: true });
   };

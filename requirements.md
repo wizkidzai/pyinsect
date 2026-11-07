@@ -815,6 +815,9 @@ To add one, ask your AI helper to help you plan a new feature. It will use
     fine). A blocked device can't sign in, make accounts, play, or send reports. Devices our team
     uses are never blocked. Clearing the browser's data gets around a device block, so it's a speed
     bump, not a wall.
+  - 👑 **Owner:** the account called **edafawd** is always Team, and nobody can block it, change its
+    level, rename it, or give it a new password. It can sign in even on a blocked device. Nobody
+    else can take the name.
 - **Other ideas we talked about:**
   - Sign in with GitHub: many kids don't have a GitHub account.
   - Sign in with Google: it collects emails, and kids under 13 often can't use their own.
@@ -834,6 +837,7 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] The team setup code makes your account Team, and Manage accounts can change someone's level.
   - [ ] A blocked account can't sign in.
   - [ ] Blocked for 1 hour: they can sign in again after an hour (the list says until when).
+  - [ ] Nobody can block or change the owner (edafawd), and the owner can sign in on a blocked device.
   - [ ] Blocked with their device: that browser can't sign in, make a new account, or send reports; Unblock fixes it.
   - [ ] A Team member changes their own name, and signs in with the new name.
   - [ ] Part 2: a Manager can see reports but not change them; Team can fix and delete reports.

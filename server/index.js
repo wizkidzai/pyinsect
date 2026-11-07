@@ -86,6 +86,11 @@ function goodName(name) {
   return !!m && ADJECTIVES.includes(m[1]) && NOUNS.includes(m[2]);
 }
 
+// Team members can pick their own name (and rename anyone): 3-20 letters, numbers, or _, and nothing rude
+const OWN_NAME_RE = /^[A-Za-z0-9_]{3,20}$/;
+const RUDE = ["fuck", "shit", "bitch", "dick", "cock", "pussy", "cunt", "porn", "nazi", "hitler", "nigg", "fag", "slut", "whore", "rape", "penis", "vagina", "boob", "poop", "damn", "crap", "stupid", "idiot"];
+const okOwnName = name => OWN_NAME_RE.test(name) && !RUDE.some(w => name.toLowerCase().replace(/_/g, "").includes(w));
+
 // ---------- accounts ----------
 const LEVELS = ["team", "manager", "player"];
 const MIN_PASSWORD = 6;
@@ -405,6 +410,15 @@ export class Lobby extends DurableObject {
     }
     const who = this.byName(name);
     if (!who || who.bot || !who.pass) return [404, { error: "notFound" }];
+    // A new name (for yourself or anyone else)
+    if (b.do === "rename") {
+      const newName = text(b.newName, 40).trim(), same = newName.toLowerCase() === who.name.toLowerCase();
+      if (!okOwnName(newName)) return [400, { error: "badName" }];
+      if (!same && this.byName(newName)) return [409, { error: "nameTaken" }];
+      this.sql.exec("UPDATE players SET name = ? WHERE id = ?", newName, who.id);
+      this.changed(who.id); this.lobbyChanged(); this.friendsChanged(who.id);
+      return [200, { me: who.id === me.id ? this.meInfo(this.player(me.id)) : undefined }];
+    }
     if (who.id === me.id) return [400, { error: "self" }];   // so the team can't lock itself out by mistake
     if (b.do === "level") {
       if (!LEVELS.includes(b.level)) return [400, { error: "bad" }];

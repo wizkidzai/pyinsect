@@ -31,6 +31,8 @@ const ACCOUNT_ERRORS = {
   self: "You can't change your own account here. Ask another team member.",
   notFound: "There's no account with that name.",
   level: "Your level can't do that.",
+  badName: "Names can have 3 to 20 letters, numbers, or _ (no spaces), and nothing rude.",
+  nameTaken: "Someone already has that name. Try another one.",
 };
 
 const account = {
@@ -162,7 +164,19 @@ async function showMe() {
   const draw = () => {
     const me = account.me(), lv = LEVELS[account.level()] || LEVELS.player;
     const parts = [el("h2", null, `${me.look || "🙂"} ${me.name}`), el("p", "level-chip", `${lv.emoji} ${lv.name}`), el("p", null, lv.about)];
-    if (account.level() === "team") parts.push(acButton("👥 Manage accounts", () => openAccount("manage"), true));
+    if (account.level() === "team") {
+      parts.push(acButton("👥 Manage accounts", () => openAccount("manage"), true));
+      // Team members can pick their own name
+      const more = el("details", "account-setup"), msg = el("p", "account-msg");
+      const [nameBox, name] = acField("New name (3 to 20 letters, numbers, or _)", "text", { max: 20, placeholder: me.name });
+      const go = acButton("Change my name", () => acBusy(go, msg, async () => {
+        const r = await accountCall("rename", { name: me.name, newName: name.value.trim() });
+        if (r.error) return r.error;
+        saveAccount(account.session(), r.me); openAccount("me");
+      }));
+      more.append(el("summary", null, "✏️ Change my name"), nameBox, msg, go);
+      parts.push(more);
+    }
     parts.push(acButton("Sign out", async () => { await accountCall("signout"); forgetAccount(); openAccount("start"); }));
     // Our team's setup code makes the first team account (a grown-up keeps the code secret)
     if (account.level() !== "team") {
@@ -228,7 +242,14 @@ function accountRow(a, reload, msg) {
       msg.textContent = r.error ? errorText(r.error) : `${a.name} has a new password now. They're signed out until they use it.`;
     });
     block.classList.add("small"); reset.classList.add("small");
-    btns.append(pick, block, reset);
+    const rename = acButton("Rename", async () => {
+      const n = prompt(`New name for ${a.name} (3 to 20 letters, numbers, or _):`, a.name);
+      if (n == null || n.trim() === a.name) return;
+      const r = await accountCall("rename", { name: a.name, newName: n.trim() });
+      msg.textContent = r.error ? errorText(r.error) : `${a.name} is called ${n.trim()} now.`; reload();
+    });
+    rename.classList.add("small");
+    btns.append(pick, block, reset, rename);
   }
   row.append(who, btns);
   return row;

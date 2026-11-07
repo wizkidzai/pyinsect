@@ -18,12 +18,17 @@
 // note that says your name and level, signed with this server's secret key. The relay checks it with
 // the public key from GET /key, so the two workers never share a secret.
 //
+// Blocking: our team can block an account for an hour, a day, a week, or forever, or block it AND
+// the devices it used. A device is a random number the site keeps in the browser (no IP addresses,
+// so a whole school or home network is never blocked). Clearing the browser's data makes a new one.
+//
 // Deploy: see server/README.md (it needs Wrangler, because Durable Objects can't be made in the
 // Cloudflare dashboard). Free plan limits: 100,000 requests a day; past that it stops until tomorrow.
 
 import { DurableObject } from "cloudflare:workers";
 
-const VERSION = 2;
+const VERSION = 2;          // the game's message rules (assets/game-online.js must match)
+const RELEASE = 3;          // which code is live (GET / shows it)
 // Websites allowed to connect (the game's site, and your own computer for testing)
 const SITE_ORIGINS = ["https://wizkidzai.github.io", "https://edafawd.github.io"];
 const LOCAL_ORIGIN = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/;
@@ -98,6 +103,11 @@ const SESSION_DAYS = 90;              // you stay signed in on a device for 90 d
 const PASS_MS = 60 * 60 * 1000;       // a review pass for the reports page lasts an hour
 const PBKDF2_ROUNDS = 100000;         // how hard password hashes are to guess (the most Cloudflare allows)
 const MINUTE = 60 * 1000, HOUR = 60 * MINUTE;
+// How long a block lasts. "blocked" in the database: 0 = not blocked, 1 = forever, more = blocked until then.
+const BLOCK_FOR = { hour: HOUR, day: 24 * HOUR, week: 7 * 24 * HOUR, forever: 0 };
+const MAX_DEVICES = 20;     // devices remembered for each account
+const isBlocked = p => p.blocked === 1 || p.blocked > Date.now();
+const blockedUntil = p => p.blocked > 1 && p.blocked > Date.now() ? p.blocked : null;
 const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
 const randomHex = bytes => hex(crypto.getRandomValues(new Uint8Array(bytes)));
 const sha256 = async text => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
@@ -141,7 +151,7 @@ export default {
       const res = await env.LOBBY.get(env.LOBBY.idFromName("main")).fetch(request);
       return new Response(res.body, { headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" } });
     }
-    return Response.json({ ok: true, service: "innvadex-server", version: VERSION }, { headers: { "Access-Control-Allow-Origin": "*" } });
+    return Response.json({ ok: true, service: "innvadex-server", version: VERSION, release: RELEASE }, { headers: { "Access-Control-Allow-Origin": "*" } });
   },
 };
 
@@ -157,6 +167,9 @@ export class Lobby extends DurableObject {
       try { this.sql.exec(`ALTER TABLE players ADD COLUMN ${col}`); } catch {}   // already there
     }
     this.sql.exec(`CREATE TABLE IF NOT EXISTS sessions (hash TEXT PRIMARY KEY, id TEXT, created INTEGER)`);
+    // Devices each account used, and blocked devices (only a hash of the device's number is kept)
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS devices (hash TEXT, id TEXT, seen INTEGER, PRIMARY KEY (hash, id))`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS blocked_devices (hash TEXT PRIMARY KEY, id TEXT, at INTEGER)`);
     // Version 1 players had no password, so they can't sign in. They're removed, so their names are free again.
     this.sql.exec(`DELETE FROM friends WHERE a IN (SELECT id FROM players WHERE bot = 0 AND pass IS NULL)
       OR b IN (SELECT id FROM players WHERE bot = 0 AND pass IS NULL)`);
@@ -271,8 +284,10 @@ export class Lobby extends DurableObject {
   async hello(conn, m) {
     if (conn.said || m.v !== VERSION) return this.reply(conn, { t: "error", code: m.v !== VERSION ? "old" : "bad" });
     conn.said = true;
-    const p = await this.bySession(m.session);
-    if (!p || p.blocked) { conn.said = false; return this.reply(conn, { t: "error", code: p ? "blocked" : "signin" }); }
+    const p = await this.bySession(m.session), device = await this.deviceHash(m.device);
+    if (this.deviceBlocked(device)) { conn.said = false; return this.reply(conn, { t: "error", code: "deviceBlocked" }); }
+    if (!p || isBlocked(p)) { conn.said = false; return this.reply(conn, { t: "error", code: p ? "blocked" : "signin" }); }
+    this.sawDevice(device, p.id);
     const id = p.id, old = this.conns.get(id);
     if (old && old !== conn) { this.reply(old, { t: "error", code: "elsewhere" }); try { old.ws.close(4000, "elsewhere"); } catch {} this.leave(id); }
     conn.id = id; conn.card = checkCard(m) || { look: "🙂", team: [], cheer: 0 };
@@ -337,6 +352,14 @@ export class Lobby extends DurableObject {
     const c = this.conns.get(id);
     if (c) { this.reply(c, { t: "error", code: "signin" }); try { c.ws.close(4001, "signed out"); } catch {} this.onClose(c); }
   }
+  // A device's number (made by the site) → its hash, or null
+  async deviceHash(device) { return typeof device === "string" && /^[0-9a-f]{32}$/.test(device) ? sha256(`device:${device}`) : null; }
+  deviceBlocked(hash) { return !!hash && this.sql.exec("SELECT 1 FROM blocked_devices WHERE hash = ?", hash).toArray().length > 0; }
+  sawDevice(hash, id) {
+    if (!hash) return;
+    this.sql.exec("INSERT OR REPLACE INTO devices (hash, id, seen) VALUES (?, ?, ?)", hash, id, Date.now());
+    this.sql.exec(`DELETE FROM devices WHERE id = ? AND hash NOT IN (SELECT hash FROM devices WHERE id = ? ORDER BY seen DESC LIMIT ${MAX_DEVICES})`, id, id);
+  }
   meInfo(p) { return { name: p.name, look: p.look, level: p.role || "player", wins: p.wins, losses: p.losses }; }
   // The key that signs review passes. Made once, then kept in this server's storage.
   signKey() {
@@ -365,7 +388,11 @@ export class Lobby extends DurableObject {
     if (!b || typeof b !== "object" || typeof b.do !== "string") return [400, { error: "bad" }];
     const text = (v, max) => typeof v === "string" && v.length <= max ? v : "";
     const name = text(b.name, 40).trim(), password = text(b.password, 200);
+    const device = await this.deviceHash(b.device);
 
+    // A blocked device can't do anything here (and the site stops sending its reports)
+    if (b.do === "device") return [200, { blocked: this.deviceBlocked(device) }];
+    if (this.deviceBlocked(device)) return [403, { error: "deviceBlocked" }];
     if (b.do === "names") return [200, { names: this.freeNames() }];
     if (b.do === "signup") {
       if (this.tooMany(`signup:${ip}`, 5, HOUR)) return [429, { error: "slow" }];
@@ -376,6 +403,7 @@ export class Lobby extends DurableObject {
       const id = `u:${randomHex(16)}`, now = Date.now();
       this.sql.exec("INSERT INTO players (id, name, look, pass, role, created, seen) VALUES (?, ?, '🙂', ?, 'player', ?, ?)",
         id, name, await hashPassword(password, randomHex(16)), now, now);
+      this.sawDevice(device, id);
       return [200, await this.newSession(id)];
     }
     if (b.do === "signin") {
@@ -383,15 +411,16 @@ export class Lobby extends DurableObject {
       if (this.tooMany(key, 10, 15 * MINUTE) || this.tooMany(`ip:${ip}`, 30, 15 * MINUTE)) return [429, { error: "slow" }];
       const p = this.byName(name);
       if (!p || p.bot || !await checkPassword(password, p.pass)) { this.tried(key); this.tried(`ip:${ip}`); return [401, { error: "wrong" }]; }
-      if (p.blocked) return [403, { error: "blocked" }];
+      if (isBlocked(p)) return [403, { error: "blocked", until: blockedUntil(p) }];
+      this.sawDevice(device, p.id);
       return [200, await this.newSession(p.id)];
     }
 
     // Everything else needs you to be signed in
     const me = await this.bySession(b.session);
     if (!me) return [401, { error: "signin" }];
-    if (me.blocked) return [403, { error: "blocked" }];
-    if (b.do === "me") return [200, { me: this.meInfo(me) }];
+    if (isBlocked(me)) return [403, { error: "blocked", until: blockedUntil(me) }];
+    if (b.do === "me") { this.sawDevice(device, me.id); return [200, { me: this.meInfo(me) }]; }
     if (b.do === "signout") { const hash = await sha256(b.session); this.sql.exec("DELETE FROM sessions WHERE hash = ?", hash); this.sessions.delete(hash); return [200, {}]; }
     if (b.do === "pass") return me.role === "team" || me.role === "manager" ? [200, { pass: await this.reviewPass(me) }] : [403, { error: "level" }];
     // The team setup code (a secret a grown-up sets with "wrangler secret put SETUP_CODE") makes you team level
@@ -407,9 +436,11 @@ export class Lobby extends DurableObject {
     if (me.role !== "team") return [403, { error: "level" }];
     if (b.do === "accounts") {
       const find = text(b.find, 40).replace(/[^A-Za-z0-9]/g, "");
-      const rows = this.sql.exec(`SELECT name, role, blocked, created, seen FROM players WHERE bot = 0 AND pass IS NOT NULL AND name LIKE ?
+      const rows = this.sql.exec(`SELECT id, name, role, blocked, created, seen FROM players WHERE bot = 0 AND pass IS NOT NULL AND name LIKE ?
         ORDER BY seen DESC LIMIT 50`, `${find}%`).toArray();
-      return [200, { accounts: rows.map(r => ({ name: r.name, level: r.role || "player", blocked: !!r.blocked, created: r.created, seen: r.seen })) }];
+      const devBlocked = new Set(this.sql.exec("SELECT DISTINCT id FROM blocked_devices").toArray().map(r => r.id));
+      return [200, { accounts: rows.map(r => ({ name: r.name, level: r.role || "player", blocked: isBlocked(r), until: blockedUntil(r),
+        device: devBlocked.has(r.id), created: r.created, seen: r.seen })) }];
     }
     const who = this.byName(name);
     if (!who || who.bot || !who.pass) return [404, { error: "notFound" }];
@@ -427,8 +458,20 @@ export class Lobby extends DurableObject {
       if (!LEVELS.includes(b.level)) return [400, { error: "bad" }];
       this.sql.exec("UPDATE players SET role = ? WHERE id = ?", b.level, who.id);
     } else if (b.do === "block") {
-      this.sql.exec("UPDATE players SET blocked = ? WHERE id = ?", b.yes ? 1 : 0, who.id);
-      if (b.yes) this.endSessions(who.id);
+      // { yes, for: "hour" | "day" | "week" | "forever", withDevices: true = their devices too (forever) }
+      if (b.yes) {
+        const ms = b.withDevices === true ? 0 : BLOCK_FOR[b.for ?? "forever"];
+        if (ms === undefined) return [400, { error: "bad" }];
+        this.sql.exec("UPDATE players SET blocked = ? WHERE id = ?", ms ? Date.now() + ms : 1, who.id);
+        // Their devices, but never one our team uses (a shared school computer, say)
+        if (b.withDevices === true) this.sql.exec(`INSERT OR IGNORE INTO blocked_devices (hash, id, at) SELECT hash, id, ? FROM devices WHERE id = ?
+          AND hash NOT IN (SELECT d.hash FROM devices d JOIN players p ON p.id = d.id WHERE p.role = 'team')`, Date.now(), who.id);
+        this.endSessions(who.id);
+        if (b.withDevices === true) { this.changed(who.id); return [200, { devices: this.sql.exec("SELECT COUNT(*) AS n FROM blocked_devices WHERE id = ?", who.id).one().n }]; }
+      } else {
+        this.sql.exec("UPDATE players SET blocked = 0 WHERE id = ?", who.id);
+        this.sql.exec("DELETE FROM blocked_devices WHERE id = ?", who.id);
+      }
     } else if (b.do === "reset") {
       if (password.length < MIN_PASSWORD) return [400, { error: "short" }];
       this.sql.exec("UPDATE players SET pass = ? WHERE id = ?", await hashPassword(password, randomHex(16)), who.id);

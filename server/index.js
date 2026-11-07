@@ -6,17 +6,29 @@
 // The server rolls the dice in every online battle, so both players always see the same thing and
 // nobody can change the result. Battle rules are the same as in assets/game.js (trainer battles).
 // Players get a made-up name (like "BraveBeetle42"). There's no chat. Only names, avatars, and bugs
-// are shared. Nothing about the real person is stored.
+// are shared. Nothing about the real person is stored (no emails).
+//
+// Accounts and levels live here too (see "Accounts and levels" in requirements.md). You sign in with
+// your made-up name and a password. Levels:
+//   team    = our team: can do anything (delete and fix reports, manage accounts)
+//   manager = can look at all the reports, but can't change them
+//   player  = can report and play the game
+// Visitors who don't sign in can only report (that's on the site). Only the hash of a password is
+// saved, never the password itself. The reports page (relay/worker.js) trusts a "review pass": a
+// note that says your name and level, signed with this server's secret key. The relay checks it with
+// the public key from GET /key, so the two workers never share a secret.
 //
 // Deploy: see server/README.md (it needs Wrangler, because Durable Objects can't be made in the
 // Cloudflare dashboard). Free plan limits: 100,000 requests a day; past that it stops until tomorrow.
 
 import { DurableObject } from "cloudflare:workers";
 
-const VERSION = 1;
+const VERSION = 2;
 // Websites allowed to connect (the game's site, and your own computer for testing)
 const SITE_ORIGINS = ["https://wizkidzai.github.io", "https://edafawd.github.io"];
 const LOCAL_ORIGIN = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/;
+// The reports page (relay/worker.js) signs in here too
+const RELAY_ORIGIN = "https://pyinsect-relay.pandadifferent246.workers.dev";
 
 // ---------- the battle rules (the same as assets/game.js) ----------
 // Every bug in the game: [rarity, group]. Must match SPECIES_FACTS in assets/game.js.
@@ -68,7 +80,29 @@ const NOUNS = ["Beetle", "Hornet", "Firefly", "Cricket", "Ladybug", "Mantis", "M
 const AVATARS = ["🦊", "🐸", "🐼", "🐯", "🦉", "🐢", "🐙", "🦄", "🐨", "🐵", "🦁", "🐰"];
 const pick = list => list[Math.floor(Math.random() * list.length)];
 const randomName = () => `${pick(ADJECTIVES)}${pick(NOUNS)}${1 + Math.floor(Math.random() * 99)}`;
-const NAME_RE = /^[A-Z][a-z]+[A-Z][a-z]+\d{1,2}$/;
+// A name must be one of ours: adjective + bug + a number from 1 to 99
+function goodName(name) {
+  const m = /^([A-Z][a-z]+)([A-Z][a-z]+)([1-9]\d?)$/.exec(name || "");
+  return !!m && ADJECTIVES.includes(m[1]) && NOUNS.includes(m[2]);
+}
+
+// ---------- accounts ----------
+const LEVELS = ["team", "manager", "player"];
+const MIN_PASSWORD = 6;
+const SESSION_DAYS = 90;              // you stay signed in on a device for 90 days
+const PASS_MS = 60 * 60 * 1000;       // a review pass for the reports page lasts an hour
+const PBKDF2_ROUNDS = 100000;         // how hard password hashes are to guess (the most Cloudflare allows)
+const MINUTE = 60 * 1000, HOUR = 60 * MINUTE;
+const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+const randomHex = bytes => hex(crypto.getRandomValues(new Uint8Array(bytes)));
+const sha256 = async text => hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
+const b64url = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+async function hashPassword(password, salt) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: new TextEncoder().encode(salt), iterations: PBKDF2_ROUNDS }, key, 256);
+  return `${salt}:${hex(bits)}`;
+}
+const checkPassword = async (password, saved) => !!saved && await hashPassword(password, saved.split(":")[0]) === saved;
 
 // ---------- bots ----------
 const BOT_COUNT = 20;
@@ -88,6 +122,20 @@ export default {
       if (!SITE_ORIGINS.includes(origin) && !LOCAL_ORIGIN.test(origin)) return new Response("Not allowed", { status: 403 });
       return env.LOBBY.get(env.LOBBY.idFromName("main")).fetch(request);
     }
+    // Accounts: sign up, sign in, and (for our team) managing accounts. Only our websites may use it.
+    if (url.pathname === "/account") {
+      const allowed = SITE_ORIGINS.includes(origin) || origin === RELAY_ORIGIN || LOCAL_ORIGIN.test(origin);
+      const cors = allowed ? { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "POST", Vary: "Origin" } : {};
+      if (request.method === "OPTIONS") return new Response(null, { status: allowed ? 204 : 403, headers: cors });
+      if (!allowed || request.method !== "POST" || Number(request.headers.get("Content-Length") || 0) > 2000) return new Response("Not allowed", { status: 403 });
+      const res = await env.LOBBY.get(env.LOBBY.idFromName("main")).fetch(request);
+      return new Response(res.body, { status: res.status, headers: { ...cors, "Content-Type": "application/json" } });
+    }
+    // The public key that checks review passes (relay/worker.js has a copy). Not a secret.
+    if (url.pathname === "/key") {
+      const res = await env.LOBBY.get(env.LOBBY.idFromName("main")).fetch(request);
+      return new Response(res.body, { headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" } });
+    }
     return Response.json({ ok: true, service: "innvadex-server", version: VERSION }, { headers: { "Access-Control-Allow-Origin": "*" } });
   },
 };
@@ -99,6 +147,15 @@ export class Lobby extends DurableObject {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS players (id TEXT PRIMARY KEY, name TEXT UNIQUE, look TEXT, bot INTEGER DEFAULT 0,
       level INTEGER DEFAULT 2, team TEXT, wins INTEGER DEFAULT 0, losses INTEGER DEFAULT 0, created INTEGER, seen INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS friends (a TEXT, b TEXT, state TEXT, PRIMARY KEY (a, b))`);   // a→b: "asked" or "friends"
+    // Accounts (version 2): a password hash, a level, and blocked or not
+    for (const col of ["pass TEXT", "role TEXT DEFAULT 'player'", "blocked INTEGER DEFAULT 0"]) {
+      try { this.sql.exec(`ALTER TABLE players ADD COLUMN ${col}`); } catch {}   // already there
+    }
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sessions (hash TEXT PRIMARY KEY, id TEXT, created INTEGER)`);
+    // Version 1 players had no password, so they can't sign in. They're removed, so their names are free again.
+    this.sql.exec(`DELETE FROM friends WHERE a IN (SELECT id FROM players WHERE bot = 0 AND pass IS NULL)
+      OR b IN (SELECT id FROM players WHERE bot = 0 AND pass IS NULL)`);
+    this.sql.exec("DELETE FROM players WHERE bot = 0 AND pass IS NULL");
     this.conns = new Map();      // player id → { ws, card, offers }
     this.status = new Map();     // player id → { kind: "lobby" | "queue" | "battle" | "catching" | "room", ... }
     this.queue = [];             // [{ id, since }] waiting for "Find a match"
@@ -110,6 +167,8 @@ export class Lobby extends DurableObject {
     // Players and bots are kept in memory too: the free plan allows 5 million database reads a day,
     // and the clock looks at the bots every second
     this.cache = new Map(); this.botList = null;
+    this.sessions = new Map();   // session hash → player id (a copy of the sessions table)
+    this.hits = new Map();       // "what:who" → times, for "too many tries, wait a bit"
     this.makeBots();
   }
 
@@ -150,6 +209,12 @@ export class Lobby extends DurableObject {
 
   // ---------- connections ----------
   async fetch(request) {
+    const path = new URL(request.url).pathname;
+    if (path === "/account") {
+      const [status, body] = await this.onAccount(request).catch(() => [500, { error: "oops" }]);
+      return Response.json(body, { status });
+    }
+    if (path === "/key") return Response.json((await this.signKey()).pub);
     const [client, server] = Object.values(new WebSocketPair());
     server.accept();
     const conn = { ws: server, id: null, budget: 30, last: Date.now() };
@@ -173,7 +238,6 @@ export class Lobby extends DurableObject {
     if (m.t === "hello") return this.hello(conn, m);
     if (!conn.id || this.conns.get(conn.id) !== conn) return;
     const id = conn.id;
-    if (m.t === "name") return this.chooseName(conn, m.name);
     const me = this.player(id);
     if (!me?.name) return;
     switch (m.t) {
@@ -197,41 +261,28 @@ export class Lobby extends DurableObject {
   }
 
   async hello(conn, m) {
-    if (conn.id || typeof m.secret !== "string" || !/^[0-9a-f]{32}$/.test(m.secret) || m.v !== VERSION) {
-      return this.reply(conn, { t: "error", code: m.v !== VERSION ? "old" : "bad" });
-    }
-    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(m.secret));
-    const id = [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
-    const old = this.conns.get(id);
+    if (conn.said || m.v !== VERSION) return this.reply(conn, { t: "error", code: m.v !== VERSION ? "old" : "bad" });
+    conn.said = true;
+    const p = await this.bySession(m.session);
+    if (!p || p.blocked) { conn.said = false; return this.reply(conn, { t: "error", code: p ? "blocked" : "signin" }); }
+    const id = p.id, old = this.conns.get(id);
     if (old && old !== conn) { this.reply(old, { t: "error", code: "elsewhere" }); try { old.ws.close(4000, "elsewhere"); } catch {} this.leave(id); }
     conn.id = id; conn.card = checkCard(m) || { look: "🙂", team: [], cheer: 0 };
     this.conns.set(id, conn);
-    let p = this.player(id);
-    if (!p) { this.sql.exec("INSERT INTO players (id, look, created, seen) VALUES (?, ?, ?, ?)", id, conn.card.look, Date.now(), Date.now()); p = this.player(id); }
     this.sql.exec("UPDATE players SET seen = ?, look = ? WHERE id = ?", Date.now(), conn.card.look, id);
-    this.changed(id); p = this.player(id);
-    if (!p.name) return this.offerNames(conn);
+    this.changed(id);
     this.welcome(id);
   }
-  offerNames(conn) {
+  // Four free names to pick from when you make an account
+  freeNames() {
     const names = new Set();
     while (names.size < 4) { const n = randomName(); if (!this.byName(n)) names.add(n); }
-    conn.offers = [...names];
-    this.reply(conn, { t: "pickName", options: conn.offers });
-  }
-  chooseName(conn, name) {
-    if (name === "more") return this.offerNames(conn);
-    const p = this.player(conn.id);
-    if (!p || p.name || !conn.offers?.includes(name) || !NAME_RE.test(name)) return;
-    if (this.byName(name)) return this.offerNames(conn);
-    this.sql.exec("UPDATE players SET name = ? WHERE id = ?", name, conn.id);
-    this.changed(conn.id);
-    this.welcome(conn.id);
+    return [...names];
   }
   welcome(id) {
     const p = this.player(id);
     this.status.set(id, { kind: "lobby" });
-    this.send(id, { t: "welcome", me: { name: p.name, look: p.look, wins: p.wins, losses: p.losses } });
+    this.send(id, { t: "welcome", me: this.meInfo(p) });
     this.sendFriends(id); this.sendLobby(id); this.friendsChanged(id);
   }
   onClose(conn) {
@@ -250,6 +301,124 @@ export class Lobby extends DurableObject {
     this.status.delete(id);
     this.friendsChanged(id);
     this.lobbyChanged();
+  }
+
+  // ---------- accounts ----------
+  // "Too many tries": at most `most` tries per `ms` for each key (like "signin:bravebeetle42")
+  tooMany(key, most, ms) { const now = Date.now(), list = (this.hits.get(key) || []).filter(x => now - x < ms); this.hits.set(key, list); return list.length >= most; }
+  tried(key) { const list = this.hits.get(key) || []; list.push(Date.now()); this.hits.set(key, list); }
+  async bySession(session) {
+    if (typeof session !== "string" || !/^[0-9a-f]{48}$/.test(session)) return null;
+    const hash = await sha256(session);
+    if (!this.sessions.has(hash)) {
+      const row = this.sql.exec("SELECT id, created FROM sessions WHERE hash = ?", hash).toArray()[0];
+      if (!row || Date.now() - row.created > SESSION_DAYS * 24 * HOUR) return null;
+      this.sessions.set(hash, row.id);
+    }
+    return this.player(this.sessions.get(hash));
+  }
+  async newSession(id) {
+    const session = randomHex(24);
+    this.sql.exec("INSERT INTO sessions (hash, id, created) VALUES (?, ?, ?)", await sha256(session), id, Date.now());
+    return { session, me: this.meInfo(this.player(id)) };
+  }
+  // Signs someone out everywhere (blocked, or their password was changed)
+  endSessions(id) {
+    this.sql.exec("DELETE FROM sessions WHERE id = ?", id);
+    for (const [hash, x] of this.sessions) if (x === id) this.sessions.delete(hash);
+    const c = this.conns.get(id);
+    if (c) { this.reply(c, { t: "error", code: "signin" }); try { c.ws.close(4001, "signed out"); } catch {} this.onClose(c); }
+  }
+  meInfo(p) { return { name: p.name, look: p.look, level: p.role || "player", wins: p.wins, losses: p.losses }; }
+  // The key that signs review passes. Made once, then kept in this server's storage.
+  signKey() {
+    return this.keyPromise || (this.keyPromise = (async () => {
+      let saved = await this.ctx.storage.get("signKey");
+      if (!saved) {
+        const pair = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+        const { kty, crv, x, y } = await crypto.subtle.exportKey("jwk", pair.publicKey);
+        saved = { priv: await crypto.subtle.exportKey("jwk", pair.privateKey), pub: { kty, crv, x, y } };
+        await this.ctx.storage.put("signKey", saved);
+      }
+      return { priv: await crypto.subtle.importKey("jwk", saved.priv, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]), pub: saved.pub };
+    })());
+  }
+  // A review pass: "<name and level>.<signature>", good for an hour
+  async reviewPass(p) {
+    const body = b64url(new TextEncoder().encode(JSON.stringify({ name: p.name, level: p.role, exp: Date.now() + PASS_MS })));
+    const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, (await this.signKey()).priv, new TextEncoder().encode(body));
+    return `${body}.${b64url(sig)}`;
+  }
+
+  // POST /account with { do: "...", ... }. Answers [status, body].
+  async onAccount(request) {
+    const ip = request.headers.get("CF-Connecting-IP") || "here";
+    let b; try { b = await request.json(); } catch {}
+    if (!b || typeof b !== "object" || typeof b.do !== "string") return [400, { error: "bad" }];
+    const text = (v, max) => typeof v === "string" && v.length <= max ? v : "";
+    const name = text(b.name, 40).trim(), password = text(b.password, 200);
+
+    if (b.do === "names") return [200, { names: this.freeNames() }];
+    if (b.do === "signup") {
+      if (this.tooMany(`signup:${ip}`, 5, HOUR)) return [429, { error: "slow" }];
+      if (!goodName(name)) return [400, { error: "name" }];
+      if (password.length < MIN_PASSWORD) return [400, { error: "short" }];
+      if (this.byName(name)) return [409, { error: "taken", names: this.freeNames() }];
+      this.tried(`signup:${ip}`);
+      const id = `u:${randomHex(16)}`, now = Date.now();
+      this.sql.exec("INSERT INTO players (id, name, look, pass, role, created, seen) VALUES (?, ?, '🙂', ?, 'player', ?, ?)",
+        id, name, await hashPassword(password, randomHex(16)), now, now);
+      return [200, await this.newSession(id)];
+    }
+    if (b.do === "signin") {
+      const key = `signin:${name.toLowerCase()}`;
+      if (this.tooMany(key, 10, 15 * MINUTE) || this.tooMany(`ip:${ip}`, 30, 15 * MINUTE)) return [429, { error: "slow" }];
+      const p = this.byName(name);
+      if (!p || p.bot || !await checkPassword(password, p.pass)) { this.tried(key); this.tried(`ip:${ip}`); return [401, { error: "wrong" }]; }
+      if (p.blocked) return [403, { error: "blocked" }];
+      return [200, await this.newSession(p.id)];
+    }
+
+    // Everything else needs you to be signed in
+    const me = await this.bySession(b.session);
+    if (!me) return [401, { error: "signin" }];
+    if (me.blocked) return [403, { error: "blocked" }];
+    if (b.do === "me") return [200, { me: this.meInfo(me) }];
+    if (b.do === "signout") { const hash = await sha256(b.session); this.sql.exec("DELETE FROM sessions WHERE hash = ?", hash); this.sessions.delete(hash); return [200, {}]; }
+    if (b.do === "pass") return me.role === "team" || me.role === "manager" ? [200, { pass: await this.reviewPass(me) }] : [403, { error: "level" }];
+    // The team setup code (a secret a grown-up sets with "wrangler secret put SETUP_CODE") makes you team level
+    if (b.do === "claim") {
+      if (this.tooMany(`claim:${me.id}`, 5, 15 * MINUTE)) return [429, { error: "slow" }];
+      this.tried(`claim:${me.id}`);
+      if (!this.env.SETUP_CODE || text(b.code, 200) !== this.env.SETUP_CODE) return [403, { error: "code" }];
+      this.sql.exec("UPDATE players SET role = 'team' WHERE id = ?", me.id); this.changed(me.id);
+      return [200, { me: this.meInfo(this.player(me.id)) }];
+    }
+
+    // Managing accounts: team level only
+    if (me.role !== "team") return [403, { error: "level" }];
+    if (b.do === "accounts") {
+      const find = text(b.find, 40).replace(/[^A-Za-z0-9]/g, "");
+      const rows = this.sql.exec(`SELECT name, role, blocked, created, seen FROM players WHERE bot = 0 AND pass IS NOT NULL AND name LIKE ?
+        ORDER BY seen DESC LIMIT 50`, `${find}%`).toArray();
+      return [200, { accounts: rows.map(r => ({ name: r.name, level: r.role || "player", blocked: !!r.blocked, created: r.created, seen: r.seen })) }];
+    }
+    const who = this.byName(name);
+    if (!who || who.bot || !who.pass) return [404, { error: "notFound" }];
+    if (who.id === me.id) return [400, { error: "self" }];   // so the team can't lock itself out by mistake
+    if (b.do === "level") {
+      if (!LEVELS.includes(b.level)) return [400, { error: "bad" }];
+      this.sql.exec("UPDATE players SET role = ? WHERE id = ?", b.level, who.id);
+    } else if (b.do === "block") {
+      this.sql.exec("UPDATE players SET blocked = ? WHERE id = ?", b.yes ? 1 : 0, who.id);
+      if (b.yes) this.endSessions(who.id);
+    } else if (b.do === "reset") {
+      if (password.length < MIN_PASSWORD) return [400, { error: "short" }];
+      this.sql.exec("UPDATE players SET pass = ? WHERE id = ?", await hashPassword(password, randomHex(16)), who.id);
+      this.endSessions(who.id);
+    } else return [400, { error: "bad" }];
+    this.changed(who.id);
+    return [200, {}];
   }
 
   // ---------- the lobby list ----------

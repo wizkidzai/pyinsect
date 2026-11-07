@@ -33,6 +33,8 @@ Kids in elementary and middle school. Please:
 | `assets/trees/` | Settings for each tree: the Detect step words and photos (with credits), and the damage signs |
 | `model/` | The trained AI models (`.onnx` files) |
 | `relay/worker.js` | Runs on Cloudflare and saves reports |
+| `server/` | The game server on Cloudflare: online battles, and accounts with levels (Team, Manager, Player) |
+| `assets/account.js` | Sign in, make an account, your level, and Manage accounts (for our team) |
 | `scripts/check.js` | Checks for mistakes. Run `node scripts/check.js` before sharing work |
 | `.github/workflows/` | Makes GitHub run those checks on every pull request |
 | `skills/shared/` | Team skills shared by all our projects (a git submodule, don't edit here) |

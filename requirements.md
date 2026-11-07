@@ -784,3 +784,43 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] The button is at the bottom of Home and opens the permissions screen.
   - [ ] ← Back to Home goes back to Home.
   - [ ] After saying no, the message explains how to change it with the 🔒.
+
+## Accounts and levels
+
+- **Status:** Building
+- **Asked by:** our team lead, 2026-11-07
+- **Who it's for:** Everyone who uses Pyinsect: our team, the managers who check reports, players,
+  and visitors who just want to report a bug.
+- **Problem or need:** Everyone could do everything the same way. Our team needs to be in charge
+  (fix or delete bad reports, decide who does what), managers need to look at reports without
+  changing them, and the game needs to know who is playing.
+- **Why they have it:** Reports are private, and only some people should see them or change them.
+  Fake reports need to be removed by someone we trust.
+- **Our idea:** Sign in with a **made-up name** (like BraveBeetle42) and a **password**. No email,
+  so nothing about the real person is saved. The free game server keeps the accounts. Four levels:
+  - ⭐ **Team** (us, the contributors): can do anything: fix and delete reports, and manage
+    accounts (change levels, block someone, give a new password). Only our team changes the code
+    on GitHub, too.
+  - 📋 **Manager:** can look at all the reports, but can't change them.
+  - 🎮 **Player:** can report bugs and play the game.
+  - 👋 **Visitor** (not signed in): can only report bugs. The whole game is locked.
+  - The first team account uses a **team setup code** that a grown-up keeps secret. After that,
+    our team makes other people Team or Manager in **Manage accounts**.
+- **Other ideas we talked about:**
+  - Sign in with GitHub: many kids don't have a GitHub account.
+  - Sign in with Google: it collects emails, and kids under 13 often can't use their own.
+- **User flow:**
+  1. A visitor opens the Game screen. It says "Sign in to play Innvadex" with a button.
+  2. They tap it and pick **Make an account**: pick one of four made-up names, type a password twice.
+  3. They're signed in as a Player. The game opens, and the top bar shows their name.
+  4. Next time (or on another phone) they tap **Sign in** and type their name and password.
+  5. Forgot the password? Someone on our team opens **Manage accounts** and gives them a new one.
+  6. A team member opens **Manage accounts**, finds a name, and changes the level to Manager.
+  7. Managers and our team open the reports page with their account (part 2).
+- **Done when:**
+  - [ ] Not signed in: the Game screen is locked, and reporting a bug still works.
+  - [ ] Make an account, and the game opens. Sign out, and it locks again.
+  - [ ] The team setup code makes your account Team, and Manage accounts can change someone's level.
+  - [ ] A blocked account can't sign in.
+  - [ ] Part 2: a Manager can see reports but not change them; Team can fix and delete reports.
+  - [ ] A grown-up deployed the game server and set the team setup code.

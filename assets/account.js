@@ -12,7 +12,9 @@
 
 // The game server. A page can set window.INNVADEX_HTTP first (for testing on your own computer).
 const ACCOUNT_URL = (window.INNVADEX_HTTP || "https://innvadex-server.pandadifferent246.workers.dev") + "/account";
-const ACCOUNT_KEY = "pyinsect.account";   // { session, me } on this device. The session is like a key: never shown.
+const ACCOUNT_KEY = "pyinsect.account";
+// The reports page (relay/worker.js). Team and Manager accounts sign in there to see reports.
+const REVIEW_URL = "https://pyinsect-relay.pandadifferent246.workers.dev/review/";   // { session, me } on this device. The session is like a key: never shown.
 const LEVELS = {
   team: { name: "Team", emoji: "⭐", about: "You can do anything: fix and delete reports, and manage accounts." },
   manager: { name: "Manager", emoji: "📋", about: "You can look at all the reports, but you can't change them." },
@@ -176,8 +178,13 @@ async function showMe() {
   const draw = () => {
     const me = account.me(), lv = LEVELS[account.level()] || LEVELS.player;
     const parts = [el("h2", null, `${me.look || "🙂"} ${me.name}`), el("p", "level-chip", `${lv.emoji} ${lv.name}`), el("p", null, lv.about)];
+    if (account.level() === "team" || account.level() === "manager") {
+      const review = el("a", "btn primary", "📋 Review reports");
+      review.href = REVIEW_URL; review.target = "_blank"; review.rel = "noopener";
+      parts.push(review);
+    }
     if (account.level() === "team") {
-      parts.push(acButton("👥 Manage accounts", () => openAccount("manage"), true));
+      parts.push(acButton("👥 Manage accounts", () => openAccount("manage")));
       // Team members can pick their own name
       const more = el("details", "account-setup"), msg = el("p", "account-msg");
       const [nameBox, name] = acField("New name (3 to 20 letters, numbers, or _)", "text", { max: 20, placeholder: me.name });

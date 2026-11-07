@@ -819,7 +819,9 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   4. Next time (or on another phone) they tap **Sign in** and type their name and password.
   5. Forgot the password? Someone on our team opens **Manage accounts** and gives them a new one.
   6. A team member opens **Manage accounts**, finds a name, and changes the level to Manager.
-  7. Managers and our team open the reports page with their account (part 2).
+  7. Managers and our team tap **📋 Review reports** and sign in on the reports page (part 2).
+     The shared reports password is gone. Every report, photo and location is **locked**
+     (encrypted) before it's saved, so the GitHub repo only holds scrambled files.
 - **Done when:**
   - [ ] Not signed in: the Game screen is locked, and reporting a bug still works.
   - [ ] Make an account, and the game opens. Sign out, and it locks again.
@@ -827,4 +829,5 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] A blocked account can't sign in.
   - [ ] A Team member changes their own name, and signs in with the new name.
   - [ ] Part 2: a Manager can see reports but not change them; Team can fix and delete reports.
+  - [ ] Part 2: every report, photo and location in the reports repo is locked (encrypted), old ones too.
   - [ ] A grown-up deployed the game server and set the team setup code.

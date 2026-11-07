@@ -69,7 +69,7 @@ function openLobby() {
   if (!net.ws || net.ws.readyState > 1) {
     net.view = "connecting"; net.note = "";
     const ws = net.ws = new WebSocket(SERVER_URL);
-    ws.onopen = () => ws.send(JSON.stringify({ t: "hello", v: SERVER_VERSION, session: window.account?.session(), ...myOnlineCard() }));
+    ws.onopen = () => ws.send(JSON.stringify({ t: "hello", v: SERVER_VERSION, session: window.account?.session(), device: window.deviceId?.(), ...myOnlineCard() }));
     ws.onmessage = e => { if (net.ws === ws) { let m; try { m = JSON.parse(e.data); } catch { return; } onNet(m); } };
     ws.onclose = () => {
       if (net.ws !== ws) return;
@@ -107,10 +107,11 @@ function onNet(m) {
     case "error":
       net.note = m.code === "old" ? t("The game was updated. Reload the page to play online.")
         : m.code === "elsewhere" ? t("You went online on another tab or device, so this one was logged out.")
-        : m.code === "blocked" ? t("This account is blocked.") : m.code === "signin" ? t("Please sign in again.") : t("Something went wrong. Try again.");
+        : m.code === "blocked" ? t("This account is blocked.") : m.code === "deviceBlocked" ? t("This device is blocked.") : m.code === "signin" ? t("Please sign in again.") : t("Something went wrong. Try again.");
       net.view = "offline"; showView();
       // The server doesn't know this account any more (signed out, a new password, or blocked)
       if (m.code === "signin" || m.code === "blocked") { net.view = "closed"; window.account?.forget(); }
+      if (m.code === "deviceBlocked") { net.view = "closed"; window.account?.blockDevice(); }
       return;
   }
 }

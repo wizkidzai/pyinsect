@@ -35,12 +35,15 @@ per find) live in `reports/` of a separate private repo that only the relay can 
       `SITE` near the bottom (the reports page loads the AI check from there).
    4. **Settings → Variables and Secrets → Add**:
       - `GITHUB_TOKEN`, **Secret**: the token from step 3
-      - `VIEW_PASSWORD`, **Secret**: the password for the reports page
-      - `VIEW_PATH`, **Secret**: a secret word for the page address (letters, digits, `-`, `_`)
+      - `REPORTS_KEY`, **Secret**: a long secret phrase (at least 20 letters, like six random words).
+        It **locks** (encrypts) every report, photo and location before it's saved, so even someone
+        who gets into the GitHub repo sees only scrambled bytes. **Write it down somewhere safe**:
+        if it's lost, the locked reports can never be opened again.
    5. Put the worker's address (`https://pyinsect-relay.<something>.workers.dev`) in
       `RELAY_URL` at the top of `assets/reports.js`.
-5. **Reports page:** `https://pyinsect-relay.<something>.workers.dev/<VIEW_PATH>/`. Share that
-   link and the password only with people who should see reports.
+5. **Reports page:** `https://pyinsect-relay.<something>.workers.dev/review/`. Sign in with a
+   Pyinsect account (see "Accounts and levels" in `requirements.md`): **Manager** accounts can look,
+   **Team** accounts can also verify, fix and delete reports. Players can't open it.
 
 ## Notes
 
@@ -48,12 +51,13 @@ per find) live in `reports/` of a separate private repo that only the relay can 
 - Detect reports (from the 3 Detect steps) carry up to 9 photos. The relay works out what was found
   from the AI's guesses itself. Reports where nothing was found go in `nothing-found/`, not `reports/`,
   and never on the public map. Public map squares are about 200 m; the team sees a spot rounded to about 75 m.
-- The relay only accepts invasive species, JPEG photos up to 1.5 MB and recent reports, and it
-  can only add new files to `reports/`, never change or delete existing ones.
+- The relay only accepts invasive species, JPEG photos up to 1.5 MB and recent reports. Only Team
+  accounts can change or delete reports (on the reports page).
+- Reports saved before locking existed: a Team member opens the reports page and taps
+  **🔒 Lock old reports** once.
 - If a report can't be sent (no internet), it waits in the browser and is sent with the next
   report, when the connection comes back, or with **Send waiting reports**.
-- To change the password or the secret word, edit `VIEW_PASSWORD` / `VIEW_PATH` in Cloudflare.
-  Everyone then has to use the new link and password.
+- Never change `REPORTS_KEY` after reports are saved: the old ones would stop opening.
 - The invasive species list is `invasive` in `assets/models/pyinsect-*.js` **and** `INVASIVE` in
   `relay/worker.js`. Change both, then paste `worker.js` into Cloudflare again
   (**Edit code → Deploy**).

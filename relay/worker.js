@@ -1,15 +1,21 @@
 // Pyinsect report relay (Cloudflare Worker).
 // 1. The website sends each invasive-species report here; this worker checks it and saves it to
 //    reports/ in a PRIVATE GitHub repo with a token that only Cloudflare knows.
-// 2. The reports page lives here too, at a secret address and behind a password:
-//    https://<this worker>/<VIEW_PATH>/
+// 2. The reports page lives here too: https://<this worker>/review/
+//    You sign in with your Pyinsect account (see "Accounts and levels" in requirements.md).
+//    Managers can look at reports. Team can also check, fix, and delete them.
+// 3. Every file in the reports repo is LOCKED (encrypted with AES-GCM) before it's saved, with a
+//    key made from REPORTS_KEY. Without that key, the files are just scrambled bytes, even for
+//    someone who gets into the GitHub repo. Locations (the team spot and the map area) are inside
+//    the locked files too.
 //
 // Settings (Cloudflare → this worker → Settings → Variables and Secrets):
 //   GITHUB_TOKEN    Secret. Fine-grained token, Contents: Read and write on REPORTS_REPO below.
-//   (GITHUB_REPO is no longer used: the repo is fixed in the code, see REPORTS_REPO.)
-//   (ALLOWED_ORIGIN is no longer used: the allowed sites are fixed in the code, see SITE_ORIGINS.)
-//   VIEW_PASSWORD   Secret. Password for the reports page.
-//   VIEW_PATH       Secret. The secret word in the reports page address (letters, digits, - and _).
+//   REPORTS_KEY     Secret. A long secret phrase (at least 20 letters) that locks the reports.
+//                   Keep a copy somewhere safe: if it's lost, the locked reports can't be opened.
+//   VIEW_PATH       Optional. The old secret address of the reports page; it still works (with
+//                   accounts now), so old bookmarks keep working.
+//   (GITHUB_REPO, ALLOWED_ORIGIN and VIEW_PASSWORD are no longer used.)
 
 // Must match `invasive` in assets/models/pyinsect-*.js (scientific names, as Pyinsect 2.8+ outputs them)
 const INVASIVE = new Set([
@@ -59,16 +65,23 @@ const SITE_ORIGINS = ["https://wizkidzai.github.io", "https://edafawd.github.io"
 const MAX_PHOTO_BYTES = 1.5 * 1024 * 1024;
 const MAX_AGE_DAYS = 60;            // reports can wait offline on a phone for a while
 const PER_IP_LIMIT = 30;            // reports per IP per hour (per Cloudflare server, best effort)
-const WRONG_PASSWORD_LIMIT = 10;    // wrong passwords per IP per 15 minutes (best effort)
 const SHOW = 40;                    // newest reports sent to the reports page
 const LIST_CACHE_MS = 5000;         // GitHub is asked for the file list at most every 5 s
 
 const ID_RE = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})-[0-9a-f]{1,8}$/;
 const SPECIES_RE = /^[a-z_]{1,48}$/;
 const TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/;
-const recent = new Map(), wrong = new Map();
-const reportCache = new Map();      // id → report JSON (reports never change)
-let listCache = { at: 0, paths: null };
+const recent = new Map();
+const reportCache = new Map();      // id → report JSON (only Team's Fix and Delete change reports)
+let listCache = { at: 0, entries: null };   // the repo's files: [{ path, sha }]
+// The reports page uses accounts from the game server (server/index.js). After you sign in there,
+// it gives the page a "review pass" (your name and level, signed with its secret key). This
+// is its PUBLIC key, which checks those passes (GET /key on the game server). Not a secret.
+const ACCOUNT_URL = "https://innvadex-server.pandadifferent246.workers.dev/account";
+const ACCOUNT_KEY = { kty: "EC", crv: "P-256", x: "Skq5zN0HeubYXx4NbPI03Dst0SQpU8EDeCUUHm7tY7k", y: "PfzUIDEn308i2RRuNc7Kas0VCTecymbY7bH6pm4tR10" };
+const REVIEW_PATH = "/review";
+const MIN_KEY_LENGTH = 20;          // REPORTS_KEY must be at least this long
+const LOCK_BATCH = 18;              // old files locked per "Lock old reports" step (free Workers: 50 requests per visit)
 // map.json (in the private repo): one small line per report, for the reports map and check levels:
 //   { id, kind: "invasive" | "tree" | "infested" | "check" | "nothing", name, area: { lat, lon } | null,
 //     month: "2026-10", level, found (Detect reports only: { eab, damage, galleries }) }
@@ -87,6 +100,9 @@ export default {
     const view = word ? "/" + word : null;
     if (view && (url.pathname === view || url.pathname.startsWith(view + "/"))) {
       return viewer(request, env, url.pathname.slice(view.length));
+    }
+    if (url.pathname === REVIEW_PATH || url.pathname.startsWith(REVIEW_PATH + "/")) {
+      return viewer(request, env, url.pathname.slice(REVIEW_PATH.length));
     }
     return submit(request, env);
   },
@@ -151,11 +167,13 @@ async function submit(request, env) {
   }
   if (request.method === "GET") {
     // Says whether the reports page is set up, never what its address or password is
-    return reply(200, { ok: true, service: "pyinsect-relay", version: 16, reports_page: Boolean(viewWord(env) && env.VIEW_PASSWORD) });
+    return reply(200, { ok: true, service: "pyinsect-relay", version: 17, locked: (env.REPORTS_KEY || "").length >= MIN_KEY_LENGTH });
   }
   if (request.method !== "POST") return reply(405, { error: "Use POST." });
   if (!SITE_ORIGINS.includes(origin)) return reply(403, { error: "Reports are only accepted from the Pyinsect site." });
   if (!env.GITHUB_TOKEN) return reply(500, { error: "The relay isn't set up yet (GITHUB_TOKEN missing)." });
+  // Reports are only saved locked. Not a 400, so the site keeps the report and sends it later.
+  try { await lockKey(env); } catch (e) { return reply(503, { error: e.message }); }
 
   const ip = request.headers.get("CF-Connecting-IP") || "?";
   if (!allow(recent, ip, 3600000, PER_IP_LIMIT)) return reply(429, { error: "Too many reports from this network. Try again later." });
@@ -181,10 +199,11 @@ async function submit(request, env) {
     const dir = report.kind === "nothing" ? NOTHING_DIR : "reports";
     const files = photos || [photo];
     for (let i = 0; i < files.length; i++) {
-      await githubCreate(env, `${dir}/${photoName(report.id, i)}`, files[i], `Photo ${i + 1} for ${report.name} report`);
+      await githubCreate(env, `${dir}/${photoName(report.id, i)}`, fromBase64(files[i]), `Photo ${i + 1}`);
     }
-    await githubCreate(env, `${dir}/${report.id}.json`, toBase64(JSON.stringify(report, null, 1)),
-      `${report.kind === "nothing" ? "Detect report, nothing found" : report.kind === "check" ? "Detect report" : needsAction(report) ? "Infested tree report" : report.kind === "tree" ? "Tree check report" : "Invasive species report"}: ${report.name}`);
+    // The commit message says only the kind of report (the name and place are inside the locked file)
+    await githubCreate(env, `${dir}/${report.id}.json`, new TextEncoder().encode(JSON.stringify(report, null, 1)),
+      report.kind === "nothing" ? "Detect report, nothing found" : report.kind === "check" ? "Detect report" : needsAction(report) ? "Infested tree report" : report.kind === "tree" ? "Tree check report" : "Invasive species report");
   } catch (e) {
     return reply(502, { error: e.message });
   }
@@ -418,7 +437,7 @@ function checkDetect(r, photos) {
   };
 }
 
-// ---------- the password-protected reports page ----------
+// ---------- the reports page (sign in with an account) ----------
 
 async function viewer(request, env, rest) {
   const headers = { "Cache-Control": "no-store", "X-Robots-Tag": "noindex", "Referrer-Policy": "no-referrer" };
@@ -427,35 +446,34 @@ async function viewer(request, env, rest) {
   const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { ...headers, "Content-Type": "application/json" } });
 
   if (!rest.startsWith("/api/")) return new Response("Not found", { status: 404, headers });
-  if (!env.VIEW_PASSWORD || !env.GITHUB_TOKEN) return json(500, { error: "The relay isn't fully set up (VIEW_PASSWORD / GITHUB_TOKEN)." });
-
-  const ip = request.headers.get("CF-Connecting-IP") || "?";
-  if (!allow(wrong, ip, 900000, WRONG_PASSWORD_LIMIT)) return json(429, { error: "Too many wrong passwords. Wait 15 minutes." });
-  if (!(await samePassword(request.headers.get("X-Password") || "", env.VIEW_PASSWORD))) {
-    count(wrong, ip, 900000);
-    return json(401, { error: "Wrong password." });
-  }
+  if (!env.GITHUB_TOKEN) return json(500, { error: "The relay isn't fully set up (GITHUB_TOKEN)." });
+  // Who's asking? Managers and Team can look. Only Team can change anything.
+  const who = await whoIs(request);
+  if (!who) return json(401, { error: "Please sign in." });
+  const team = who.level === "team", post = request.method === "POST";
+  if (post && !team) return json(403, { error: "Only our team can change reports. Managers can look." });
+  let body = {};
+  if (post) { try { body = await request.json(); } catch { return json(400, { error: "Not valid JSON." }); } }
 
   try {
+    await lockKey(env);
+    if (rest === "/api/me") return json(200, who);
     if (rest === "/api/reports" || rest === "/api/nothing") {
       // The newest reports (or "nothing found" Detect reports), plus each one's check level from map.json
       const data = await latestReports(env, rest === "/api/nothing" ? NOTHING_DIR : "reports"), list = (await readIndex(env)).list;
       data.levels = Object.fromEntries(data.reports.map(r => [r.id, list.find(e => e.id === r.id)?.level || "unchecked"]));
       return json(200, data);
     }
-    // A team member checked a report: { level: "verified" | "not_match" | "unchecked" }
+    // Team checked a report: { level: "verified" | "not_match" | "unchecked" }
     const check = rest.match(/^\/api\/check\/([0-9a-f-]{1,40})$/);
-    if (check && request.method === "POST") {
-      const id = check[1];
-      let level;
-      try { level = (await request.json()).level; } catch { return json(400, { error: "Not valid JSON." }); }
+    if (check && post) {
+      const id = check[1], level = body.level;
       if (!ID_RE.test(id) || !["verified", "not_match", "unchecked"].includes(level)) return json(400, { error: "Bad check." });
       // Reports sent before map.json existed aren't in it yet: add them from the saved report
       let saved = null;
       if (!(await readIndex(env)).list.some(e => e.id === id)) {
-        const res = await githubRead(env, `reports/${id}.json`) || await githubRead(env, `${NOTHING_DIR}/${id}.json`);
-        if (!res) return json(404, { error: "No such report." });
-        saved = await res.json();
+        saved = await readReport(env, id);
+        if (!saved) return json(404, { error: "No such report." });
       }
       await updateIndex(env, list => {
         const e = list.find(x => x.id === id);
@@ -464,13 +482,28 @@ async function viewer(request, env, rest) {
       });
       return json(200, { ok: true, id, level });
     }
+    // Team fixes the bug's name: { name }
+    const fix = rest.match(/^\/api\/fix\/([0-9a-f-]{1,40})$/);
+    if (fix && post) {
+      const name = typeof body.name === "string" ? body.name.replace(/[\u0000-\u001f]/g, "").trim().slice(0, 60) : "";
+      if (!ID_RE.test(fix[1]) || !name) return json(400, { error: "Type a name." });
+      return (await fixReport(env, fix[1], name, who.name)) ? json(200, { ok: true }) : json(404, { error: "No such report." });
+    }
+    // Team deletes a report and its photos
+    const del = rest.match(/^\/api\/delete\/([0-9a-f-]{1,40})$/);
+    if (del && post) {
+      if (!ID_RE.test(del[1])) return json(400, { error: "Bad report." });
+      return (await deleteReport(env, del[1], who.name)) ? json(200, { ok: true }) : json(404, { error: "No such report." });
+    }
+    // Team locks reports saved before locking existed, a few files at a time: { after: last path done }
+    if (rest === "/api/lock-old" && post) return json(200, await lockOld(env, typeof body.after === "string" ? body.after : ""));
     // A photo: <id> (the first one) or <id>-2, <id>-3, ... (more photos of a Detect report)
     const photo = rest.match(/^\/api\/photo\/([0-9a-f-]{1,44})$/);
     const more = photo && !ID_RE.test(photo[1]) ? photo[1].match(/^(.+)-([2-9])$/) : null;
     if (photo && (ID_RE.test(photo[1]) || (more && ID_RE.test(more[1])))) {
-      const res = await githubRead(env, `reports/${photo[1]}.jpg`) || await githubRead(env, `${NOTHING_DIR}/${photo[1]}.jpg`);
-      if (!res) return json(404, { error: "No such photo." });
-      return new Response(res.body, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=31536000, immutable", "X-Robots-Tag": "noindex" } });
+      const bytes = await readFile(env, `reports/${photo[1]}.jpg`) || await readFile(env, `${NOTHING_DIR}/${photo[1]}.jpg`);
+      if (!bytes) return json(404, { error: "No such photo." });
+      return new Response(bytes, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, max-age=86400", "X-Robots-Tag": "noindex" } });
     }
     return json(404, { error: "Not found." });
   } catch (e) {
@@ -478,37 +511,110 @@ async function viewer(request, env, rest) {
   }
 }
 
+// Checks the review pass (header X-Pass) from the game server. Answers { name, level } or null.
+let accountKey = null;
+async function whoIs(request) {
+  const pass = request.headers.get("X-Pass") || "";
+  const [body, sig] = pass.split(".");
+  if (!body || !sig || pass.length > 2000) return null;
+  try {
+    accountKey ||= await crypto.subtle.importKey("jwk", ACCOUNT_KEY, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    if (!(await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, accountKey, fromBase64Url(sig), new TextEncoder().encode(body)))) return null;
+    const who = JSON.parse(new TextDecoder().decode(fromBase64Url(body)));
+    if (!(who.exp > Date.now()) || !["team", "manager"].includes(who.level)) return null;
+    return { name: String(who.name).slice(0, 40), level: who.level };
+  } catch {
+    return null;
+  }
+}
+
+// One saved report, unlocked (null if there's no such report)
+async function readReport(env, id) {
+  const bytes = await readFile(env, `reports/${id}.json`) || await readFile(env, `${NOTHING_DIR}/${id}.json`);
+  return bytes ? JSON.parse(new TextDecoder().decode(bytes)) : null;
+}
+// Which folder a report is in, and its files ({ path, sha }), from a fresh file list
+async function reportFiles(env, id) {
+  const entries = await repoFiles(env, true);
+  const dir = ["reports", NOTHING_DIR].find(d => entries.some(e => e.path === `${d}/${id}.json`));
+  if (!dir) return null;
+  const files = entries.filter(e => e.path === `${dir}/${id}.json` || e.path === `${dir}/${id}.jpg` || /^-[2-9]\.jpg$/.test(e.path.slice(`${dir}/${id}`.length)) && e.path.startsWith(`${dir}/${id}-`));
+  return { dir, files };
+}
+async function fixReport(env, id, name, by) {
+  const found = await reportFiles(env, id);
+  if (!found) return false;
+  const path = `${found.dir}/${id}.json`, sha = found.files.find(f => f.path === path).sha;
+  const report = JSON.parse(new TextDecoder().decode(await readFile(env, path)));
+  report.name = name;
+  report.fixed = { by, at: new Date().toISOString() };
+  await githubUpdate(env, path, new TextEncoder().encode(JSON.stringify(report, null, 1)), sha, "Fix a report's name");
+  reportCache.set(id, report);
+  await updateIndex(env, list => { const e = list.find(x => x.id === id); if (e) e.name = name; });
+  return true;
+}
+async function deleteReport(env, id, by) {
+  const found = await reportFiles(env, id);
+  if (!found) return false;
+  // The report first (so it leaves the list right away), then its photos
+  found.files.sort((a, b) => (b.path.endsWith(".json") ? 1 : 0) - (a.path.endsWith(".json") ? 1 : 0));
+  for (const f of found.files) {
+    const res = await gh(env, `contents/${f.path}`, { method: "DELETE", body: JSON.stringify({ message: `Delete a report (by ${by})`, sha: f.sha }) });
+    if (!res.ok && res.status !== 404) throw new Error(ghError(res.status));
+  }
+  reportCache.delete(id); listCache.at = 0;
+  await updateIndex(env, list => { const i = list.findIndex(x => x.id === id); if (i >= 0) list.splice(i, 1); });
+  return true;
+}
+// Locks files saved before locking existed. Answers { locked, left, next }: call again with
+// after = next until next is null.
+async function lockOld(env, after) {
+  const todo = (await repoFiles(env, true))
+    .filter(e => (e.path === INDEX_PATH || e.path.startsWith("reports/") || e.path.startsWith(NOTHING_DIR + "/")) && e.path > after)
+    .sort((a, b) => a.path < b.path ? -1 : 1);
+  let locked = 0, last = after;
+  const batch = todo.slice(0, LOCK_BATCH);
+  for (const e of batch) {
+    const res = await githubRead(env, e.path);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (!isLocked(bytes)) {
+      await githubUpdate(env, e.path, bytes, e.sha, "Lock an old file");
+      locked++;
+      if (e.path === INDEX_PATH) indexCache.at = 0;
+    }
+    last = e.path;
+  }
+  listCache.at = 0;
+  return { locked, left: todo.length - batch.length, next: todo.length > batch.length ? last : null };
+}
+
 // Newest reports in a folder ("reports" or NOTHING_DIR), read from the private repo with the token
 // (5,000 GitHub requests an hour)
 async function latestReports(env, dir) {
-  if (!listCache.paths || Date.now() - listCache.at > LIST_CACHE_MS) {
-    const res = await gh(env, `git/trees/HEAD?recursive=1`);
-    let paths = [];
-    if (res.ok) paths = ((await res.json()).tree || []).map(t => t.path);
-    else if (res.status !== 404 && res.status !== 409) throw new Error(ghError(res.status));   // 404/409 = no files yet
-    listCache = { at: Date.now(), paths };
-  }
-  const names = new Set(listCache.paths);
-  const ids = listCache.paths.map(p => p.startsWith(dir + "/") && p.match(/\/(.+)\.json$/)).filter(Boolean).map(m => m[1])
+  const paths = (await repoFiles(env)).map(e => e.path);
+  const names = new Set(paths);
+  const ids = paths.map(p => p.startsWith(dir + "/") && p.match(/\/(.+)\.json$/)).filter(Boolean).map(m => m[1])
     .filter(id => ID_RE.test(id) && names.has(`${dir}/${id}.jpg`))
     .sort().reverse();
   // Free Workers may make 50 outgoing requests per visit, and a redirect (old repo name) counts
   // twice, so load at most 20 new reports per visit; the page refreshes and gets the rest.
   const missing = ids.slice(0, SHOW).filter(id => !reportCache.has(id)).slice(0, 20);
   await Promise.all(missing.map(async id => {
-    const res = await githubRead(env, `${dir}/${id}.json`);
-    if (res) { try { reportCache.set(id, await res.json()); } catch {} }
+    try { const bytes = await readFile(env, `${dir}/${id}.json`); if (bytes) reportCache.set(id, JSON.parse(new TextDecoder().decode(bytes))); } catch {}
   }));
   return { total: ids.length, reports: ids.slice(0, SHOW).filter(id => reportCache.has(id)).map(id => reportCache.get(id)) };
 }
 
-async function samePassword(given, real) {
-  const enc = new TextEncoder();
-  const [a, b] = await Promise.all([given, real].map(s => crypto.subtle.digest("SHA-256", enc.encode(s))));
-  const x = new Uint8Array(a), y = new Uint8Array(b);
-  let diff = 0;
-  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
-  return diff === 0;
+// The repo's files ({ path, sha }), asked from GitHub at most every 5 s (fresh = ask now)
+async function repoFiles(env, fresh) {
+  if (fresh || !listCache.entries || Date.now() - listCache.at > LIST_CACHE_MS) {
+    const res = await gh(env, `git/trees/HEAD?recursive=1`);
+    let entries = [];
+    if (res.ok) entries = ((await res.json()).tree || []).filter(t => t.type === "blob").map(t => ({ path: t.path, sha: t.sha }));
+    else if (res.status !== 404 && res.status !== 409) throw new Error(ghError(res.status));   // 404/409 = no files yet
+    listCache = { at: Date.now(), entries };
+  }
+  return listCache.entries;
 }
 
 // ---------- GitHub ----------
@@ -543,10 +649,15 @@ async function repoIsPrivate(env) {
   return true;
 }
 
-// Creates a file; never overwrites (GitHub answers 422 when the file already exists)
-async function githubCreate(env, path, base64, message) {
-  const res = await gh(env, `contents/${path}`, { method: "PUT", body: JSON.stringify({ message, content: base64 }) });
+// Creates a file (locked); never overwrites (GitHub answers 422 when the file already exists)
+async function githubCreate(env, path, bytes, message) {
+  const res = await gh(env, `contents/${path}`, { method: "PUT", body: JSON.stringify({ message, content: toBase64Bytes(await lock(env, path, bytes)) }) });
   if (res.status === 422) return;   // already saved on an earlier try
+  if (!res.ok) throw new Error(ghError(res.status));
+}
+// Changes a file (locked). sha = the version being replaced, so nobody's change gets lost.
+async function githubUpdate(env, path, bytes, sha, message) {
+  const res = await gh(env, `contents/${path}`, { method: "PUT", body: JSON.stringify({ message, sha, content: toBase64Bytes(await lock(env, path, bytes)) }) });
   if (!res.ok) throw new Error(ghError(res.status));
 }
 
@@ -566,7 +677,7 @@ async function readIndex(env) {
   if (res.status === 404) return { list: [], sha: null };
   if (!res.ok) throw new Error(ghError(res.status));
   const file = await res.json();
-  const text = new TextDecoder().decode(Uint8Array.from(atob((file.content || "").replace(/\s/g, "")), c => c.charCodeAt(0)));
+  const text = new TextDecoder().decode(await unlock(env, INDEX_PATH, fromBase64((file.content || "").replace(/\s/g, ""))));
   return { list: text.trim() ? JSON.parse(text) : [], sha: file.sha };
 }
 
@@ -576,7 +687,8 @@ async function updateIndex(env, change) {
   for (let tries = 0; ; tries++) {
     const { list, sha } = await readIndex(env);
     change(list);
-    const body = { message: "Update map.json", content: toBase64(JSON.stringify(list)), ...(sha ? { sha } : {}) };
+    const locked = await lock(env, INDEX_PATH, new TextEncoder().encode(JSON.stringify(list)));
+    const body = { message: "Update map.json", content: toBase64Bytes(locked), ...(sha ? { sha } : {}) };
     const res = await gh(env, `contents/${INDEX_PATH}`, { method: "PUT", body: JSON.stringify(body) });
     if (res.ok) { indexCache = { at: Date.now(), list }; return list; }
     if ((res.status === 409 || res.status === 422) && tries < 3) continue;
@@ -589,7 +701,13 @@ async function readIndexCached(env) {
   return indexCache.list;
 }
 
-// Raw file contents, or null if it doesn't exist
+// A file's contents, unlocked (Uint8Array), or null if it doesn't exist
+async function readFile(env, path) {
+  const res = await githubRead(env, path);
+  return res ? unlock(env, path, new Uint8Array(await res.arrayBuffer())) : null;
+}
+
+// Raw file contents (still locked), or null if it doesn't exist
 async function githubRead(env, path) {
   const res = await gh(env, `contents/${path}`, { headers: { Accept: "application/vnd.github.raw" } });
   if (res.status === 404) return null;
@@ -626,11 +744,40 @@ function count(map, key, windowMs) {
   if (map.size > 5000) map.clear();
 }
 function niceName(s) { return s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()); }
-function toBase64(s) {
-  const bytes = new TextEncoder().encode(s);
+function toBase64Bytes(bytes) {
   let bin = "";
-  for (const b of bytes) bin += String.fromCharCode(b);
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(bin);
+}
+const fromBase64 = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+const fromBase64Url = s => fromBase64(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
+
+// ---------- locking (encrypting) the files in the reports repo ----------
+// A locked file: "PYE1" + a 12-byte random number (iv) + the AES-GCM scrambled bytes. The file's
+// path is checked too, so a locked file can't be swapped with another one.
+const LOCK_MAGIC = [0x50, 0x59, 0x45, 0x31];
+let keyCache = { phrase: null, key: null };
+async function lockKey(env) {
+  const phrase = env.REPORTS_KEY || "";
+  if (phrase.length < MIN_KEY_LENGTH) throw new Error("The relay isn't set up yet: REPORTS_KEY is missing or shorter than " + MIN_KEY_LENGTH + " letters.");
+  if (keyCache.phrase !== phrase) {
+    const raw = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("pyinsect-reports-lock-v1:" + phrase));
+    keyCache = { phrase, key: await crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]) };
+  }
+  return keyCache.key;
+}
+const isLocked = bytes => bytes.length > 16 && LOCK_MAGIC.every((b, i) => bytes[i] === b);
+async function lock(env, path, bytes) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: new TextEncoder().encode(path) }, await lockKey(env), bytes));
+  const out = new Uint8Array(16 + data.length);
+  out.set(LOCK_MAGIC); out.set(iv, 4); out.set(data, 16);
+  return out;
+}
+async function unlock(env, path, bytes) {
+  if (!isLocked(bytes)) return bytes;   // saved before locking existed (see "Lock old reports")
+  const data = await crypto.subtle.decrypt({ name: "AES-GCM", iv: bytes.slice(4, 16), additionalData: new TextEncoder().encode(path) }, await lockKey(env), bytes.slice(16));
+  return new Uint8Array(data);
 }
 
 const PAGE = `<!doctype html>
@@ -736,7 +883,7 @@ h2 { font-family: var(--display); font-weight: 500; font-size: 19px; margin: 0; 
 .viewer .caption span { font-family: var(--mono); font-size: 12px; color: #c7d2ca; }
 .viewer .close { position: absolute; top: 12px; right: 12px; color: #fff; background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .3); }
 .login { display: flex; flex-direction: column; gap: 10px; max-width: 360px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.login input[type=password] { font: 15px var(--mono); padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); }
+.login input[type=password], .login input[type=text] { font: 15px var(--mono); padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); }
 .login label { font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
 .aibox { margin: -8px 0 18px; }
 .aiwarn { color: var(--alert); font-weight: 600; }
@@ -769,7 +916,7 @@ h2 { font-family: var(--display); font-weight: 500; font-size: 19px; margin: 0; 
 <body>
 <div class="wrap">
   <header>
-    <span class="eyebrow">Pyinsect field reports · private</span>
+    <span class="eyebrow">Pyinsect field reports · private and locked</span>
     <h1>Latest report</h1>
     <span id="status" class="status">Loading…</span>
   </header>
@@ -777,8 +924,10 @@ h2 { font-family: var(--display); font-weight: 500; font-size: 19px; margin: 0; 
   <div class="actions aibox" id="aiBox" hidden><span id="aiStatus" class="status"></span></div>
 
   <form id="login" class="login" hidden>
-    <strong>Enter the reports password</strong>
-    <input id="pw" type="password" autocomplete="current-password" required>
+    <strong>Sign in with your Pyinsect account</strong>
+    <span class="muted">Team and Manager accounts can see the reports.</span>
+    <input id="user" type="text" autocomplete="username" placeholder="Your name" maxlength="40" required>
+    <input id="pw" type="password" autocomplete="current-password" placeholder="Password" required>
     <label><input id="remember" type="checkbox" checked> Remember on this device</label>
     <div class="actions"><button class="btn primary" type="submit">Open reports</button><span id="loginMsg" class="status error"></span></div>
   </form>
@@ -788,7 +937,8 @@ h2 { font-family: var(--display); font-weight: 500; font-size: 19px; margin: 0; 
   <section class="ledger" id="tallySection" hidden><h2 id="tallyTitle">Species reported</h2><div class="tally" id="tally"></div></section>
   <section class="ledger" id="earlierSection" hidden><h2>Earlier reports</h2><div class="rows" id="earlier"></div></section>
   <section class="ledger" id="nothingSection" hidden><h2>Trees checked, nothing found</h2><p class="muted">Private: these never go on the public map. They show where people use the app.</p><div class="rows" id="nothing"></div></section>
-  <div class="actions" id="logoutBox" hidden><button id="logout" class="btn" type="button">Log out on this device</button></div>
+  <div class="actions" id="logoutBox" hidden><span id="who" class="muted"></span><button id="logout" class="btn" type="button">Sign out on this device</button>
+    <button id="lockOld" class="btn" type="button" hidden>🔒 Lock old reports</button><span id="lockMsg" class="status"></span></div>
 </div>
 
 <div id="viewer" class="viewer" role="dialog" aria-modal="true" aria-label="Full photo" hidden>
@@ -798,10 +948,46 @@ h2 { font-family: var(--display); font-weight: 500; font-size: 19px; margin: 0; 
 </div>
 
 <script>
-var REFRESH_MS = 15000, KEY = "pyinsect.viewpw";
+var REFRESH_MS = 15000, KEY = "pyinsect.review";
+var ACCOUNT_URL = "https://innvadex-server.pandadifferent246.workers.dev/account";
 var $ = function (id) { return document.getElementById(id); };
-var password = null, timer = null, photoUrls = {};
-try { password = localStorage.getItem(KEY) || sessionStorage.getItem(KEY); } catch (e) {}
+var session = null, pass = null, me = null, timer = null, photoUrls = {};
+try { session = localStorage.getItem(KEY) || sessionStorage.getItem(KEY); localStorage.removeItem("pyinsect.viewpw"); sessionStorage.removeItem("pyinsect.viewpw"); } catch (e) {}
+
+// Accounts live on the game server. Signing in there gives a session; the session gets a review
+// pass (good for an hour) that the relay checks on every request.
+function account(what, data) {
+  return fetch(ACCOUNT_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.assign({ do: what }, data)) })
+    .then(function (res) { return res.json().catch(function () { return {}; }); }, function () { return { error: "offline" }; });
+}
+function readPass(token) {
+  var b = token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(atob(b + "===".slice((b.length + 3) % 4)));
+}
+async function getPass() {
+  if (pass && pass.exp > Date.now() + 60000) return pass.token;
+  if (!session) throw new Error("signin");
+  var r = await account("pass", { session: session });
+  if (r.error === "level") throw new Error("level");
+  if (r.error === "offline") throw new Error("Can't reach the account server.");
+  if (!r.pass) throw new Error("signin");
+  var info = readPass(r.pass);
+  pass = { token: r.pass, exp: info.exp }; me = info;
+  showWho();
+  return pass.token;
+}
+function isTeam() { return !!me && me.level === "team"; }
+function showWho() {
+  if (!me) return;
+  $("who").textContent = "Signed in as " + me.name + " · " + (me.level === "team" ? "⭐ Team" : "📋 Manager (you can look, not change)");
+  $("lockOld").hidden = !isTeam();
+}
+// Problems with signing in: back to the sign-in form, with a message
+function signInProblem(e) {
+  if (e.message === "signin") { showLogin("Please sign in."); return true; }
+  if (e.message === "level") { showLogin("Your account is a Player. Only Team and Manager accounts can see reports."); return true; }
+  return false;
+}
 
 function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 function niceName(s) { return s.replace(/_/g, " ").replace(/\\b\\w/g, function (c) { return c.toUpperCase(); }); }
@@ -812,44 +998,62 @@ function when(iso) {
   return { ago: ago, full: d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) };
 }
 
-function apiPost(path, body) {
-  return fetch("api/" + path, { method: "POST", headers: { "X-Password": password || "", "Content-Type": "application/json" }, body: JSON.stringify(body) });
+async function apiPost(path, body) {
+  var res = await fetch("api/" + path, { method: "POST", headers: { "X-Pass": await getPass(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (res.status === 401) { pass = null; throw new Error("signin"); }
+  return res;
+}
+// Team buttons: send something, then refresh (or show what went wrong)
+function teamAction(buttons, path, body) {
+  buttons.forEach(function (x) { x.disabled = true; });
+  return apiPost(path, body).then(function (res) {
+    return res.json().catch(function () { return {}; }).then(function (data) {
+      if (!res.ok) throw new Error(data.error || ("Error " + res.status));
+      shownIds = ""; nothingIds = ""; refresh();
+    });
+  }).catch(function (err) {
+    buttons.forEach(function (x) { x.disabled = false; });
+    if (signInProblem(err)) return;
+    $("status").className = "status error"; $("status").textContent = "Couldn't save: " + err.message;
+  });
 }
 var levels = {};   // report id -> check level, from the relay
 var LEVEL_TEXT = { unchecked: "Not checked yet", ai: "AI checked", verified: "Verified", not_match: "Not a match" };
 
-// The check level and the buttons to change it. Changing your mind? Tap the other button.
+// The check level, and (for Team) the buttons to change it, fix the name, or delete the report
 function checkBar(r) {
   var bar = el("div", "checkbar"), level = levels[r.id] || "unchecked";
   bar.append(el("span", "level " + level, LEVEL_TEXT[level] || level));
-  function btn(text, cls, to) {
+  if (r.fixed) bar.append(el("span", "muted", "Name fixed by " + r.fixed.by));
+  if (!isTeam()) return bar;   // Managers can look, not change
+  function btn(text, cls, onClick) {
     var b = el("button", cls, text); b.type = "button";
-    b.onclick = function (e) {
-      e.stopPropagation();
-      bar.querySelectorAll("button").forEach(function (x) { x.disabled = true; });
-      apiPost("check/" + r.id, { level: to }).then(function (res) {
-        if (res.status === 401) { showLogin("Wrong password."); return; }
-        if (!res.ok) throw new Error("Error " + res.status);
-        levels[r.id] = to; shownIds = ""; refresh();
-      }).catch(function (err) {
-        bar.querySelectorAll("button").forEach(function (x) { x.disabled = false; });
-        $("status").className = "status error"; $("status").textContent = "Couldn't save the check: " + err.message;
-      });
-    };
+    b.onclick = function (e) { e.stopPropagation(); onClick(); };
     b.onkeydown = function (e) { e.stopPropagation(); };
     bar.append(b);
   }
-  if (level !== "verified") btn("Verify ✓", "yes", "verified");
-  if (level !== "not_match") btn("Not a match ✗", "no", "not_match");
-  if (level === "verified" || level === "not_match") btn("Undo", "", "unchecked");
+  var all = function () { return Array.prototype.slice.call(bar.querySelectorAll("button")); };
+  var setLevel = function (to) { return function () { teamAction(all(), "check/" + r.id, { level: to }); }; };
+  if (level !== "verified") btn("Verify ✓", "yes", setLevel("verified"));
+  if (level !== "not_match") btn("Not a match ✗", "no", setLevel("not_match"));
+  if (level === "verified" || level === "not_match") btn("Undo", "", setLevel("unchecked"));
+  btn("✏️ Fix name", "", function () {
+    var name = prompt("The right name for this report:", r.name || "");
+    if (name && name.trim()) teamAction(all(), "fix/" + r.id, { name: name.trim() });
+  });
+  btn("🗑 Delete", "no", function () {
+    if (confirm("Delete this report and its photos? This can't be undone.")) teamAction(all(), "delete/" + r.id, {});
+  });
   return bar;
 }
 
-function api(path) {
-  return fetch("api/" + path, { headers: { "X-Password": password || "" }, cache: path === "reports" ? "no-store" : "default" });
+async function api(path) {
+  var res = await fetch("api/" + path, { headers: { "X-Pass": await getPass() }, cache: path === "reports" ? "no-store" : "default" });
+  if (res.status === 401) { pass = null; throw new Error("signin"); }
+  return res;
 }
 
-// Photos need the password header, so they're fetched as blobs (once each)
+// Photos need the pass header, so they're fetched as blobs (once each)
 var photoBlobs = {};
 function getPhoto(id) {
   if (!photoBlobs[id]) {
@@ -950,7 +1154,6 @@ async function refresh() {
   var status = $("status");
   try {
     var res = await api("reports");
-    if (res.status === 401) { showLogin("Wrong password."); return; }
     var data = await res.json();
     if (!res.ok) throw new Error(data.error || ("Error " + res.status));
     $("login").hidden = true; $("logoutBox").hidden = false; $("aiBox").hidden = false;
@@ -983,6 +1186,7 @@ async function refresh() {
     status.textContent = data.total + " report" + (data.total === 1 ? "" : "s") + " · checked " +
       new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + " · refreshes every 15 seconds";
   } catch (e) {
+    if (signInProblem(e)) return;
     status.className = "status error";
     status.textContent = e.message + " Retrying…";
   }
@@ -1006,13 +1210,13 @@ async function refreshNothing() {
 function showLogin(msg) {
   clearInterval(timer); timer = null;
   try { localStorage.removeItem(KEY); sessionStorage.removeItem(KEY); } catch (e) {}
-  password = null; shownIds = "";
+  session = null; pass = null; me = null; shownIds = "";
   ["latest", "earlier", "tally", "nothing"].forEach(function (id) { $(id).innerHTML = ""; });
   nothingIds = "";
   $("nothingSection").hidden = $("earlierSection").hidden = $("tallySection").hidden = $("logoutBox").hidden = $("aiBox").hidden = $("actionBanner").hidden = true;
   $("login").hidden = false; $("loginMsg").textContent = msg || "";
-  $("status").className = "status"; $("status").textContent = "Password needed";
-  $("pw").focus();
+  $("status").className = "status"; $("status").textContent = "Please sign in";
+  $("user").focus();
 }
 
 function start() {
@@ -1020,13 +1224,39 @@ function start() {
   if (!timer) timer = setInterval(function () { if (!document.hidden) refresh(); }, REFRESH_MS);
 }
 
-$("login").onsubmit = function (e) {
+$("login").onsubmit = async function (e) {
   e.preventDefault();
-  password = $("pw").value; $("pw").value = "";
-  try { ($("remember").checked ? localStorage : sessionStorage).setItem(KEY, password); } catch (e) {}
+  $("loginMsg").textContent = "";
+  var r = await account("signin", { name: $("user").value.trim(), password: $("pw").value });
+  if (!r.session) {
+    $("loginMsg").textContent = r.error === "wrong" ? "That name and password don't match." : r.error === "slow" ? "Too many tries. Wait 15 minutes."
+      : r.error === "blocked" ? "This account is blocked." : r.error === "offline" ? "Can't reach the account server." : "Something went wrong. Try again.";
+    return;
+  }
+  $("pw").value = "";
+  session = r.session;
+  try { ($("remember").checked ? localStorage : sessionStorage).setItem(KEY, session); } catch (e) {}
   start();
 };
-$("logout").onclick = function () { showLogin(""); };
+$("logout").onclick = function () { if (session) account("signout", { session: session }); showLogin(""); };
+// Team: lock the reports saved before locking existed (a few files at a time)
+$("lockOld").onclick = async function () {
+  var b = $("lockOld"), msg = $("lockMsg"), after = "", total = 0;
+  b.disabled = true;
+  try {
+    for (;;) {
+      var res = await apiPost("lock-old", { after: after }), data = await res.json();
+      if (!res.ok) throw new Error(data.error || ("Error " + res.status));
+      total += data.locked;
+      msg.className = "status"; msg.textContent = "Locked " + total + " old files" + (data.next ? ", " + data.left + " left to look at…" : ". All reports are locked now.");
+      if (!data.next) break;
+      after = data.next;
+    }
+  } catch (err) {
+    if (!signInProblem(err)) { msg.className = "status error"; msg.textContent = "Stopped: " + err.message + " Tap again to go on."; }
+  }
+  b.disabled = false;
+};
 document.addEventListener("visibilitychange", function () { if (!document.hidden && timer) refresh(); });
 
 // Full, uncropped photo with the report's details; click anywhere or press Esc to close.
@@ -1121,7 +1351,7 @@ async function aiNext() {
   aiBusy = false;
 }
 
-if (password) start(); else showLogin("");
+if (session) start(); else showLogin("");
 </script>
 </body>
 </html>`;

@@ -204,7 +204,10 @@ export class Lobby extends DurableObject {
     const m = this.matches.get(s.match), other = m && m.ids[1 - m.ids.indexOf(p.id)];
     return { kind: "battle", match: s.match, vs: other ? this.player(other)?.name : "?" };
   }
-  pub(p) { return { name: p.name, look: p.look, bot: !!p.bot, online: this.isOnline(p), wins: p.wins, status: this.statusOf(p) }; }
+  pub(p) {
+    const level = p.role === "team" || p.role === "manager" ? p.role : undefined;   // shown as a tag next to the name
+    return { name: p.name, look: p.look, bot: !!p.bot, level, online: this.isOnline(p), wins: p.wins, status: this.statusOf(p) };
+  }
   teamOf(id) {
     const p = this.player(id);
     if (p?.bot) return JSON.parse(p.team).map(([s, lv]) => fighter(s, lv));

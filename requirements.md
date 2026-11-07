@@ -809,6 +809,12 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - **Team members can type their own name** (3 to 20 letters, numbers, or _, nothing rude) with
     ✏️ Change my name, and can **Rename** anyone in Manage accounts. Players still pick made-up
     names, so kids don't put their real names online.
+  - **Blocking** (Manage accounts → 🚫 Block…): for **1 hour, 1 day, 1 week, or forever**, or
+    **forever + their device**. A device is a random number the site keeps in that browser, so we
+    block that phone or computer, never the whole Wi-Fi (other kids at the same school or home are
+    fine). A blocked device can't sign in, make accounts, play, or send reports. Devices our team
+    uses are never blocked. Clearing the browser's data gets around a device block, so it's a speed
+    bump, not a wall.
 - **Other ideas we talked about:**
   - Sign in with GitHub: many kids don't have a GitHub account.
   - Sign in with Google: it collects emails, and kids under 13 often can't use their own.
@@ -827,6 +833,8 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] Make an account, and the game opens. Sign out, and it locks again.
   - [ ] The team setup code makes your account Team, and Manage accounts can change someone's level.
   - [ ] A blocked account can't sign in.
+  - [ ] Blocked for 1 hour: they can sign in again after an hour (the list says until when).
+  - [ ] Blocked with their device: that browser can't sign in, make a new account, or send reports; Unblock fixes it.
   - [ ] A Team member changes their own name, and signs in with the new name.
   - [ ] Part 2: a Manager can see reports but not change them; Team can fix and delete reports.
   - [ ] Part 2: every report, photo and location in the reports repo is locked (encrypted), old ones too.

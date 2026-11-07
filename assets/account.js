@@ -12,9 +12,13 @@
 
 // The game server. A page can set window.INNVADEX_HTTP first (for testing on your own computer).
 const ACCOUNT_URL = (window.INNVADEX_HTTP || "https://innvadex-server.pandadifferent246.workers.dev") + "/account";
-const ACCOUNT_KEY = "pyinsect.account";
+const ACCOUNT_KEY = "pyinsect.account";   // { session, me } on this device. The session is like a key: never shown.
+// This device's random number, so our team can block a device (not a whole network). Nothing else in it.
+const DEVICE_KEY = "pyinsect.device", DEVICE_BLOCKED_KEY = "pyinsect.deviceBlocked";
 // The reports page (relay/worker.js). Team and Manager accounts sign in there to see reports.
-const REVIEW_URL = "https://pyinsect-relay.pandadifferent246.workers.dev/review/";   // { session, me } on this device. The session is like a key: never shown.
+const REVIEW_URL = "https://pyinsect-relay.pandadifferent246.workers.dev/review/";
+// How long our team can block someone for (Manage accounts)
+const BLOCK_CHOICES = [["hour", "1 hour"], ["day", "1 day"], ["week", "1 week"], ["forever", "Forever"], ["device", "Forever + their device"]];
 const LEVELS = {
   team: { name: "Team", emoji: "⭐", about: "You can do anything: fix and delete reports, and manage accounts." },
   manager: { name: "Manager", emoji: "📋", about: "You can look at all the reports, but you can't change them." },
@@ -28,6 +32,7 @@ const ACCOUNT_ERRORS = {
   taken: "Someone just took that name. Pick another one.",
   name: "Pick one of the names first.",
   blocked: "This account is blocked. Ask our team if you think that's a mistake.",
+  deviceBlocked: "This device is blocked. Ask our team if you think that's a mistake.",
   offline: "Can't reach the server. Check your internet and try again.",
   code: "That setup code isn't right.",
   self: "You can't change your own account here. Ask another team member.",
@@ -43,6 +48,7 @@ const account = {
   level: () => (account.session() && account.me()?.level) || "visitor",
   signedIn: () => !!account.session(),
   forget: () => forgetAccount(),
+  blockDevice: () => setDeviceBlocked(true),
 };
 window.account = account;
 
@@ -53,6 +59,21 @@ function levelTag(level) {
 }
 window.levelTag = levelTag;
 
+function deviceId() {
+  let id = store.get(DEVICE_KEY, null);
+  if (!/^[0-9a-f]{32}$/.test(id || "")) {
+    id = [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, "0")).join("");
+    store.set(DEVICE_KEY, id);
+  }
+  return id;
+}
+window.deviceId = deviceId;
+const deviceBlocked = () => !!store.get(DEVICE_BLOCKED_KEY, false);
+function setDeviceBlocked(yes) {
+  if (yes) { store.set(DEVICE_BLOCKED_KEY, true); if (account.signedIn()) forgetAccount(); }
+  else store.del(DEVICE_BLOCKED_KEY);
+}
+
 function saveAccount(session, me) { store.set(ACCOUNT_KEY, { session, me }); accountChanged(); }
 function forgetAccount() { store.del(ACCOUNT_KEY); accountChanged(); }
 
@@ -61,15 +82,18 @@ async function accountCall(what, data = {}) {
   let res, body = {};
   try {
     res = await fetch(ACCOUNT_URL, { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ do: what, session: account.session() || undefined, ...data }) });
+      body: JSON.stringify({ do: what, session: account.session() || undefined, device: deviceId(), ...data }) });
     body = await res.json().catch(() => ({}));
   } catch { return { error: "offline" }; }
   if (!res.ok && !body.error) body.error = "oops";
   // Signed out somewhere else, or blocked: this device forgets the account
   if (account.session() && (body.error === "signin" || body.error === "blocked")) forgetAccount();
+  if (body.error === "deviceBlocked") setDeviceBlocked(true);
   return body;
 }
-const errorText = e => ACCOUNT_ERRORS[e] || "Something went wrong. Try again.";
+const whenText = ms => new Date(ms).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const errorText = (e, until) => e === "blocked" && until ? `This account is blocked until ${whenText(until)}.`
+  : ACCOUNT_ERRORS[e] || "Something went wrong. Try again.";
 
 // ---------- the parts of the page that change with your level ----------
 function accountChanged() {
@@ -111,13 +135,16 @@ const acButton = (text, onClick, primary) => {
 // Runs a button's job: the button waits, then the error (if any) shows in `msg`
 async function acBusy(btn, msg, job) {
   btn.disabled = true; msg.textContent = "";
-  try { const err = await job(); if (err) msg.textContent = errorText(err); }
+  // A job answers nothing, an error word, or the server's reply (for "blocked until ...")
+  try { const err = await job(); if (err) msg.textContent = typeof err === "object" ? errorText(err.error, err.until) : errorText(err); }
   finally { btn.disabled = false; }
 }
 const acBox = (...parts) => { const d = el("div", "account"); d.append(...parts); return d; };
 
 function openAccount(view = account.signedIn() ? "me" : "start") {
-  if (view === "start") {
+  if (deviceBlocked()) {
+    openPopup([acBox(el("h2", null, "📵 This device is blocked"), el("p", null, ACCOUNT_ERRORS.deviceBlocked))], [["Close", false]]);
+  } else if (view === "start") {
     openPopup([acBox(el("h2", null, "👤 Your account"),
       el("p", null, "Sign in to play the Innvadex game. You can check trees and report bugs without an account."),
       acButton("Sign in", () => openAccount("signin"), true), acButton("Make an account", () => openAccount("signup")))], [["Close", false]]);
@@ -127,7 +154,7 @@ function openAccount(view = account.signedIn() ? "me" : "start") {
     const msg = el("p", "account-msg"), go = acButton("Sign in", () => acBusy(go, msg, async () => {
       if (!name.value.trim() || !pass.value) return "wrong";
       const r = await accountCall("signin", { name: name.value.trim(), password: pass.value });
-      if (r.error) return r.error;
+      if (r.error) return r;
       saveAccount(r.session, r.me); openAccount("me");
     }), true);
     pass.onkeydown = e => { if (e.key === "Enter") go.click(); };
@@ -230,10 +257,10 @@ function manageAccounts() {
     const r = await accountCall("accounts", { find: find.value.trim() });
     list.innerHTML = "";
     if (r.error) { msg.textContent = errorText(r.error); return; }
-    msg.textContent = r.accounts.length ? "" : "No accounts found.";
+    if (!r.accounts.length) msg.textContent = "No accounts found.";   // (a message from a button stays)
     for (const a of r.accounts) list.append(accountRow(a, load, msg));
   };
-  let timer; find.oninput = () => { clearTimeout(timer); timer = setTimeout(load, 300); };
+  let timer; find.oninput = () => { clearTimeout(timer); msg.textContent = ""; timer = setTimeout(load, 300); };
   openPopup([acBox(el("h2", null, "👥 Manage accounts"),
     el("p", "muted", "Team = can do anything. Manager = can look at reports. Player = can report and play."),
     findBox, msg, list, acButton("← Back", () => openAccount("me")))], [["Close", false]]);
@@ -242,7 +269,8 @@ function manageAccounts() {
 function accountRow(a, reload, msg) {
   const row = el("div", "person account-row" + (a.blocked ? " away" : "")), who = el("div", "foe-who"), btns = el("div", "foe-buttons");
   const lv = LEVELS[a.level] || LEVELS.player;
-  who.append(el("strong", null, a.name), el("span", "muted", a.blocked ? "🚫 Blocked" : `${lv.emoji} ${lv.name}`));
+  const status = a.device ? "📵 Device blocked" : !a.blocked ? `${lv.emoji} ${lv.name}` : a.until ? `🚫 Blocked until ${whenText(a.until)}` : "🚫 Blocked forever";
+  who.append(el("strong", null, a.name), el("span", "muted", status));
   const isMe = a.name === account.me()?.name;
   if (isMe) btns.append(el("span", "muted", "That's you"));
   else {
@@ -250,10 +278,34 @@ function accountRow(a, reload, msg) {
     pick.setAttribute("aria-label", `Level for ${a.name}`);
     for (const k of ["player", "manager", "team"]) { const o = el("option", null, LEVELS[k].name); o.value = k; o.selected = k === a.level; pick.append(o); }
     pick.onchange = async () => { const r = await accountCall("level", { name: a.name, level: pick.value }); msg.textContent = r.error ? errorText(r.error) : `${a.name} is a ${LEVELS[pick.value].name} now.`; reload(); };
-    const block = acButton(a.blocked ? "Unblock" : "Block", async () => {
-      if (!a.blocked && !confirm(`Block ${a.name}? They won't be able to sign in or play.`)) return;
-      const r = await accountCall("block", { name: a.name, yes: !a.blocked }); msg.textContent = r.error ? errorText(r.error) : ""; reload();
-    });
+    // Block for a while, forever, or forever with their device (blocked devices can't sign in, play, or report)
+    let block;
+    if (a.blocked || a.device) {
+      block = acButton("Unblock", async () => {
+        const r = await accountCall("block", { name: a.name, yes: false });
+        msg.textContent = r.error ? errorText(r.error) : `${a.name} isn't blocked any more.`; reload();
+      });
+    } else {
+      block = el("select", "level-pick");
+      block.setAttribute("aria-label", `Block ${a.name}`);
+      const first = el("option", null, "🚫 Block…"); first.value = ""; block.append(first);
+      for (const [k, text] of BLOCK_CHOICES) { const o = el("option", null, text); o.value = k; block.append(o); }
+      block.onchange = async () => {
+        const k = block.value, text = BLOCK_CHOICES.find(c => c[0] === k)?.[1];
+        block.value = "";
+        if (!k) return;
+        const sure = k === "device"
+          ? `Block ${a.name} and the devices they used? Those phones and computers won't be able to sign in, play, or send reports until you unblock them. Other people on the same Wi-Fi are fine.`
+          : `Block ${a.name} for ${text.toLowerCase()}? They won't be able to sign in or play.`;
+        if (!confirm(sure)) return;
+        const r = await accountCall("block", k === "device" ? { name: a.name, yes: true, withDevices: true } : { name: a.name, yes: true, for: k });
+        msg.textContent = r.error ? errorText(r.error)
+          : k !== "device" ? `${a.name} is blocked.`
+          : r.devices ? `${a.name} and ${r.devices === 1 ? "1 device are" : `${r.devices} devices are`} blocked.`
+          : `${a.name} is blocked. No devices were blocked: they haven't used this version of the site yet.`;
+        reload();
+      };
+    }
     const reset = acButton("New password", async () => {
       const p = prompt(`Type a new password for ${a.name} (at least 6 letters or numbers). Then tell them what it is.`);
       if (p == null) return;
@@ -275,6 +327,16 @@ function accountRow(a, reload, msg) {
 }
 
 document.addEventListener("click", e => { if (e.target.closest("[data-account]")) openAccount(); });
+// Blocked devices don't send reports (reports.js's relaySend). The report is dropped, like one the relay turns down.
+if (typeof relaySend === "function") {
+  const send = relaySend;
+  window.relaySend = (...args) => {
+    if (!deviceBlocked()) return send(...args);
+    const e = new Error(ACCOUNT_ERRORS.deviceBlocked); e.rejected = true; return Promise.reject(e);
+  };
+}
 accountChanged();
+// Is this device blocked? (It's checked every time the page opens, so unblocking works too.)
+accountCall("device").then(r => { if (typeof r.blocked === "boolean") setDeviceBlocked(r.blocked); });
 // Check the saved account is still good (it may have been blocked, or its level changed)
 if (account.signedIn()) accountCall("me").then(r => { if (r.me && account.signedIn()) { store.set(ACCOUNT_KEY, { session: account.session(), me: r.me }); accountChanged(); } });

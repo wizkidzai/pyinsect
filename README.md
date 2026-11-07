@@ -50,7 +50,7 @@ per find) live in `reports/` of a separate private repo that only the relay can 
 - Anyone can use the identifier, and every invasive find is reported automatically.
 - Detect reports (from the 3 Detect steps) carry up to 9 photos. The relay works out what was found
   from the AI's guesses itself. Reports where nothing was found go in `nothing-found/`, not `reports/`,
-  and never on the public map. Public map squares are about 200 m; the team sees a spot rounded to about 75 m.
+  and never on the public map. Public map squares are about 200 m; the team sees a spot rounded to about 50 m (75 m for reports before Nov 2026).
 - The relay only accepts invasive species, JPEG photos up to 1.5 MB and recent reports. Only Team
   accounts can change or delete reports (on the reports page).
 - Reports saved before locking existed: a Team member opens the reports page and taps

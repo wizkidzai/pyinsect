@@ -657,7 +657,7 @@ To add one, ask your AI helper to help you plan a new feature. It will use
     not pins, because we only know the rough area. Colors: your new report, your older reports, and
     everyone else's.
   - **Location privacy**: the public map rounds to squares about **200 m** wide. The private team copy
-    keeps a spot rounded to about **75 m**. "Nothing found" checks are private (team only) and kept in
+    keeps a spot rounded to about **50 m** (it was 75 m before Nov 2026). "Nothing found" checks are private (team only) and kept in
     their own section, but they count in "trees checked".
   - We pass reports on to the experts, and the results also show how to contact them directly.
 - **Other ideas we talked about:**
@@ -842,7 +842,7 @@ To add one, ask your AI helper to help you plan a new feature. It will use
 
 ## Team map: 50 m squares for our team
 
-- **Status:** Planned (waiting for "Accounts and levels" part 2, pull request #34)
+- **Status:** Building
 - **Asked by:** Eshan, 2026-11-07
 - **Who it's for:** Our team members (Team level), who tell the experts about reports.
 - **Problem or need:** The Map screen only shows squares about 200 m wide, so our team can't tell
@@ -852,8 +852,8 @@ To add one, ask your AI helper to help you plan a new feature. It will use
 - **Our idea:** When someone with a **Team** account opens the Map screen, they see report squares
   about **50 m** wide. Everyone else still sees 200 m. Experts don't get accounts: our team tells them.
   - The private team spot changes from about 75 m to about **50 m** (`SPOT_DEG` in `assets/app.js`
-    and `relay/worker.js`). Old reports were saved at 75 m, so they stay 75 m.
-  - The relay only sends 50 m squares to someone with a Team review pass (from part 2).
+    and `relay/worker.js`). Reports sent before this change show as 200 m squares on the team map.
+  - The relay only sends 50 m squares to someone with a Team review pass (the X-Pass check).
 - **Other ideas we talked about:**
   - 5 m squares: that could point to one house, and phone GPS often isn't that exact anyway.
   - 50 m on the public map: a stranger could find a kid's house. A grown-up agreed on 200 m.
@@ -866,5 +866,5 @@ To add one, ask your AI helper to help you plan a new feature. It will use
 - **Done when:**
   - [ ] Signed in as Team, the Map screen shows squares about 50 m wide, with the team note.
   - [ ] Not signed in, or a Player or Manager: the map still shows 200 m squares.
-  - [ ] Asking the relay for 50 m squares without a Team pass doesn't work.
+  - [x] Asking the relay for 50 m squares without a Team pass doesn't work.
   - [ ] A grown-up said 50 m for the team is OK, and redeployed the relay.

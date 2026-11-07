@@ -49,6 +49,8 @@ const account = {
   signedIn: () => !!account.session(),
   forget: () => forgetAccount(),
   blockDevice: () => setDeviceBlocked(true),
+  // A review pass (Team and Manager only) for the relay: { pass } or { error }
+  pass: () => accountCall("pass"),
 };
 window.account = account;
 

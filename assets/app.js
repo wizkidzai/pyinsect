@@ -289,12 +289,12 @@ function sendPending() {
 }
 
 // ---------- rough area ----------
-// Reports can carry a rounded spot: the middle of a grid square about 75 m wide (teamSpot). Only our
+// Reports can carry a rounded spot: the middle of a grid square about 50 m wide (teamSpot). Only our
 // team sees that. The public map rounds it again, to a square about 200 m wide (roughArea), so a
 // stranger can't find anyone's house. The exact spot never leaves the phone. The relay rounds it to
 // the same grids again (snapToGrid, AREA_DEG and SPOT_DEG in relay/worker.js must stay the same).
 const AREA_KEY = "pyinsect.shareArea";
-const AREA_DEG = 0.0018, SPOT_DEG = 0.0007;   // 0.0018° of latitude ≈ 200 m, 0.0007° ≈ 78 m
+const AREA_DEG = 0.0018, SPOT_DEG = 0.00045;   // 0.0018° of latitude ≈ 200 m, 0.00045° ≈ 50 m
 function snapToGrid(lat, lon, deg) {
   const row = Math.floor(lat / deg), rowLat = (row + 0.5) * deg;
   const lonStep = deg / Math.max(0.2, Math.cos(rowLat * Math.PI / 180));   // squares stay square
@@ -302,12 +302,12 @@ function snapToGrid(lat, lon, deg) {
   return { lat: +rowLat.toFixed(5), lon: +((col + 0.5) * lonStep).toFixed(5) };
 }
 const roughArea = (lat, lon) => snapToGrid(lat, lon, AREA_DEG);   // public map (~200 m)
-const teamSpot = (lat, lon) => snapToGrid(lat, lon, SPOT_DEG);    // team only (~75 m)
+const teamSpot = (lat, lon) => snapToGrid(lat, lon, SPOT_DEG);    // team only (~50 m)
 // Ticked unless they unticked it. Pages without the checkbox (like 2.7/) never send an area.
 const shareArea = () => !!document.querySelector(".area-box") && store.get(AREA_KEY, true);
 let areaCache = null;   // { area, at }: one location ask is reused for 10 minutes
 
-// The team spot (~75 m), or null (box unticked, location blocked, or no answer within 10 seconds)
+// The team spot (~50 m), or null (box unticked, location blocked, or no answer within 10 seconds)
 function getArea() {
   if (!shareArea() || !navigator.geolocation) return Promise.resolve(null);
   if (areaCache && Date.now() - areaCache.at < 600000) return Promise.resolve(areaCache.area);

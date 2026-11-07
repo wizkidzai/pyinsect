@@ -470,7 +470,7 @@ async function sendReport(found) {
   $("resultsActions").querySelector("button").disabled = true;
   const list = checked.filter(p => p.ai !== "ai");
   const { id, timestamp } = reportIdAndTime();
-  const spot = await getArea();   // the ~75 m team spot, or null (box unticked or location blocked)
+  const spot = await getArea();   // the ~50 m team spot, or null (box unticked or location blocked)
   const report = {
     id, timestamp, kind: "check", name: found.name,
     items: list.map(p => ({ step: p.step, ...(p.sign ? { sign: p.sign } : {}), top3: reportTop3(p.top3) })),

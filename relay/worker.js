@@ -84,6 +84,7 @@ const MIN_KEY_LENGTH = 20;          // REPORTS_KEY must be at least this long
 const LOCK_BATCH = 18;              // old files locked per "Lock old reports" step (free Workers: 50 requests per visit)
 // map.json (in the private repo): one small line per report, for the reports map and check levels:
 //   { id, kind: "invasive" | "tree" | "infested" | "check" | "nothing", name, area: { lat, lon } | null,
+//     spot: { lat, lon } | null (the ~50 m team spot, only for /team-map; reports before v18 have none),
 //     month: "2026-10", level, found (Detect reports only: { eab, damage, galleries }) }
 // "check" = a Detect report that found something, "nothing" = a Detect report that found nothing.
 // level: "unchecked" (just sent), "ai" (an AI thinks it's a match; not used yet),
@@ -116,7 +117,7 @@ async function submit(request, env) {
   const cors = {
     "Access-Control-Allow-Origin": SITE_ORIGINS.includes(origin) ? origin : SITE_ORIGINS[0],
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Pass",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
@@ -134,6 +135,20 @@ async function submit(request, env) {
       const list = (await readIndexCached(env)).filter(e => e.kind === "check" && e.area && e.level !== "not_match")
         .map(e => ({ kind: e.kind, name: e.name, lat: e.area.lat, lon: e.area.lon, month: e.month, level: e.level }));
       return reply(200, { reports: list });
+    } catch (e) {
+      return reply(502, { error: e.message });
+    }
+  }
+  if (request.method === "GET" && url.pathname === "/team-map") {
+    // Team only (a Team review pass in X-Pass): the same reports as /map, but at the ~50 m team spot
+    // (size: "spot"). Reports from before v18 have no spot in map.json, so they stay ~200 m (size: "area").
+    const who = await whoIs(request);
+    if (who?.level !== "team") return reply(403, { error: "Only our team can see the team map." });
+    try {
+      const list = (await readIndexCached(env)).filter(e => e.kind === "check" && e.area && e.level !== "not_match")
+        .map(e => ({ kind: e.kind, name: e.name, lat: (e.spot || e.area).lat, lon: (e.spot || e.area).lon,
+          size: e.spot ? "spot" : "area", month: e.month, level: e.level }));
+      return new Response(JSON.stringify({ reports: list }), { headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
     } catch (e) {
       return reply(502, { error: e.message });
     }
@@ -167,7 +182,7 @@ async function submit(request, env) {
   }
   if (request.method === "GET") {
     // Says whether the reports page is set up, never what its address or password is
-    return reply(200, { ok: true, service: "pyinsect-relay", version: 17, locked: (env.REPORTS_KEY || "").length >= MIN_KEY_LENGTH });
+    return reply(200, { ok: true, service: "pyinsect-relay", version: 18, locked: (env.REPORTS_KEY || "").length >= MIN_KEY_LENGTH });
   }
   if (request.method !== "POST") return reply(405, { error: "Use POST." });
   if (!SITE_ORIGINS.includes(origin)) return reply(403, { error: "Reports are only accepted from the Pyinsect site." });
@@ -348,7 +363,7 @@ function checkPhoto(photo) {
   if (bytes.charCodeAt(0) !== 0xFF || bytes.charCodeAt(1) !== 0xD8 || bytes.charCodeAt(2) !== 0xFF) return "Photo must be a JPEG.";
 }
 // Where the report came from (optional): "spot" from new pages, "area" from older ones. Rounded again
-// here, so even a changed site can't save an exact spot: the team spot (~75 m, private) and the
+// here, so even a changed site can't save an exact spot: the team spot (~50 m, private) and the
 // public map area (~200 m).
 function checkSpot(r) {
   const given = r.spot ?? r.area;
@@ -666,7 +681,7 @@ async function githubUpdate(env, path, bytes, sha, message) {
 function indexEntry(report, level) {
   const detect = report.kind === "check" || report.kind === "nothing";
   return { id: report.id, kind: detect ? report.kind : needsAction(report) ? "infested" : report.kind === "tree" ? "tree" : "invasive", name: report.name,
-    area: report.area || null, month: String(report.timestamp || report.id).replace(/^(\d{4})-?(\d{2}).*/, "$1-$2"), level,
+    area: report.area || null, spot: report.spot || null, month: String(report.timestamp || report.id).replace(/^(\d{4})-?(\d{2}).*/, "$1-$2"), level,
     ...(detect ? { found: { eab: !!report.found?.eab, damage: !!report.found?.damage, galleries: report.found?.galleries || 0 } } : {}) };
 }
 
@@ -717,9 +732,9 @@ async function githubRead(env, path) {
 
 // ---------- helpers ----------
 
-// The middle of the grid square around a spot: ~200 m squares for the public map (roughArea), ~75 m
+// The middle of the grid square around a spot: ~200 m squares for the public map (roughArea), ~50 m
 // for the team (teamSpot). Must stay the same as in assets/app.js (scripts/check.js compares them).
-const AREA_DEG = 0.0018, SPOT_DEG = 0.0007;   // 0.0018° of latitude ≈ 200 m, 0.0007° ≈ 78 m
+const AREA_DEG = 0.0018, SPOT_DEG = 0.00045;   // 0.0018° of latitude ≈ 200 m, 0.00045° ≈ 50 m
 function snapToGrid(lat, lon, deg) {
   const row = Math.floor(lat / deg), rowLat = (row + 0.5) * deg;
   const lonStep = deg / Math.max(0.2, Math.cos(rowLat * Math.PI / 180));   // squares stay square
@@ -727,7 +742,7 @@ function snapToGrid(lat, lon, deg) {
   return { lat: +rowLat.toFixed(5), lon: +((col + 0.5) * lonStep).toFixed(5) };
 }
 const roughArea = (lat, lon) => snapToGrid(lat, lon, AREA_DEG);   // public map (~200 m)
-const teamSpot = (lat, lon) => snapToGrid(lat, lon, SPOT_DEG);    // team only (~75 m)
+const teamSpot = (lat, lon) => snapToGrid(lat, lon, SPOT_DEG);    // team only (~50 m)
 
 // VIEW_PATH as typed in Cloudflare, tolerating spaces, slashes or a whole pasted link
 function viewWord(env) {
@@ -1111,7 +1126,7 @@ function hero(r) {
   else if (r.scientific && r.scientific !== r.name) info.append(el("span", "sci", r.scientific));
   var w = when(r.timestamp), facts = el("dl", "facts");
   [["Reported", w.ago + " · " + w.full], isCheck(r) ? ["Found", r.found_text || "nothing"] : isTree(r) ? ["Signs seen", r.signs_text || "none"] : ["Confidence", Number(r.confidence).toFixed(1) + "%"],
-    ["Team spot", r.spot ? r.spot.lat + ", " + r.spot.lon + " (about 75 m)" : "none"], ["Model", r.model || "—"], ["Report", r.id]]
+    ["Team spot", r.spot ? r.spot.lat + ", " + r.spot.lon + " (about 50 m, or 75 m before Nov 2026)" : "none"], ["Model", r.model || "—"], ["Report", r.id]]
     .forEach(function (kv) { facts.append(el("dt", null, kv[0]), el("dd", null, kv[1])); });
   var dd = el("dd"); dd.append(aiSpan(r.id));
   facts.append(el("dt", null, "AI check"), dd);

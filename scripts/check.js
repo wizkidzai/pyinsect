@@ -85,7 +85,7 @@ const listIn = (text, start) => {
 }
 
 // 2c. The rough area grids (reports map) are the same on the site and the relay: both must round a
-// spot to the same ~200 m square (public map) and ~75 m square (team spot), or the map would put
+// spot to the same ~200 m square (public map) and ~50 m square (team spot), or the map would put
 // reports in the wrong place
 {
   const vm = require("vm");

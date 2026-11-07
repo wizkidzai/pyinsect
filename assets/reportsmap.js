@@ -3,7 +3,10 @@
 // pins, because we only know the rough area. This phone's own reports are added in their own colors,
 // and only this phone sees those: the newest one, and the older ones.
 // The map has + / − zoom buttons and a "Find me" button (your spot stays on this phone).
-// Uses $, el, RELAY_URL, mine, AREA_DEG from app.js and reports.js. flow.js calls reportsMap.show().
+// Signed in as Team: the squares come from the relay's /team-map instead, about 50 m wide (the team
+// spot), so our team can tell the experts where to look. Everyone else still sees 200 m.
+// Uses $, el, RELAY_URL, mine, AREA_DEG, SPOT_DEG from app.js and reports.js, and account from
+// account.js. flow.js calls reportsMap.show().
 
 (() => {
 const COLORS = { new: "#e8590c", older: "#8e44ad", everyone: "#2f6fb3" };
@@ -22,7 +25,7 @@ function loadLeaflet() {
   });
 }
 
-const relay = path => fetch(RELAY_URL.replace(/\/$/, "") + path, { cache: "no-store" }).then(res => {
+const relay = (path, headers = {}) => fetch(RELAY_URL.replace(/\/$/, "") + path, { cache: "no-store", headers }).then(res => {
   if (!res.ok) throw new Error(`the report server answered ${res.status}`);
   return res.json();
 });
@@ -41,10 +44,19 @@ async function showStats() {
   }
 }
 
-// The corners of the grid square around a square's middle (the same grid as roughArea)
-function squareBounds(lat, lon) {
-  const lonStep = AREA_DEG / Math.max(0.2, Math.cos(lat * Math.PI / 180));
-  return [[lat - AREA_DEG / 2, lon - lonStep / 2], [lat + AREA_DEG / 2, lon + lonStep / 2]];
+// The corners of the grid square around a square's middle (the same grid as roughArea, or as
+// teamSpot when size is "spot")
+function squareBounds(lat, lon, size = "area") {
+  const deg = size === "spot" ? SPOT_DEG : AREA_DEG, lonStep = deg / Math.max(0.2, Math.cos(lat * Math.PI / 180));
+  return [[lat - deg / 2, lon - lonStep / 2], [lat + deg / 2, lon + lonStep / 2]];
+}
+
+// Team only: the reports at the ~50 m team spot, or null (not Team, or it didn't work)
+async function teamReports() {
+  if (window.account?.level() !== "team") return null;
+  const { pass } = await account.pass();
+  if (!pass) return null;
+  return (await relay("/team-map", { "X-Pass": pass })).reports || [];
 }
 const monthName = m => { const d = new Date(m + "-15T12:00:00"); return isNaN(d) ? m : d.toLocaleDateString([], { month: "long", year: "numeric" }); };
 
@@ -61,27 +73,28 @@ function popup(sq) {
     const newest = sq.mine.some(m => m.newest);
     box.append(el("p", "map-mine", `${newest ? "🟠 Your newest report" : "🟣 " + (sq.mine.length === 1 ? "Your report" : sq.mine.length + " of your reports")} (only you see this)`));
   }
-  box.append(el("p", "map-note", "About 200 m square. The exact spot is never shared."));
+  box.append(el("p", "map-note", sq.size === "spot" ? "⭐ Team view: about 50 m square. Only our team sees this."
+    : "About 200 m square. The exact spot is never shared."));
   return box;
 }
 
 // reports = everyone's (from the relay); myReports = this phone's, newest first
 function draw(reports, myReports) {
   layer?.remove();
-  const squares = new Map();   // "lat,lon" → { lat, lon, reports: [], mine: [] }
-  const square = (lat, lon) => {
-    const k = `${lat},${lon}`;
-    if (!squares.has(k)) squares.set(k, { lat, lon, reports: [], mine: [] });
+  const squares = new Map();   // "size,lat,lon" → { lat, lon, size, reports: [], mine: [] }
+  const square = (lat, lon, size = "area") => {
+    const k = `${size},${lat},${lon}`;
+    if (!squares.has(k)) squares.set(k, { lat, lon, size, reports: [], mine: [] });
     return squares.get(k);
   };
-  for (const r of reports) square(r.lat, r.lon).reports.push(r);
+  for (const r of reports) square(r.lat, r.lon, r.size).reports.push(r);
   myReports.forEach((m, i) => square(m.area.lat, m.area.lon).mine.push({ ...m, newest: i === 0 }));
   layer = L.layerGroup();
   let newest = null;
   for (const sq of squares.values()) {
     // A square with your newest report is orange, with older ones of yours purple, else blue
     const kind = sq.mine.some(m => m.newest) ? "new" : sq.mine.length ? "older" : "everyone";
-    const rect = L.rectangle(squareBounds(sq.lat, sq.lon), { color: COLORS[kind], weight: kind === "everyone" ? 1.5 : 3, fillColor: COLORS[kind], fillOpacity: 0.45 });
+    const rect = L.rectangle(squareBounds(sq.lat, sq.lon, sq.size), { color: COLORS[kind], weight: kind === "everyone" ? 1.5 : 3, fillColor: COLORS[kind], fillOpacity: 0.45 });
     rect.bindPopup(popup(sq));
     const count = Math.max(sq.reports.length, sq.mine.length);
     const label = L.marker([sq.lat, sq.lon], { interactive: false, keyboard: false,
@@ -93,7 +106,7 @@ function draw(reports, myReports) {
   if (newest) {
     map.setView(newest.getBounds().getCenter(), 15);   // your newest report, in the middle (tap it to see more)
   } else if (squares.size) {
-    map.fitBounds(L.latLngBounds([...squares.values()].map(sq => squareBounds(sq.lat, sq.lon)).flat()).pad(0.2), { maxZoom: 14 });
+    map.fitBounds(L.latLngBounds([...squares.values()].map(sq => squareBounds(sq.lat, sq.lon, sq.size)).flat()).pad(0.2), { maxZoom: 14 });
   } else {
     map.setView([44, -120.5], 6);   // Oregon
   }
@@ -132,10 +145,14 @@ async function show() {
   const msg = $("reportsMapMsg");
   showStats();
   msg.textContent = "Loading the map…";
-  let reports = [], problem = "";
+  let reports = [], problem = "", note = "";
   try {
     await loadLeaflet();
-    reports = (await relay("/map")).reports || [];
+    // Team gets the ~50 m squares. If that doesn't work, everyone's 200 m squares instead.
+    const forTeam = await teamReports().catch(() => null);
+    if (forTeam) note = "⭐ Team view: squares about 50 m wide. Only our team sees this. ";
+    else if (window.account?.level() === "team") note = "Couldn't get the team view right now, so these are the 200 m squares. ";
+    reports = forTeam || (await relay("/map")).reports || [];
   } catch (e) {
     if (!window.L) { msg.textContent = "The map couldn't load. Check your internet and try again."; return; }
     problem = `Couldn't get everyone's reports (${e.message}). Showing only yours.`;
@@ -148,7 +165,7 @@ async function show() {
   }
   map.invalidateSize();
   const n = draw(reports, myReports);
-  msg.textContent = problem || (n ? `${reports.length} report${reports.length === 1 ? "" : "s"} from everyone. Tap a square to see what's there.`
+  msg.textContent = problem || note + (n ? `${reports.length} report${reports.length === 1 ? "" : "s"} from everyone. Tap a square to see what's there.`
     : "No reports on the map yet. Yours will show here after you send one.");
 }
 

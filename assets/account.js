@@ -53,6 +53,8 @@ const account = {
   shownLevel: () => account.signedIn() && account.me()?.owner ? "owner" : account.level(),
   forget: () => forgetAccount(),
   blockDevice: () => setDeviceBlocked(true),
+  // A review pass (Team and Manager only) for the relay: { pass } or { error }
+  pass: () => accountCall("pass"),
 };
 window.account = account;
 

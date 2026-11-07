@@ -44,6 +44,13 @@ const account = {
 };
 window.account = account;
 
+// A small tag like "📋 Manager" to show next to a name
+function levelTag(level) {
+  const lv = LEVELS[level] || LEVELS.player;
+  return el("span", `level-tag ${level}`, `${lv.emoji} ${lv.name}`);
+}
+window.levelTag = levelTag;
+
 function saveAccount(session, me) { store.set(ACCOUNT_KEY, { session, me }); accountChanged(); }
 function forgetAccount() { store.del(ACCOUNT_KEY); accountChanged(); }
 
@@ -66,7 +73,12 @@ const errorText = e => ACCOUNT_ERRORS[e] || "Something went wrong. Try again.";
 function accountChanged() {
   const me = account.me(), on = account.signedIn();
   const btn = $("accountBtn");
-  if (btn) btn.querySelector("span").textContent = on && me ? me.name : "Sign in";
+  if (btn) {
+    btn.querySelector("span").textContent = on && me ? me.name : "Sign in";
+    // Your level next to your name (Team, Manager, or Player)
+    btn.querySelector(".level-tag")?.remove();
+    if (on && me) btn.append(" ", levelTag(account.level()));
+  }
   // The game needs an account
   if ($("game")) { $("game").hidden = !on; $("gameLocked").hidden = on; }
   if (!on && !$("gamePopup").hidden && !$("gamePopupBox").querySelector(".account")) window.Innvadex?.closePopup();

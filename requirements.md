@@ -806,6 +806,9 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - 👋 **Visitor** (not signed in): can only report bugs. The whole game is locked.
   - The first team account uses a **team setup code** that a grown-up keeps secret. After that,
     our team makes other people Team or Manager in **Manage accounts**.
+  - **Team members can type their own name** (3 to 20 letters, numbers, or _, nothing rude) with
+    ✏️ Change my name, and can **Rename** anyone in Manage accounts. Players still pick made-up
+    names, so kids don't put their real names online.
 - **Other ideas we talked about:**
   - Sign in with GitHub: many kids don't have a GitHub account.
   - Sign in with Google: it collects emails, and kids under 13 often can't use their own.
@@ -822,5 +825,6 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] Make an account, and the game opens. Sign out, and it locks again.
   - [ ] The team setup code makes your account Team, and Manage accounts can change someone's level.
   - [ ] A blocked account can't sign in.
+  - [ ] A Team member changes their own name, and signs in with the new name.
   - [ ] Part 2: a Manager can see reports but not change them; Team can fix and delete reports.
   - [ ] A grown-up deployed the game server and set the team setup code.

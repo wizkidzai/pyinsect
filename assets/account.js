@@ -23,6 +23,7 @@ const LEVELS = {
   team: { name: "Team", emoji: "⭐", about: "You can do anything: fix and delete reports, and manage accounts." },
   manager: { name: "Manager", emoji: "📋", about: "You can look at all the reports, but you can't change them." },
   player: { name: "Player", emoji: "🎮", about: "You can report bugs and play the game." },
+  owner: { name: "Owner", emoji: "👑", about: "You own Pyinsect: you can do anything, and nobody can block you or change your account." },
   visitor: { name: "Visitor", emoji: "👋", about: "You can report bugs. Sign in to play the game too." },
 };
 const ACCOUNT_ERRORS = {
@@ -34,12 +35,13 @@ const ACCOUNT_ERRORS = {
   blocked: "This account is blocked. Ask our team if you think that's a mistake.",
   deviceBlocked: "This device is blocked. Ask our team if you think that's a mistake.",
   offline: "Can't reach the server. Check your internet and try again.",
-  code: "That setup code isn't right.",
+  code: "That code isn't right.",
   self: "You can't change your own account here. Ask another team member.",
   notFound: "There's no account with that name.",
   level: "Your level can't do that.",
   badName: "Names can have 3 to 20 letters, numbers, or _ (no spaces), and nothing rude.",
   nameTaken: "Someone already has that name. Try another one.",
+  owner: "Nobody can block or change the owner's account.",
 };
 
 const account = {
@@ -47,6 +49,8 @@ const account = {
   me: () => store.get(ACCOUNT_KEY, null)?.me || null,
   level: () => (account.session() && account.me()?.level) || "visitor",
   signedIn: () => !!account.session(),
+  // What to show as your level: "owner" for the owner (who is Team underneath)
+  shownLevel: () => account.signedIn() && account.me()?.owner ? "owner" : account.level(),
   forget: () => forgetAccount(),
   blockDevice: () => setDeviceBlocked(true),
   // A review pass (Team and Manager only) for the relay: { pass } or { error }
@@ -105,7 +109,7 @@ function accountChanged() {
     btn.querySelector("span").textContent = on && me ? me.name : "Sign in";
     // Your level next to your name (Team, Manager, or Player)
     btn.querySelector(".level-tag")?.remove();
-    if (on && me) btn.append(" ", levelTag(account.level()));
+    if (on && me) btn.append(" ", levelTag(account.shownLevel()));
   }
   // The game needs an account
   if ($("game")) { $("game").hidden = !on; $("gameLocked").hidden = on; }
@@ -144,8 +148,9 @@ async function acBusy(btn, msg, job) {
 const acBox = (...parts) => { const d = el("div", "account"); d.append(...parts); return d; };
 
 function openAccount(view = account.signedIn() ? "me" : "start") {
-  if (deviceBlocked()) {
-    openPopup([acBox(el("h2", null, "📵 This device is blocked"), el("p", null, ACCOUNT_ERRORS.deviceBlocked))], [["Close", false]]);
+  if (deviceBlocked() && view !== "signin") {
+    const owner = el("button", "link", "I'm the owner: sign in"); owner.type = "button"; owner.onclick = () => openAccount("signin");
+    openPopup([acBox(el("h2", null, "📵 This device is blocked"), el("p", null, ACCOUNT_ERRORS.deviceBlocked), owner)], [["Close", false]]);
   } else if (view === "start") {
     openPopup([acBox(el("h2", null, "👤 Your account"),
       el("p", null, "Sign in to play the Innvadex game. You can check trees and report bugs without an account."),
@@ -157,7 +162,9 @@ function openAccount(view = account.signedIn() ? "me" : "start") {
       if (!name.value.trim() || !pass.value) return "wrong";
       const r = await accountCall("signin", { name: name.value.trim(), password: pass.value });
       if (r.error) return r;
-      saveAccount(r.session, r.me); openAccount("me");
+      saveAccount(r.session, r.me);
+      if (r.me.owner) setDeviceBlocked(false);   // the owner can use any device
+      openAccount("me");
     }), true);
     pass.onkeydown = e => { if (e.key === "Enter") go.click(); };
     openPopup([acBox(el("h2", null, "👤 Sign in"), nameBox, passBox, msg, go,
@@ -205,7 +212,7 @@ async function signUp(names) {
 // Signed in: your name, your level, and what you can do
 async function showMe() {
   const draw = () => {
-    const me = account.me(), lv = LEVELS[account.level()] || LEVELS.player;
+    const me = account.me(), lv = LEVELS[account.shownLevel()] || LEVELS.player;
     const parts = [el("h2", null, `${me.look || "🙂"} ${me.name}`), el("p", "level-chip", `${lv.emoji} ${lv.name}`), el("p", null, lv.about)];
     if (account.level() === "team" || account.level() === "manager") {
       const review = el("a", "btn primary", "📋 Review reports");
@@ -236,6 +243,18 @@ async function showMe() {
         saveAccount(account.session(), r.me); openAccount("me");
       }));
       more.append(el("summary", null, "Are you on our team?"), el("p", "muted", "Type the team setup code a grown-up gave you."), codeBox, msg, go);
+      parts.push(more);
+    }
+    // The owner code (only the owner knows it) makes this account the owner
+    if (!me.owner) {
+      const more = el("details", "account-setup"), msg = el("p", "account-msg");
+      const [codeBox, code] = acField("Owner code", "password");
+      const go = acButton("Use the owner code", () => acBusy(go, msg, async () => {
+        const r = await accountCall("claimOwner", { code: code.value });
+        if (r.error) return r.error;
+        saveAccount(account.session(), r.me); setDeviceBlocked(false); openAccount("me");
+      }));
+      more.append(el("summary", null, "👑 Are you the owner?"), codeBox, msg, go);
       parts.push(more);
     }
     openPopup([acBox(...parts)], [["Close", false]]);
@@ -271,10 +290,11 @@ function manageAccounts() {
 function accountRow(a, reload, msg) {
   const row = el("div", "person account-row" + (a.blocked ? " away" : "")), who = el("div", "foe-who"), btns = el("div", "foe-buttons");
   const lv = LEVELS[a.level] || LEVELS.player;
-  const status = a.device ? "📵 Device blocked" : !a.blocked ? `${lv.emoji} ${lv.name}` : a.until ? `🚫 Blocked until ${whenText(a.until)}` : "🚫 Blocked forever";
+  const status = a.owner ? "👑 Owner" : a.device ? "📵 Device blocked" : !a.blocked ? `${lv.emoji} ${lv.name}` : a.until ? `🚫 Blocked until ${whenText(a.until)}` : "🚫 Blocked forever";
   who.append(el("strong", null, a.name), el("span", "muted", status));
   const isMe = a.name === account.me()?.name;
   if (isMe) btns.append(el("span", "muted", "That's you"));
+  else if (a.owner) btns.append(el("span", "muted", "Nobody can change the owner"));
   else {
     const pick = el("select", "level-pick");
     pick.setAttribute("aria-label", `Level for ${a.name}`);

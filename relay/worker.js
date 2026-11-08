@@ -69,6 +69,7 @@ const SHOW = 40;                    // newest reports sent to the reports page
 const LIST_CACHE_MS = 5000;         // GitHub is asked for the file list at most every 5 s
 
 const ID_RE = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})-[0-9a-f]{1,8}$/;
+const KEY_RE = /^[0-9a-f]{32}$/;    // a take-back key from the phone (see forgetArea)
 const SPECIES_RE = /^[a-z_]{1,48}$/;
 const TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/;
 const recent = new Map();
@@ -84,7 +85,8 @@ const MIN_KEY_LENGTH = 20;          // REPORTS_KEY must be at least this long
 const LOCK_BATCH = 18;              // old files locked per "Lock old reports" step (free Workers: 50 requests per visit)
 // map.json (in the private repo): one small line per report, for the reports map and check levels:
 //   { id, kind: "invasive" | "tree" | "infested" | "check" | "nothing", name, area: { lat, lon } | null,
-//     month: "2026-10", level, found (Detect reports only: { eab, damage, galleries }) }
+//     month: "2026-10", level, found (Detect reports only: { eab, damage, galleries }),
+//     forget: the hash of the phone's take-back key (only for reports with an area, from v18) }
 // "check" = a Detect report that found something, "nothing" = a Detect report that found nothing.
 // level: "unchecked" (just sent), "ai" (an AI thinks it's a match; not used yet),
 //        "verified" (a person on the team confirmed it), "not_match" (a person said no).
@@ -167,13 +169,27 @@ async function submit(request, env) {
   }
   if (request.method === "GET") {
     // Says whether the reports page is set up, never what its address or password is
-    return reply(200, { ok: true, service: "pyinsect-relay", version: 17, locked: (env.REPORTS_KEY || "").length >= MIN_KEY_LENGTH });
+    return reply(200, { ok: true, service: "pyinsect-relay", version: 18, locked: (env.REPORTS_KEY || "").length >= MIN_KEY_LENGTH });
   }
   if (request.method !== "POST") return reply(405, { error: "Use POST." });
   if (!SITE_ORIGINS.includes(origin)) return reply(403, { error: "Reports are only accepted from the Pyinsect site." });
   if (!env.GITHUB_TOKEN) return reply(500, { error: "The relay isn't set up yet (GITHUB_TOKEN missing)." });
   // Reports are only saved locked. Not a 400, so the site keeps the report and sends it later.
   try { await lockKey(env); } catch (e) { return reply(503, { error: e.message }); }
+
+  // "Take back my location": { id, key }. Only the phone that sent the report knows its key.
+  if (url.pathname === "/forget") {
+    let id, key;
+    try { ({ id, key } = await request.json()); } catch { return reply(400, { error: "Not valid JSON." }); }
+    if (typeof id !== "string" || !ID_RE.test(id) || typeof key !== "string" || !KEY_RE.test(key)) return reply(400, { error: "Bad take-back request." });
+    try {
+      const status = await forgetArea(env, id, await sha256Hex(key));
+      return status === 200 ? reply(200, { ok: true })
+        : reply(status, { error: status === 404 ? "That report isn't on the server." : "This phone can't take back that report's location." });
+    } catch (e) {
+      return reply(502, { error: e.message });
+    }
+  }
 
   const ip = request.headers.get("CF-Connecting-IP") || "?";
   if (!allow(recent, ip, 3600000, PER_IP_LIMIT)) return reply(429, { error: "Too many reports from this network. Try again later." });
@@ -185,6 +201,9 @@ async function submit(request, env) {
   count(recent, ip, 3600000);
 
   const { report, photo, photos } = checked;
+  // The phone's take-back key: only its hash is saved, and only for a report with an area
+  const key = body.report.forget_key;
+  if (report.area && typeof key === "string" && KEY_RE.test(key)) report.forget_hash = await sha256Hex(key);
   // Never save into a public repo (it happened when the old GITHUB_REPO setting was reset). Not a 400, so the
   // site keeps the report and sends it again once the setting is fixed.
   try {
@@ -553,6 +572,30 @@ async function fixReport(env, id, name, by) {
   await updateIndex(env, list => { const e = list.find(x => x.id === id); if (e) e.name = name; });
   return true;
 }
+// "Take back my location": removes the area and team spot from the report and from map.json, if
+// hash matches the one saved with it. Answers 200, 403 (wrong key, or no key), or 404.
+async function forgetArea(env, id, hash) {
+  const e = (await readIndex(env)).list.find(x => x.id === id);
+  if (!e) return 404;
+  if (e.forget !== hash) return 403;
+  const found = await reportFiles(env, id);
+  if (found) {
+    const path = `${found.dir}/${id}.json`, sha = found.files.find(f => f.path === path).sha;
+    const report = JSON.parse(new TextDecoder().decode(await readFile(env, path)));
+    if (report.area || report.spot) {
+      delete report.area; delete report.spot;
+      report.area_taken_back = new Date().toISOString();
+      await githubUpdate(env, path, new TextEncoder().encode(JSON.stringify(report, null, 1)), sha, "Take back a report's location");
+      reportCache.set(id, report);
+    }
+  }
+  await updateIndex(env, list => { const x = list.find(y => y.id === id); if (x) x.area = null; });
+  return 200;
+}
+async function sha256Hex(text) {
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
 async function deleteReport(env, id, by) {
   const found = await reportFiles(env, id);
   if (!found) return false;
@@ -667,6 +710,7 @@ function indexEntry(report, level) {
   const detect = report.kind === "check" || report.kind === "nothing";
   return { id: report.id, kind: detect ? report.kind : needsAction(report) ? "infested" : report.kind === "tree" ? "tree" : "invasive", name: report.name,
     area: report.area || null, month: String(report.timestamp || report.id).replace(/^(\d{4})-?(\d{2}).*/, "$1-$2"), level,
+    ...(report.forget_hash ? { forget: report.forget_hash } : {}),
     ...(detect ? { found: { eab: !!report.found?.eab, damage: !!report.found?.damage, galleries: report.found?.galleries || 0 } } : {}) };
 }
 

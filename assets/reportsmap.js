@@ -60,9 +60,29 @@ function popup(sq) {
   if (sq.mine.length) {
     const newest = sq.mine.some(m => m.newest);
     box.append(el("p", "map-mine", `${newest ? "🟠 Your newest report" : "🟣 " + (sq.mine.length === 1 ? "Your report" : sq.mine.length + " of your reports")} (only you see this)`));
+    const back = el("button", "btn", "📍 Take back my location");
+    back.type = "button";
+    back.onclick = () => { map.closePopup(); askTakeBack(sq.mine); };
+    box.append(back);
   }
   box.append(el("p", "map-note", "About 200 m square. The exact spot is never shared."));
   return box;
+}
+
+// "Take back my location" for this phone's reports in one square (takeBackArea is in app.js)
+function askTakeBack(reports) {
+  openPopup([el("h2", null, "📍 Take back your location?"),
+    el("p", null, `Your report${reports.length === 1 ? "" : "s"} will stay and still help the experts, but won't be on the map anymore.`)],
+  [["Take it back", true, async () => {
+    const msg = $("reportsMapMsg");
+    msg.textContent = "Taking back your location…";
+    const errors = [];
+    for (const r of reports) { const { error } = await takeBackArea(r.id); if (error) errors.push(error); }
+    await show();
+    msg.textContent = !errors.length ? "Done! Your location was removed from the map. It can take a minute to leave everyone's map."
+      : errors.includes("old") ? "This report was sent before you could take back locations. Ask our team, and we'll remove it for you."
+      : `That didn't work: ${errors[0]} Try again in a little while.`;
+  }], ["Keep it", false]]);
 }
 
 // reports = everyone's (from the relay); myReports = this phone's, newest first

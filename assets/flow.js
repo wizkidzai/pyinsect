@@ -459,18 +459,33 @@ async function showResults() {
     return;
   }
   $("resultsArea").hidden = false;
-  resultsActions(["Send report", "primary", () => sendReport(found)], ["Back", "", closeResults]);
+  const actions = () => resultsActions(["Send report", "primary", () => warnArea(found, actions)], ["Back", "", closeResults]);
+  actions();
+}
+
+// Before a report with a rough area is sent, say who can see it. "Back" puts the results buttons back.
+function warnArea(found, back) {
+  if (!shareArea()) return sendReport(found);
+  const warn = el("div", "result-note care"), title = el("p");
+  title.append(el("strong", null, "📍 Your rough location will be shared"));
+  warn.append(title,
+    el("p", null, "This report can show on the map as a square about 200 m wide, so other people can see about where you were. Our team sees a closer spot, so they can tell the experts. Your exact spot never leaves your phone."));
+  $("resultsBody").append(warn);
+  warn.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  resultsActions(["Send with my area", "primary", () => sendReport(found)],
+    ["Send without my area", "", () => sendReport(found, { noArea: true })],
+    ["Back", "", () => { warn.remove(); back(); }]);
 }
 
 // One report with every photo (except AI-made ones), then the map
-async function sendReport(found) {
+async function sendReport(found, { noArea = false } = {}) {
   if (sending) return;
   sending = true;
   resultsActions(["Sending…", "primary", () => {}]);
   $("resultsActions").querySelector("button").disabled = true;
   const list = checked.filter(p => p.ai !== "ai");
   const { id, timestamp } = reportIdAndTime();
-  const spot = await getArea();   // the ~75 m team spot, or null (box unticked or location blocked)
+  const spot = noArea ? null : await getArea();   // the ~75 m team spot, or null (box unticked, location blocked, or "Send without my area")
   const report = {
     id, timestamp, kind: "check", name: found.name,
     items: list.map(p => ({ step: p.step, ...(p.sign ? { sign: p.sign } : {}), top3: reportTop3(p.top3) })),

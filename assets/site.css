@@ -1081,3 +1081,8 @@ body[data-screen="game"] #screens { padding-top: 14px; }
 .level-tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); vertical-align: middle; white-space: nowrap; }
 .level-tag.team, .level-tag.owner { background: color-mix(in srgb, #d4a017 22%, transparent); color: color-mix(in srgb, #8a6400 80%, var(--ink)); }
 .level-tag.manager { background: color-mix(in srgb, #3b6fd8 18%, transparent); color: color-mix(in srgb, #2a55b0 80%, var(--ink)); }
+
+/* Sign in with Google (assets/account.js) */
+.google-box { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 4px; }
+.google-box .or-line { margin: 0; }
+.google-btn { min-height: 44px; }

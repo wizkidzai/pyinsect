@@ -152,6 +152,13 @@ async function acBusy(btn, msg, job) {
   finally { btn.disabled = false; }
 }
 const acBox = (...parts) => { const d = el("div", "account"); d.append(...parts); return d; };
+// "By signing in, you agree to the Terms of Use and Privacy Policy" (pages in terms/ and privacy/)
+function agreeLine(what) {
+  const p = el("p", "muted agree-line", `By ${what}, you agree to our `), terms = el("a", null, "Terms of Use"), priv = el("a", null, "Privacy Policy");
+  terms.href = "terms/"; priv.href = "privacy/"; terms.target = priv.target = "_blank"; terms.rel = priv.rel = "noopener";
+  p.append(terms, " and ", priv, ".");
+  return p;
+}
 
 // ---------- Sign in with Google ----------
 // The server says if Google sign-in is on (its client ID, not a secret). Then Google's script draws its button.
@@ -219,7 +226,7 @@ function openAccount(view = account.signedIn() ? "me" : "start") {
     openPopup([acBox(el("h2", null, "👤 Your account"),
       el("p", null, "Sign in to play the Innvadex game. You can check trees and report bugs without an account."),
       acButton("Sign in", () => openAccount("signin"), true), acButton("Make an account", () => openAccount("signup")),
-      googleButton(c => googleSignIn(c, msg), "continue_with"), msg)], [["Close", false]]);
+      googleButton(c => googleSignIn(c, msg), "continue_with"), msg, agreeLine("signing in"))], [["Close", false]]);
   } else if (view === "signin") {
     const [nameBox, name] = acField("Your name", "text", { placeholder: "BraveBeetle42", max: 40, autocomplete: "username" });
     const [passBox, pass] = acField("Password", "password", { autocomplete: "current-password" });
@@ -233,7 +240,7 @@ function openAccount(view = account.signedIn() ? "me" : "start") {
     }), true);
     pass.onkeydown = e => { if (e.key === "Enter") go.click(); };
     openPopup([acBox(el("h2", null, "👤 Sign in"), nameBox, passBox, msg, go, googleButton(c => googleSignIn(c, msg)),
-      acButton("I don't have an account yet", () => openAccount("signup")),
+      acButton("I don't have an account yet", () => openAccount("signup")), agreeLine("signing in"),
       el("p", "muted", "Forgot your password? Ask our team to give you a new one."))], [["Close", false]]);
     name.focus();
   } else if (view === "signup") signUp();
@@ -269,7 +276,7 @@ async function signUp(names) {
     el("p", null, "1. Pick your name. Other players will see it, and you'll sign in with it."), options, more,
     el("p", "muted", "Names are made up, so nobody uses their real name. No email needed."),
     el("p", null, "2. Pick a password, and remember it!"), passBox, againBox, msg, go,
-    googleButton(c => googleSignIn(c, msg), "signup_with"),
+    googleButton(c => googleSignIn(c, msg), "signup_with"), agreeLine("making an account"),
     acButton("I already have an account", () => openAccount("signin")))], [["Close", false]]);
   if (names) showNames(names);
   else { const r = await accountCall("names"); if (r.names) showNames(r.names); else msg.textContent = errorText(r.error); }

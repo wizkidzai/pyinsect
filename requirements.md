@@ -818,9 +818,13 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - 👑 **Owner:** whoever types the secret **owner code** (only the owner knows it) becomes the owner.
     The owner is always Team, and nobody can block it, change its level, rename it, or give it a new
     password. It can sign in even on a blocked device.
+  - 🔗 **Sign in with Google** (asked by our team lead, 2026-11-08): a "Continue with Google" button
+    next to the normal sign-in. We keep only a scrambled copy of Google's number for you: **no email,
+    no real name, no photo**. The first time, you still pick a made-up name. Signed-in people can add
+    Google to the account they have (🔗 Sign in with Google too), or take it off. Blocks work the
+    same way. Kids under 13 often can't use their own Google account, so name + password stays.
 - **Other ideas we talked about:**
   - Sign in with GitHub: many kids don't have a GitHub account.
-  - Sign in with Google: it collects emails, and kids under 13 often can't use their own.
 - **User flow:**
   1. A visitor opens the Game screen. It says "Sign in to play Innvadex" with a button.
   2. They tap it and pick **Make an account**: pick one of four made-up names, type a password twice.
@@ -840,6 +844,7 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] The owner code makes you the owner; nobody can block or change the owner, and the owner can sign in on a blocked device.
   - [ ] Blocked with their device: that browser can't sign in, make a new account, or send reports; Unblock fixes it.
   - [ ] A Team member changes their own name, and signs in with the new name.
+  - [ ] Continue with Google makes an account with a made-up name, and signs in to it next time; a blocked account can't.
   - [ ] Part 2: a Manager can see reports but not change them; Team can fix and delete reports.
   - [ ] Part 2: every report, photo and location in the reports repo is locked (encrypted), old ones too.
   - [ ] A grown-up deployed the game server and set the team setup code.

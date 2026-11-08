@@ -1,6 +1,8 @@
 // Accounts and levels (see "Accounts and levels" in requirements.md).
 // You sign in with your made-up name (like "BraveBeetle42") and a password. The game server
 // (server/index.js) keeps the accounts. There are no emails, so nothing about the real person is saved.
+// You can also sign in with Google: the server keeps only a hash of Google's number for you (no email
+// or real name), and you still pick a made-up name.
 //
 // Levels:
 //   Team     (our team)  can do anything: fix and delete reports, and manage accounts
@@ -11,7 +13,10 @@
 // It uses pieces from the other files: store (app.js), el (reports.js), openPopup (game.js).
 
 // The game server. A page can set window.INNVADEX_HTTP first (for testing on your own computer).
-const ACCOUNT_URL = (window.INNVADEX_HTTP || "https://innvadex-server.pandadifferent246.workers.dev") + "/account";
+const GAME_SERVER_HTTP = window.INNVADEX_HTTP || "https://innvadex-server.pandadifferent246.workers.dev";
+const ACCOUNT_URL = GAME_SERVER_HTTP + "/account";
+// Google's sign-in button (loaded only when a sign-in pop-up opens)
+const GOOGLE_SCRIPT = "https://accounts.google.com/gsi/client";
 const ACCOUNT_KEY = "pyinsect.account";   // { session, me } on this device. The session is like a key: never shown.
 // This device's random number, so our team can block a device (not a whole network). Nothing else in it.
 const DEVICE_KEY = "pyinsect.device", DEVICE_BLOCKED_KEY = "pyinsect.deviceBlocked";
@@ -42,6 +47,9 @@ const ACCOUNT_ERRORS = {
   badName: "Names can have 3 to 20 letters, numbers, or _ (no spaces), and nothing rude.",
   nameTaken: "Someone already has that name. Try another one.",
   owner: "Nobody can block or change the owner's account.",
+  google: "Google sign-in didn't work. Try again.",
+  googleTaken: "That Google account is already used by another Pyinsect account.",
+  needPassword: "You sign in only with Google, so it can't be taken off. Ask our team for a password first.",
 };
 
 const account = {
@@ -145,14 +153,73 @@ async function acBusy(btn, msg, job) {
 }
 const acBox = (...parts) => { const d = el("div", "account"); d.append(...parts); return d; };
 
+// ---------- Sign in with Google ----------
+// The server says if Google sign-in is on (its client ID, not a secret). Then Google's script draws its button.
+let googleReady = null, onGoogle = null;
+function loadGoogle() {
+  return googleReady || (googleReady = (async () => {
+    const info = await fetch(GAME_SERVER_HTTP + "/").then(r => r.json()).catch(() => ({}));
+    if (!info.google) return false;
+    await new Promise((ok, no) => { const s = document.createElement("script"); s.src = GOOGLE_SCRIPT; s.async = true; s.onload = ok; s.onerror = no; document.head.append(s); });
+    google.accounts.id.initialize({ client_id: info.google, callback: r => onGoogle?.(r.credential) });
+    return true;
+  })().catch(() => { googleReady = null; return false; }));
+}
+// A box with Google's button. `then(credential)` runs after Google says who you are.
+function googleButton(then, text = "signin_with") {
+  const box = el("div", "google-box"); box.hidden = true;
+  const spot = el("div", "google-btn");
+  box.append(el("p", "muted or-line", "or"), spot);
+  loadGoogle().then(on => {
+    if (!on || !box.isConnected) return;
+    onGoogle = then;
+    google.accounts.id.renderButton(spot, { theme: "outline", size: "large", shape: "pill", text });
+    box.hidden = false;
+  });
+  return box;
+}
+async function googleSignIn(credential, msg) {
+  msg.textContent = "Signing in…";
+  const r = await accountCall("google", { credential });
+  if (r.error === "newGoogle") return googleName(credential, r.names);
+  if (r.error) { msg.textContent = errorText(r.error, r.until); return; }
+  saveAccount(r.session, r.me);
+  if (r.me.owner) setDeviceBlocked(false);
+  openAccount("me");
+}
+// First time with Google: pick a made-up name (Google's name for you is never used)
+function googleName(credential, names) {
+  const options = el("div", "name-options"), msg = el("p", "account-msg");
+  let picked = null;
+  const showNames = list => {
+    options.innerHTML = ""; picked = null;
+    for (const n of list) {
+      const b = acButton(n, () => { picked = n; options.querySelectorAll(".btn").forEach(x => x.classList.toggle("primary", x === b)); });
+      options.append(b);
+    }
+  };
+  const go = acButton("Make my account", () => acBusy(go, msg, async () => {
+    if (!picked) return "name";
+    const r = await accountCall("google", { credential, name: picked });
+    if (r.error === "taken" && r.names) showNames(r.names);
+    if (r.error) return r;
+    saveAccount(r.session, r.me); openAccount("me");
+  }), true);
+  openPopup([acBox(el("h2", null, "👤 Pick your name"),
+    el("p", null, "Other players will see this name. We don't keep your email or your real name from Google."), options, msg, go)], [["Close", false]]);
+  showNames(names || []);
+}
+
 function openAccount(view = account.signedIn() ? "me" : "start") {
   if (deviceBlocked() && view !== "signin") {
     const owner = el("button", "link", "I'm the owner: sign in"); owner.type = "button"; owner.onclick = () => openAccount("signin");
     openPopup([acBox(el("h2", null, "📵 This device is blocked"), el("p", null, ACCOUNT_ERRORS.deviceBlocked), owner)], [["Close", false]]);
   } else if (view === "start") {
+    const msg = el("p", "account-msg");
     openPopup([acBox(el("h2", null, "👤 Your account"),
       el("p", null, "Sign in to play the Innvadex game. You can check trees and report bugs without an account."),
-      acButton("Sign in", () => openAccount("signin"), true), acButton("Make an account", () => openAccount("signup")))], [["Close", false]]);
+      acButton("Sign in", () => openAccount("signin"), true), acButton("Make an account", () => openAccount("signup")),
+      googleButton(c => googleSignIn(c, msg), "continue_with"), msg)], [["Close", false]]);
   } else if (view === "signin") {
     const [nameBox, name] = acField("Your name", "text", { placeholder: "BraveBeetle42", max: 40, autocomplete: "username" });
     const [passBox, pass] = acField("Password", "password", { autocomplete: "current-password" });
@@ -165,7 +232,7 @@ function openAccount(view = account.signedIn() ? "me" : "start") {
       openAccount("me");
     }), true);
     pass.onkeydown = e => { if (e.key === "Enter") go.click(); };
-    openPopup([acBox(el("h2", null, "👤 Sign in"), nameBox, passBox, msg, go,
+    openPopup([acBox(el("h2", null, "👤 Sign in"), nameBox, passBox, msg, go, googleButton(c => googleSignIn(c, msg)),
       acButton("I don't have an account yet", () => openAccount("signup")),
       el("p", "muted", "Forgot your password? Ask our team to give you a new one."))], [["Close", false]]);
     name.focus();
@@ -202,6 +269,7 @@ async function signUp(names) {
     el("p", null, "1. Pick your name. Other players will see it, and you'll sign in with it."), options, more,
     el("p", "muted", "Names are made up, so nobody uses their real name. No email needed."),
     el("p", null, "2. Pick a password, and remember it!"), passBox, againBox, msg, go,
+    googleButton(c => googleSignIn(c, msg), "signup_with"),
     acButton("I already have an account", () => openAccount("signin")))], [["Close", false]]);
   if (names) showNames(names);
   else { const r = await accountCall("names"); if (r.names) showNames(r.names); else msg.textContent = errorText(r.error); }
@@ -228,6 +296,27 @@ async function showMe() {
         saveAccount(account.session(), r.me); openAccount("me");
       }));
       more.append(el("summary", null, "✏️ Change my name"), nameBox, msg, go);
+      parts.push(more);
+    }
+    // Sign in with Google too (or take it off)
+    {
+      const more = el("details", "account-setup"), msg = el("p", "account-msg");
+      if (me.google) {
+        const off = acButton("Take Google off", () => acBusy(off, msg, async () => {
+          const r = await accountCall("unlinkGoogle");
+          if (r.error) return r.error;
+          saveAccount(account.session(), r.me); openAccount("me");
+        }));
+        more.append(el("summary", null, "🔗 Google: on"), el("p", "muted", "You can sign in with Google or with your name and password."), msg, off);
+      } else {
+        more.append(el("summary", null, "🔗 Sign in with Google too"),
+          el("p", "muted", "Then you can sign in with Google next time. We don't keep your email or real name."), msg,
+          googleButton(async c => {
+            const r = await accountCall("linkGoogle", { credential: c });
+            if (r.error) { msg.textContent = errorText(r.error); return; }
+            saveAccount(account.session(), r.me); openAccount("me");
+          }, "continue_with"));
+      }
       parts.push(more);
     }
     parts.push(acButton("Sign out", async () => { await accountCall("signout"); forgetAccount(); openAccount("start"); }));

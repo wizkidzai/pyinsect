@@ -17,6 +17,21 @@ const COMMON_NAMES = {
   "termite_damage": "Termite damage",
   "bark_beetle_damage_other": "Bark / ambrosia beetle damage, other species",
   "lymantria_dispar_egg_mass": "Spongy Moth egg mass",
+  // Pyinsect 2.8 Oregon damagefix2 (Nov 8 2026): native look-alikes that gave false invasive alerts (named only)
+  "agrilus_cyanescens": "Honeysuckle Borer (a bluish jewel beetle)",
+  "rosalia_funebris": "Banded Alder Borer",
+  "monochamus_scutellatus": "White-spotted Sawyer",
+  "monochamus_obtusus": "Obtuse Sawyer (a pine sawyer beetle)",
+  "prionus_californicus": "California Prionus (California Root Borer)",
+  "trichocnemis_spiculatus": "Ponderous Borer",
+  "buprestis_viridisuturalis": "Metallic wood-boring beetle (jewel beetle)",
+  "graphocephala_atropunctata": "Blue-green Sharpshooter (a leafhopper)",
+  "chrysochus_cobaltinus": "Cobalt Milkweed Beetle",
+  "leptoglossus_occidentalis": "Western Conifer Seed Bug",
+  "sphecius": "Cicada-killer Wasp",
+  "coloradia_pandora": "Pandora Moth",
+  "cicadidae_other": "Cicada, other species",
+  "aleyrodidae": "Whitefly",
   "argynnis_hydaspe_zerene": "Hydaspe Fritillary / Zerene Fritillary",
   "bombus": "Bumble bee",
   "buprestis_adjecta_intricata": "Jewel Beetles",
@@ -431,6 +446,9 @@ const COMMON_NAMES = {
 const SCI_NAMES = {
   "tent_web_damage": "Hyphantria cunea, Malacosoma",
   "termite_damage": "Coptotermes, Zootermopsis, Incisitermes",
+  "cicadidae_other": "Okanagana and other cicadas, not Platypedia",
+  "sphecius": "Sphecius species",
+  "aleyrodidae": "Family Aleyrodidae, like the greenhouse whitefly",
   "bark_beetle_damage_other": "Trypodendron, Ips pini, Dendroctonus brevicomis, Orthotomicus, Anisandrus, Xyleborus, Sinodendron",
 };
 // "popillia_japonica" → "Popillia japonica", "ips_typographus_damage" → "Ips typographus, damage"

@@ -785,6 +785,29 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] ← Back to Home goes back to Home.
   - [ ] After saying no, the message explains how to change it with the 🔒.
 
+## Terms of Use and Privacy Policy
+
+- **Status:** Building
+- **Asked by:** our team lead, 2026-11-08
+- **Who it's for:** Everyone who uses Pyinsect, and their parents. Google also asks for these pages
+  for Sign in with Google.
+- **Problem or need:** People couldn't find out what Pyinsect saves about them, or what the rules are.
+- **Why they have it:** Pyinsect saves photos, rough locations, and accounts, and kids use it. Parents
+  should be able to check that it's safe, and websites with accounts need a privacy policy.
+- **Our idea:** Two simple pages, **terms/** and **privacy/**, written in easy words. Links at the
+  bottom of Home, and a small "By signing in, you agree to..." line in the sign-in pop-ups. The
+  privacy page says exactly what we save (and what we don't, like emails and IP addresses).
+- **Other ideas we talked about:**
+  - A pop-up everyone must accept first: it gets in the way of quick bug reports.
+  - Copying a long legal template: hard for kids to read, and parts wouldn't be true for us.
+- **User flow:**
+  1. They scroll to the bottom of Home and tap **Privacy Policy** (or **Terms of Use**).
+  2. The page opens, with a short version at the top. **← Pyinsect** goes back.
+- **Done when:**
+  - [ ] Both pages open from Home and from the sign-in pop-up.
+  - [ ] Everything the privacy page says matches what the code saves.
+  - [ ] A grown-up read both pages, and the links are in Google's sign-in settings.
+
 ## Accounts and levels
 
 - **Status:** Building
@@ -818,9 +841,13 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - 👑 **Owner:** whoever types the secret **owner code** (only the owner knows it) becomes the owner.
     The owner is always Team, and nobody can block it, change its level, rename it, or give it a new
     password. It can sign in even on a blocked device.
+  - 🔗 **Sign in with Google** (asked by our team lead, 2026-11-08): a "Continue with Google" button
+    next to the normal sign-in. We keep only a scrambled copy of Google's number for you: **no email,
+    no real name, no photo**. The first time, you still pick a made-up name. Signed-in people can add
+    Google to the account they have (🔗 Sign in with Google too), or take it off. Blocks work the
+    same way. Kids under 13 often can't use their own Google account, so name + password stays.
 - **Other ideas we talked about:**
   - Sign in with GitHub: many kids don't have a GitHub account.
-  - Sign in with Google: it collects emails, and kids under 13 often can't use their own.
 - **User flow:**
   1. A visitor opens the Game screen. It says "Sign in to play Innvadex" with a button.
   2. They tap it and pick **Make an account**: pick one of four made-up names, type a password twice.
@@ -840,6 +867,7 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] The owner code makes you the owner; nobody can block or change the owner, and the owner can sign in on a blocked device.
   - [ ] Blocked with their device: that browser can't sign in, make a new account, or send reports; Unblock fixes it.
   - [ ] A Team member changes their own name, and signs in with the new name.
+  - [ ] Continue with Google makes an account with a made-up name, and signs in to it next time; a blocked account can't.
   - [ ] Part 2: a Manager can see reports but not change them; Team can fix and delete reports.
   - [ ] Part 2: every report, photo and location in the reports repo is locked (encrypted), old ones too.
   - [ ] A grown-up deployed the game server and set the team setup code.

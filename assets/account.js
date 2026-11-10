@@ -28,7 +28,7 @@ const LEVELS = {
   team: { name: "Team", emoji: "⭐", about: "You can do anything: fix and delete reports, and manage accounts." },
   manager: { name: "Manager", emoji: "📋", about: "You can look at all the reports, but you can't change them." },
   player: { name: "Player", emoji: "🎮", about: "You can report bugs and play the game." },
-  owner: { name: "Owner", emoji: "👑", about: "You own Pyinsect: you can do anything, and nobody can block you or change your account." },
+  owner: { name: "Owner", emoji: "👑", about: "You own Pyinsect: you can do anything, nobody can block you or change your account, and you can make other people owners." },
   visitor: { name: "Visitor", emoji: "👋", about: "You can report bugs. Sign in to play the game too." },
 };
 const ACCOUNT_ERRORS = {
@@ -46,7 +46,8 @@ const ACCOUNT_ERRORS = {
   level: "Your level can't do that.",
   badName: "Names can have 3 to 20 letters, numbers, or _ (no spaces), and nothing rude.",
   nameTaken: "Someone already has that name. Try another one.",
-  owner: "Nobody can block or change the owner's account.",
+  owner: "Nobody can block or change an owner's account.",
+  mainOwner: "Nobody can take owner away from the main owner.",
   google: "Google sign-in didn't work. Try again.",
   googleTaken: "That Google account is already used by another Pyinsect account.",
   needPassword: "You sign in only with Google, so it can't be taken off. Ask our team for a password first.",
@@ -384,11 +385,21 @@ function manageAccounts() {
 function accountRow(a, reload, msg) {
   const row = el("div", "person account-row" + (a.blocked ? " away" : "")), who = el("div", "foe-who"), btns = el("div", "foe-buttons");
   const lv = LEVELS[a.level] || LEVELS.player;
-  const status = a.owner ? "👑 Owner" : a.device ? "📵 Device blocked" : !a.blocked ? `${lv.emoji} ${lv.name}` : a.until ? `🚫 Blocked until ${whenText(a.until)}` : "🚫 Blocked forever";
+  const status = a.mainOwner ? "👑 Main owner" : a.owner ? "👑 Owner" : a.device ? "📵 Device blocked" : !a.blocked ? `${lv.emoji} ${lv.name}` : a.until ? `🚫 Blocked until ${whenText(a.until)}` : "🚫 Blocked forever";
   who.append(el("strong", null, a.name), el("span", "muted", status));
   const isMe = a.name === account.me()?.name;
   if (isMe) btns.append(el("span", "muted", "That's you"));
-  else if (a.owner) btns.append(el("span", "muted", "Nobody can change the owner"));
+  else if (a.owner) {
+    // Owners can take owner away from other owners (not from the main owner)
+    if (account.me()?.owner && !a.mainOwner) {
+      const off = acButton("Take owner away", async () => {
+        if (!confirm(`Take owner away from ${a.name}? They stay Team.`)) return;
+        const r = await accountCall("owner", { name: a.name, yes: false });
+        msg.textContent = r.error ? errorText(r.error) : `${a.name} isn't an owner any more. They're still Team.`; reload();
+      });
+      off.classList.add("small"); btns.append(off);
+    } else btns.append(el("span", "muted", "Nobody can change an owner"));
+  }
   else {
     const pick = el("select", "level-pick");
     pick.setAttribute("aria-label", `Level for ${a.name}`);
@@ -437,6 +448,15 @@ function accountRow(a, reload, msg) {
     });
     rename.classList.add("small");
     btns.append(pick, block, reset, rename);
+    // Owners can make someone else an owner too
+    if (account.me()?.owner) {
+      const give = acButton("👑 Make owner", async () => {
+        if (!confirm(`Make ${a.name} an owner? Owners can do anything, nobody can block them, and they can make more owners.`)) return;
+        const r = await accountCall("owner", { name: a.name, yes: true });
+        msg.textContent = r.error ? errorText(r.error) : `${a.name} is an owner now.`; reload();
+      });
+      give.classList.add("small"); btns.append(give);
+    }
   }
   row.append(who, btns);
   return row;

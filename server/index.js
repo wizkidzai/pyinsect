@@ -22,10 +22,11 @@
 // the devices it used. A device is a random number the site keeps in the browser (no IP addresses,
 // so a whole school or home network is never blocked). Clearing the browser's data makes a new one.
 //
-// The owner: whoever types the owner code (a secret a grown-up sets with "wrangler secret put OWNER_CODE")
-// becomes the owner. There's one owner; using the code again moves it. The owner is always Team, and nobody
-// can block, rename, change the level of, or give a new password to the owner. The owner can sign in even
-// on a blocked device.
+// Owners: whoever types the owner code (a secret a grown-up sets with "wrangler secret put OWNER_CODE")
+// becomes an owner. The first one is the MAIN owner. Owners can make other accounts owners too (Manage
+// accounts → 👑 Make owner), and take it away again, but nobody can take it away from the main owner.
+// Owners are always Team, and nobody can block, rename, change the level of, or give a new password to an
+// owner. Owners can sign in even on a blocked device.
 //
 // Sign in with Google (if GOOGLE_CLIENT_ID is set in wrangler.toml): Google says who you are with a signed
 // note (an "ID token"). We check Google's signature and keep only a hash of Google's number for you.
@@ -37,7 +38,7 @@
 import { DurableObject } from "cloudflare:workers";
 
 const VERSION = 2;          // the game's message rules (assets/game-online.js must match)
-const RELEASE = 4;          // which code is live (GET / shows it)
+const RELEASE = 5;          // which code is live (GET / shows it)
 // Websites allowed to connect (the game's site, and your own computer for testing)
 const SITE_ORIGINS = ["https://wizkidzai.github.io", "https://edafawd.github.io"];
 const LOCAL_ORIGIN = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/;
@@ -207,6 +208,9 @@ export class Lobby extends DurableObject {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS devices (hash TEXT, id TEXT, seen INTEGER, PRIMARY KEY (hash, id))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS blocked_devices (hash TEXT PRIMARY KEY, id TEXT, at INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS settings (k TEXT PRIMARY KEY, v TEXT)`);
+    // Every owner (the main owner is also in settings, k = 'owner'). "by" = who made them an owner.
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS owners (id TEXT PRIMARY KEY, by TEXT, at INTEGER)`);
+    this.sql.exec(`INSERT OR IGNORE INTO owners (id, by, at) SELECT v, 'code', ? FROM settings WHERE k = 'owner'`, Date.now());
     // Version 1 players had no password, so they can't sign in. They're removed, so their names are free again.
     this.sql.exec(`DELETE FROM friends WHERE a IN (SELECT id FROM players WHERE bot = 0 AND pass IS NULL)
       OR b IN (SELECT id FROM players WHERE bot = 0 AND pass IS NULL)`);
@@ -397,21 +401,31 @@ export class Lobby extends DurableObject {
     this.sql.exec("INSERT OR REPLACE INTO devices (hash, id, seen) VALUES (?, ?, ?)", hash, id, Date.now());
     this.sql.exec(`DELETE FROM devices WHERE id = ? AND hash NOT IN (SELECT hash FROM devices WHERE id = ? ORDER BY seen DESC LIMIT ${MAX_DEVICES})`, id, id);
   }
-  meInfo(p) { return { name: p.name, look: p.look, level: p.role || "player", owner: this.isOwner(p) || undefined, google: !!p.google || undefined, wins: p.wins, losses: p.losses }; }
-  // The owner's id (saved when someone uses the owner code), or null
+  meInfo(p) { return { name: p.name, look: p.look, level: p.role || "player", owner: this.isOwner(p) || undefined, mainOwner: this.isMainOwner(p) || undefined, google: !!p.google || undefined, wins: p.wins, losses: p.losses }; }
+  // The main owner's id (the first one to use the owner code), or null
   ownerId() {
     if (this.owner === undefined) this.owner = this.sql.exec("SELECT v FROM settings WHERE k = 'owner'").toArray()[0]?.v || null;
     return this.owner;
   }
-  makeOwner(id) {
-    const old = this.owner;
-    this.owner = id;
-    this.sql.exec("INSERT OR REPLACE INTO settings (k, v) VALUES ('owner', ?)", id);
+  // Every owner's id (kept in memory, because it's checked a lot)
+  ownerIds() { return this.owners || (this.owners = new Set(this.sql.exec("SELECT id FROM owners").toArray().map(r => r.id))); }
+  // Makes someone an owner: Team, not blocked. `by` = the owner who did it, or "code".
+  makeOwner(id, by) {
+    if (!this.ownerId()) { this.owner = id; this.sql.exec("INSERT OR REPLACE INTO settings (k, v) VALUES ('owner', ?)", id); }
+    this.sql.exec("INSERT OR IGNORE INTO owners (id, by, at) VALUES (?, ?, ?)", id, by, Date.now());
+    this.ownerIds().add(id);
     this.sql.exec("UPDATE players SET role = 'team', blocked = 0 WHERE id = ?", id);
     this.sql.exec("DELETE FROM blocked_devices WHERE id = ?", id);
-    this.changed(id); if (old) this.changed(old);
+    this.changed(id);
   }
-  isOwner(p) { return !!p && p.id === this.ownerId(); }
+  // Takes owner away (they stay Team). Never from the main owner.
+  unOwner(id) {
+    this.sql.exec("DELETE FROM owners WHERE id = ?", id);
+    this.ownerIds().delete(id);
+    this.changed(id);
+  }
+  isOwner(p) { return !!p && this.ownerIds().has(p.id); }
+  isMainOwner(p) { return !!p && p.id === this.ownerId(); }
   // The key that signs review passes. Made once, then kept in this server's storage.
   signKey() {
     return this.keyPromise || (this.keyPromise = (async () => {
@@ -533,7 +547,7 @@ export class Lobby extends DurableObject {
       if (this.tooMany(`claim:${me.id}`, 5, 15 * MINUTE)) return [429, { error: "slow" }];
       this.tried(`claim:${me.id}`);
       if (!this.env.OWNER_CODE || text(b.code, 200) !== this.env.OWNER_CODE) return [403, { error: "code" }];
-      this.makeOwner(me.id);
+      this.makeOwner(me.id, "code");
       return [200, { me: this.meInfo(this.player(me.id)) }];
     }
 
@@ -545,7 +559,7 @@ export class Lobby extends DurableObject {
         ORDER BY seen DESC LIMIT 50`, `${find}%`).toArray();
       const devBlocked = new Set(this.sql.exec("SELECT DISTINCT id FROM blocked_devices").toArray().map(r => r.id));
       return [200, { accounts: rows.map(r => ({ name: r.name, level: r.role || "player", blocked: isBlocked(r), until: blockedUntil(r),
-        device: devBlocked.has(r.id), owner: r.id === this.ownerId() || undefined, created: r.created, seen: r.seen })) }];
+        device: devBlocked.has(r.id), owner: this.ownerIds().has(r.id) || undefined, mainOwner: r.id === this.ownerId() || undefined, created: r.created, seen: r.seen })) }];
     }
     const who = this.byName(name);
     if (!who || who.bot || !who.pass) return [404, { error: "notFound" }];
@@ -560,6 +574,14 @@ export class Lobby extends DurableObject {
       return [200, { me: who.id === me.id ? this.meInfo(this.player(me.id)) : undefined }];
     }
     if (who.id === me.id) return [400, { error: "self" }];   // so the team can't lock itself out by mistake
+    // Owners can make someone an owner, or take it away (but never from the main owner)
+    if (b.do === "owner") {
+      if (!this.isOwner(me)) return [403, { error: "level" }];
+      if (b.yes) this.makeOwner(who.id, me.id);
+      else if (this.isMainOwner(who)) return [403, { error: "mainOwner" }];
+      else this.unOwner(who.id);
+      return [200, {}];
+    }
     if (this.isOwner(who)) return [403, { error: "owner" }];  // nobody can block or change the owner
     if (b.do === "level") {
       if (!LEVELS.includes(b.level)) return [400, { error: "bad" }];

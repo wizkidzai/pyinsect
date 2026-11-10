@@ -24,6 +24,7 @@ Kids in elementary and middle school. Please:
 | File or folder | What it does |
 |---|---|
 | `index.html` | The main page: splash, permissions, Home, Detect, Game, and Map screens |
+| `privacy.html` | Our privacy policy. If a change collects or shares new information, update it too |
 | `assets/app.js` | The AI and report code: camera, photos, runs the model, sends reports |
 | `assets/flow.js` | The screens and menu bar: splash, permissions, home, the 3 Detect steps, and the results pop-up |
 | `assets/reportsmap.js` | The Map screen: our numbers and the reports map |

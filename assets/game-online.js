@@ -154,9 +154,7 @@ function showView() {
 function showLobby() {
   const ui = lobbyUI = { note: el("p", "lobby-note"), lists: el("div", "lobby-lists") };
   const me = net.me;
-  const head = el("p", "lobby-me", `${me.look} ${me.name} `);
-  if (window.levelTag) head.append(levelTag(me.level || "player"));
-  head.append(` · ${t(me.wins === 1 ? "{n} win" : "{n} wins", { n: me.wins })}`);
+  const head = el("p", "lobby-me", `${me.look} ${me.name} · ${t(me.wins === 1 ? "{n} win" : "{n} wins", { n: me.wins })}`);
   ui.count = el("span", "muted", "");
   head.append(" · ", ui.count);
   const btn = (text, onClick, primary) => { const b = el("button", "btn" + (primary ? " primary" : ""), text); b.type = "button"; b.onclick = onClick; return b; };
@@ -184,7 +182,6 @@ function personRow(p, extra = []) {
   const row = el("div", "person" + (p.online === false ? " away" : "")), who = el("div", "foe-who"), btns = el("div", "foe-buttons");
   const name = el("strong", null, `${p.look} ${p.name}`);
   if (p.bot) name.append(" ", el("span", "bot-tag", t("bot")));
-  if (p.level && window.levelTag) name.append(" ", levelTag(p.level));   // Team and Manager
   who.append(name, el("span", "muted", statusText(p.status)));
   const btn = (text, onClick, primary) => { const b = el("button", "btn small" + (primary ? " primary" : ""), text); b.type = "button"; b.onclick = onClick; btns.append(b); };
   const s = p.status || {}, isFriend = net.friends.list.some(f => f.name === p.name), asked = net.friends.outgoing.some(f => f.name === p.name);

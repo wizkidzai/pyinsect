@@ -1,8 +1,7 @@
 # Innvadex game server
 
 The online lobby for the Innvadex game: who's online, "Find a match", challenges by name, room
-codes, friends, live battles, watching battles, and about 20 bots. It also keeps the accounts and
-levels (Team, Manager, Player), see `assets/account.js`. The code is `index.js`; the
+codes, friends, live battles, watching battles, and about 20 bots. The code is `index.js`; the
 page side is `assets/game-online.js`.
 
 It's a Cloudflare Worker with one Durable Object, on Cloudflare's **free plan** (no card). Free
@@ -22,20 +21,6 @@ free tool). It needs Node.js (https://nodejs.org, the LTS version).
 
 Check it: open the address in a browser. It shows `{"ok":true,"service":"innvadex-server",...}`.
 
-## Accounts: the team setup code (a grown-up, once)
-
-The server also keeps accounts (made-up name + password, no emails). The first **Team** account
-needs a secret **team setup code**. Only a grown-up sets it, and it never goes in any file.
-
-1. In this `server` folder, run `npx wrangler@4.151.1 secret put SETUP_CODE`.
-2. Type a long code nobody can guess (like four random words), and press Enter.
-3. On the site: sign in, tap your name at the top, open **Are you on our team?**, and type the code.
-   Your account is now Team. Make other people Team or Manager in **Manage accounts**.
-
-To change the code later, run step 1 again.
-
 ## Try it on your own computer
 
-`npx wrangler@4.151.1 dev --var SETUP_CODE:any-test-code` runs the server at http://127.0.0.1:8787
-(with its own empty lobby and accounts). Set `window.INNVADEX_SERVER = "ws://127.0.0.1:8787/ws"` and
-`window.INNVADEX_HTTP = "http://127.0.0.1:8787"` in a test page before the scripts load.
+`npx wrangler@4.151.1 dev` runs the server at http://127.0.0.1:8787 (with its own empty lobby).

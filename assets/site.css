@@ -1053,28 +1053,3 @@ body[data-screen="game"] #screens { padding-top: 14px; }
 .bot-tag { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); vertical-align: middle; }
 .btn.small { padding: 5px 10px; font-size: 13px; }
 .name-options { display: flex; flex-wrap: wrap; gap: 8px; }
-
-/* ===== Accounts and levels (assets/account.js) ===== */
-.topbar-end { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.account-btn { flex: none; max-width: 11em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 13px var(--body); color: var(--ink); padding: 7px 12px; border-radius: 999px; border: 1px solid var(--glass-edge); background: var(--glass-strong); cursor: pointer; }
-.account-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.top-btns { display: flex; gap: 8px; }
-.game-locked { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 32px 20px; border-radius: 24px; background: var(--glass); border: 1px solid var(--glass-edge); }
-.game-locked h2, .game-locked p { margin: 0; }
-.game-locked .tile-emoji { font-size: 44px; }
-.account { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
-.account h2, .account p { margin: 0; }
-.account-field { display: flex; flex-direction: column; gap: 4px; text-align: left; font-size: 14px; font-weight: 600; }
-.account-field input { font: 500 16px var(--body); padding: 10px 12px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); background: var(--glass-strong); color: var(--ink); min-width: 0; }
-.account-field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.account-msg { font-weight: 600; color: var(--alert, #b3261e); }
-.account-msg:empty { display: none; }
-.account .name-options { justify-content: center; }
-.level-chip { align-self: center; font-weight: 600; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); }
-.account-setup { text-align: left; display: flex; flex-direction: column; gap: 8px; }
-.account-setup summary { cursor: pointer; font-weight: 600; }
-.account-setup[open] { display: flex; }
-.account-list { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto; text-align: left; }
-.account-row { border-color: color-mix(in srgb, var(--ink) 15%, transparent); }
-.account-row .foe-buttons { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.level-pick { font: 500 13px var(--body); padding: 5px 8px; border-radius: 10px; border: 1px solid var(--glass-edge); background: var(--glass-strong); color: var(--ink); }

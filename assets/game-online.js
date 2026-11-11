@@ -4,13 +4,13 @@
 // The online lobby talks to the Innvadex game server (server/index.js, a free Cloudflare Worker):
 // who's online, "Find a match", challenges by name, room codes, friends (and what they're doing),
 // and watching battles live. The server rolls the dice, so both players always see the same battle.
-// You need an account (assets/account.js): your online name is your account's made-up name, like
-// "BraveBeetle42". There's no chat. Bots are marked "bot".
+// Everyone gets a made-up name like "BraveBeetle42". There's no chat. Bots are marked "bot".
 // It uses the game's own pieces from assets/game.js (moves, names, pop-ups, points, sounds).
 
 // The game server. A page can set window.INNVADEX_SERVER first (for testing on your own computer).
 const SERVER_URL = window.INNVADEX_SERVER || "wss://innvadex-server.pandadifferent246.workers.dev/ws";
-const SERVER_VERSION = 2;          // must match VERSION in server/index.js
+const SERVER_VERSION = 1;          // must match VERSION in server/index.js
+const ONLINE_KEY = "pyinsect.online";   // this device's secret key for the server (like a password, never shown)
 const ONLINE_WIN_POINTS = 15;
 
 // ---------- quick battles against a bot (on this device, no internet needed) ----------
@@ -54,10 +54,18 @@ function onlineBattleRows(list, g) {
 }
 
 // ---------- the connection to the game server ----------
-// net.view: what the pop-up shows: "connecting", "lobby", "waiting", "battle", "offline"
+// net.view: what the pop-up shows: "connecting", "names", "lobby", "waiting", "battle"
 const net = { ws: null, view: null, me: null, players: [], online: 0, matches: [], friends: { list: [], incoming: [], outgoing: [] },
   challenges: [], note: "", found: null, match: null, waiting: null };
 
+function onlineSecret() {
+  let s = store.get(ONLINE_KEY, null)?.secret;
+  if (!/^[0-9a-f]{32}$/.test(s || "")) {
+    s = [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, "0")).join("");
+    store.set(ONLINE_KEY, { secret: s });
+  }
+  return s;
+}
 // Your side: avatar, team (species and levels), and your Bug Buddy's cheer
 function myOnlineCard() {
   const g = loadGame();
@@ -69,7 +77,7 @@ function openLobby() {
   if (!net.ws || net.ws.readyState > 1) {
     net.view = "connecting"; net.note = "";
     const ws = net.ws = new WebSocket(SERVER_URL);
-    ws.onopen = () => ws.send(JSON.stringify({ t: "hello", v: SERVER_VERSION, session: window.account?.session(), device: window.deviceId?.(), ...myOnlineCard() }));
+    ws.onopen = () => ws.send(JSON.stringify({ t: "hello", v: SERVER_VERSION, secret: onlineSecret(), ...myOnlineCard() }));
     ws.onmessage = e => { if (net.ws === ws) { let m; try { m = JSON.parse(e.data); } catch { return; } onNet(m); } };
     ws.onclose = () => {
       if (net.ws !== ws) return;
@@ -91,6 +99,7 @@ function closeLobby() {
 
 function onNet(m) {
   switch (m.t) {
+    case "pickName": net.nameOptions = m.options; net.view = "names"; return showView();
     case "welcome": net.me = m.me; net.view = "lobby"; return showView();
     case "lobby": net.players = m.players; net.online = m.online; net.matches = m.matches; return refreshLobby();
     case "friends": net.friends = m; return refreshLobby();
@@ -106,13 +115,8 @@ function onNet(m) {
     case "matchEnd": return onMatchEnd(m);
     case "error":
       net.note = m.code === "old" ? t("The game was updated. Reload the page to play online.")
-        : m.code === "elsewhere" ? t("You went online on another tab or device, so this one was logged out.")
-        : m.code === "blocked" ? t("This account is blocked.") : m.code === "deviceBlocked" ? t("This device is blocked.") : m.code === "signin" ? t("Please sign in again.") : t("Something went wrong. Try again.");
-      net.view = "offline"; showView();
-      // The server doesn't know this account any more (signed out, a new password, or blocked)
-      if (m.code === "signin" || m.code === "blocked") { net.view = "closed"; window.account?.forget(); }
-      if (m.code === "deviceBlocked") { net.view = "closed"; window.account?.blockDevice(); }
-      return;
+        : m.code === "elsewhere" ? t("You went online on another tab or device, so this one was logged out.") : t("Something went wrong. Try again.");
+      net.view = "offline"; return showView();
   }
 }
 function infoText(m) {
@@ -141,6 +145,14 @@ function showView() {
   else if (net.view === "offline") {
     const again = el("button", "btn primary", t("Try again")); again.type = "button"; again.onclick = () => { closeLobby(); openLobby(); };
     openPopup([title, el("p", null, net.note || t("You're offline: the connection to the game server closed.")), again], [["Close", false]]);
+  } else if (net.view === "names") {
+    const box = el("div", "name-options");
+    for (const n of net.nameOptions) {
+      const b = el("button", "btn", n); b.type = "button"; b.onclick = () => sendNet({ t: "name", name: n }); box.append(b);
+    }
+    const more = el("button", "link", t("Show me other names")); more.type = "button"; more.onclick = () => sendNet({ t: "name", name: "more" });
+    openPopup([title, el("p", null, t("Pick your online name. Other players will see it, and your friends can find you with it.")), box, more,
+      el("p", "muted", t("Names are made up, so nobody uses their real name online."))], [["Close", false]]);
   } else if (net.view === "waiting") {
     const w = net.waiting, cancel = el("button", "btn", t("Cancel")); cancel.type = "button";
     cancel.onclick = () => sendNet({ t: "cancel" });
@@ -155,9 +167,7 @@ function showView() {
 function showLobby() {
   const ui = lobbyUI = { note: el("p", "lobby-note"), lists: el("div", "lobby-lists") };
   const me = net.me;
-  const head = el("p", "lobby-me", `${me.look} ${me.name} `);
-  if (window.levelTag) head.append(levelTag(me.level || "player"));
-  head.append(` · ${t(me.wins === 1 ? "{n} win" : "{n} wins", { n: me.wins })}`);
+  const head = el("p", "lobby-me", `${me.look} ${me.name} · ${t(me.wins === 1 ? "{n} win" : "{n} wins", { n: me.wins })}`);
   ui.count = el("span", "muted", "");
   head.append(" · ", ui.count);
   const btn = (text, onClick, primary) => { const b = el("button", "btn" + (primary ? " primary" : ""), text); b.type = "button"; b.onclick = onClick; return b; };
@@ -185,7 +195,6 @@ function personRow(p, extra = []) {
   const row = el("div", "person" + (p.online === false ? " away" : "")), who = el("div", "foe-who"), btns = el("div", "foe-buttons");
   const name = el("strong", null, `${p.look} ${p.name}`);
   if (p.bot) name.append(" ", el("span", "bot-tag", t("bot")));
-  if (p.level && window.levelTag) name.append(" ", levelTag(p.level));   // Team and Manager
   who.append(name, el("span", "muted", statusText(p.status)));
   const btn = (text, onClick, primary) => { const b = el("button", "btn small" + (primary ? " primary" : ""), text); b.type = "button"; b.onclick = onClick; btns.append(b); };
   const s = p.status || {}, isFriend = net.friends.list.some(f => f.name === p.name), asked = net.friends.outgoing.some(f => f.name === p.name);

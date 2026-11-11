@@ -11,8 +11,3 @@ class_name = "Lobby"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Lobby"]
-
-# Sign in with Google: the "Client ID" from Google Cloud (see README.md). It's not a secret.
-# Empty = no Google button on the site.
-[vars]
-GOOGLE_CLIENT_ID = "976240104613-ek7m43557det89c7m77notv29k4h2986.apps.googleusercontent.com"

@@ -34,15 +34,6 @@ needs a secret **team setup code**. Only a grown-up sets it, and it never goes i
 
 To change the code later, run step 1 again.
 
-## The owner code (the owner, once)
-
-The **owner** can do anything, and nobody can block or change the owner's account.
-
-1. In this `server` folder, run `npx wrangler@4.151.1 secret put OWNER_CODE`.
-2. Type a long code only you know (not the same as the setup code), and press Enter.
-3. On the site: sign in, tap your name at the top, open **👑 Are you the owner?**, and type the code.
-   Your account now shows **👑 Owner**. Using the code on another account moves the owner there.
-
 ## Try it on your own computer
 
 `npx wrangler@4.151.1 dev --var SETUP_CODE:any-test-code` runs the server at http://127.0.0.1:8787

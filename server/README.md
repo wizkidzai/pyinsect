@@ -43,25 +43,6 @@ The **owner** can do anything, and nobody can block or change the owner's accoun
 3. On the site: sign in, tap your name at the top, open **👑 Are you the owner?**, and type the code.
    Your account now shows **👑 Owner**. Using the code on another account moves the owner there.
 
-## Sign in with Google (a grown-up, once)
-
-Google sign-in is free and needs no card. The server keeps no email or real name, only a scrambled
-copy of Google's number for each person.
-
-1. Go to https://console.cloud.google.com and sign in. At the top, pick **Select a project → New project**,
-   name it `Pyinsect`, and tap **Create**.
-2. In the search box, type **Google Auth Platform** and open it. Tap **Get started**:
-   app name `Pyinsect`, your email, Audience **External**, your email again, agree, **Create**.
-3. In the left menu, tap **Clients → Create client**. Application type: **Web application**.
-   Under **Authorized JavaScript origins**, tap **Add URI** and type `https://wizkidzai.github.io`.
-   Tap **Create**.
-4. Copy the **Client ID** (it ends in `.apps.googleusercontent.com`). It's not a secret.
-5. In the left menu, tap **Audience → Publish app → Confirm**, so everyone can use it (not just test users).
-6. Put the Client ID in `wrangler.toml` (`GOOGLE_CLIENT_ID = "..."`), then deploy again
-   (`npx wrangler@4.151.1 deploy`). The **Continue with Google** button shows up on the site by itself.
-
-To turn Google sign-in off, make `GOOGLE_CLIENT_ID` empty again and deploy.
-
 ## Try it on your own computer
 
 `npx wrangler@4.151.1 dev --var SETUP_CODE:any-test-code` runs the server at http://127.0.0.1:8787

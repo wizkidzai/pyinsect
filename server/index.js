@@ -27,17 +27,13 @@
 // can block, rename, change the level of, or give a new password to the owner. The owner can sign in even
 // on a blocked device.
 //
-// Sign in with Google (if GOOGLE_CLIENT_ID is set in wrangler.toml): Google says who you are with a signed
-// note (an "ID token"). We check Google's signature and keep only a hash of Google's number for you.
-// No email, no real name, no photo. You still pick a made-up name.
-//
 // Deploy: see server/README.md (it needs Wrangler, because Durable Objects can't be made in the
 // Cloudflare dashboard). Free plan limits: 100,000 requests a day; past that it stops until tomorrow.
 
 import { DurableObject } from "cloudflare:workers";
 
 const VERSION = 2;          // the game's message rules (assets/game-online.js must match)
-const RELEASE = 4;          // which code is live (GET / shows it)
+const RELEASE = 3;          // which code is live (GET / shows it)
 // Websites allowed to connect (the game's site, and your own computer for testing)
 const SITE_ORIGINS = ["https://wizkidzai.github.io", "https://edafawd.github.io"];
 const LOCAL_ORIGIN = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/;
@@ -127,29 +123,6 @@ async function hashPassword(password, salt) {
   return `${salt}:${hex(bits)}`;
 }
 const checkPassword = async (password, saved) => !!saved && await hashPassword(password, saved.split(":")[0]) === saved;
-const NO_PASSWORD = "google";   // saved as the "password" of a Google-only account: no password ever matches it
-const fromB64url = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
-// Google's public keys (they change every few days), kept for an hour
-const GOOGLE_CERTS = "https://www.googleapis.com/oauth2/v3/certs";
-let googleKeys = null;
-// A Google ID token → Google's number for that person, or null if it isn't real, is old, or is for another site
-async function googleSub(token, env) {
-  try {
-    if (!env.GOOGLE_CLIENT_ID || typeof token !== "string" || token.length > 3000) return null;
-    const [h, p, s] = token.split(".");
-    const head = JSON.parse(new TextDecoder().decode(fromB64url(h))), body = JSON.parse(new TextDecoder().decode(fromB64url(p)));
-    if (head.alg !== "RS256") return null;
-    if (!googleKeys || Date.now() - googleKeys.at > HOUR || !googleKeys.keys.some(k => k.kid === head.kid))
-      googleKeys = { at: Date.now(), keys: (await (await fetch(env.GOOGLE_CERTS || GOOGLE_CERTS)).json()).keys };
-    const jwk = googleKeys.keys.find(k => k.kid === head.kid);
-    if (!jwk) return null;
-    const key = await crypto.subtle.importKey("jwk", jwk, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["verify"]);
-    if (!await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, fromB64url(s), new TextEncoder().encode(`${h}.${p}`))) return null;
-    if (!["accounts.google.com", "https://accounts.google.com"].includes(body.iss) || body.aud !== env.GOOGLE_CLIENT_ID) return null;
-    if (!(body.exp * 1000 > Date.now()) || typeof body.sub !== "string" || !body.sub) return null;
-    return body.sub;
-  } catch { return null; }
-}
 
 // ---------- bots ----------
 const BOT_COUNT = 20;
@@ -174,7 +147,7 @@ export default {
       const allowed = SITE_ORIGINS.includes(origin) || origin === RELAY_ORIGIN || LOCAL_ORIGIN.test(origin);
       const cors = allowed ? { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "POST", Vary: "Origin" } : {};
       if (request.method === "OPTIONS") return new Response(null, { status: allowed ? 204 : 403, headers: cors });
-      if (!allowed || request.method !== "POST" || Number(request.headers.get("Content-Length") || 0) > 4000) return new Response("Not allowed", { status: 403 });
+      if (!allowed || request.method !== "POST" || Number(request.headers.get("Content-Length") || 0) > 2000) return new Response("Not allowed", { status: 403 });
       const res = await env.LOBBY.get(env.LOBBY.idFromName("main")).fetch(request);
       return new Response(res.body, { status: res.status, headers: { ...cors, "Content-Type": "application/json" } });
     }
@@ -183,9 +156,7 @@ export default {
       const res = await env.LOBBY.get(env.LOBBY.idFromName("main")).fetch(request);
       return new Response(res.body, { headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" } });
     }
-    // google = the Google sign-in client ID (not a secret), or null when Google sign-in is off
-    return Response.json({ ok: true, service: "innvadex-server", version: VERSION, release: RELEASE, google: env.GOOGLE_CLIENT_ID || null },
-      { headers: { "Access-Control-Allow-Origin": "*" } });
+    return Response.json({ ok: true, service: "innvadex-server", version: VERSION, release: RELEASE }, { headers: { "Access-Control-Allow-Origin": "*" } });
   },
 };
 
@@ -197,11 +168,9 @@ export class Lobby extends DurableObject {
       level INTEGER DEFAULT 2, team TEXT, wins INTEGER DEFAULT 0, losses INTEGER DEFAULT 0, created INTEGER, seen INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS friends (a TEXT, b TEXT, state TEXT, PRIMARY KEY (a, b))`);   // a→b: "asked" or "friends"
     // Accounts (version 2): a password hash, a level, and blocked or not
-    // (and "google": the hash of Google's number for that person, for Sign in with Google)
-    for (const col of ["pass TEXT", "role TEXT DEFAULT 'player'", "blocked INTEGER DEFAULT 0", "google TEXT"]) {
+    for (const col of ["pass TEXT", "role TEXT DEFAULT 'player'", "blocked INTEGER DEFAULT 0"]) {
       try { this.sql.exec(`ALTER TABLE players ADD COLUMN ${col}`); } catch {}   // already there
     }
-    this.sql.exec(`CREATE UNIQUE INDEX IF NOT EXISTS players_google ON players (google)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS sessions (hash TEXT PRIMARY KEY, id TEXT, created INTEGER)`);
     // Devices each account used, and blocked devices (only a hash of the device's number is kept)
     this.sql.exec(`CREATE TABLE IF NOT EXISTS devices (hash TEXT, id TEXT, seen INTEGER, PRIMARY KEY (hash, id))`);
@@ -397,7 +366,7 @@ export class Lobby extends DurableObject {
     this.sql.exec("INSERT OR REPLACE INTO devices (hash, id, seen) VALUES (?, ?, ?)", hash, id, Date.now());
     this.sql.exec(`DELETE FROM devices WHERE id = ? AND hash NOT IN (SELECT hash FROM devices WHERE id = ? ORDER BY seen DESC LIMIT ${MAX_DEVICES})`, id, id);
   }
-  meInfo(p) { return { name: p.name, look: p.look, level: p.role || "player", owner: this.isOwner(p) || undefined, google: !!p.google || undefined, wins: p.wins, losses: p.losses }; }
+  meInfo(p) { return { name: p.name, look: p.look, level: p.role || "player", owner: this.isOwner(p) || undefined, wins: p.wins, losses: p.losses }; }
   // The owner's id (saved when someone uses the owner code), or null
   ownerId() {
     if (this.owner === undefined) this.owner = this.sql.exec("SELECT v FROM settings WHERE k = 'owner'").toArray()[0]?.v || null;
@@ -445,7 +414,7 @@ export class Lobby extends DurableObject {
     // (except for the owner, who can sign in anywhere)
     const ownerHere = async () => this.isOwner(await this.bySession(b.session));
     if (b.do === "device") return [200, { blocked: this.deviceBlocked(device) && !await ownerHere() }];
-    if (b.do !== "signin" && b.do !== "google" && this.deviceBlocked(device) && !await ownerHere()) return [403, { error: "deviceBlocked" }];
+    if (b.do !== "signin" && this.deviceBlocked(device) && !await ownerHere()) return [403, { error: "deviceBlocked" }];
     if (b.do === "names") return [200, { names: this.freeNames() }];
     if (b.do === "signup") {
       if (this.tooMany(`signup:${ip}`, 5, HOUR)) return [429, { error: "slow" }];
@@ -470,34 +439,6 @@ export class Lobby extends DurableObject {
       this.sawDevice(device, p.id);
       return [200, await this.newSession(p.id)];
     }
-    // Sign in with Google. A new Google account picks a made-up name first: the first try answers
-    // "newGoogle" with names, then the site sends the same token again with the name.
-    if (b.do === "google") {
-      if (this.tooMany(`ip:${ip}`, 30, 15 * MINUTE)) return [429, { error: "slow" }];
-      const sub = await googleSub(b.credential, this.env);
-      if (!sub) { this.tried(`ip:${ip}`); return [401, { error: "google" }]; }
-      const g = await sha256(`google:${sub}`);
-      const p = this.sql.exec("SELECT id FROM players WHERE google = ?", g).toArray()[0];
-      if (p) {
-        const who = this.player(p.id);
-        if (this.isOwner(who)) return [200, await this.newSession(who.id)];
-        if (this.deviceBlocked(device)) return [403, { error: "deviceBlocked" }];
-        if (isBlocked(who)) return [403, { error: "blocked", until: blockedUntil(who) }];
-        this.sawDevice(device, who.id);
-        return [200, await this.newSession(who.id)];
-      }
-      if (this.deviceBlocked(device)) return [403, { error: "deviceBlocked" }];
-      if (!name) return [200, { error: "newGoogle", names: this.freeNames() }];
-      if (this.tooMany(`signup:${ip}`, 5, HOUR)) return [429, { error: "slow" }];
-      if (!goodName(name)) return [400, { error: "name" }];
-      if (this.byName(name)) return [409, { error: "taken", names: this.freeNames() }];
-      this.tried(`signup:${ip}`);
-      const id = `u:${randomHex(16)}`, now = Date.now();
-      this.sql.exec("INSERT INTO players (id, name, look, pass, role, google, created, seen) VALUES (?, ?, '🙂', ?, 'player', ?, ?, ?)",
-        id, name, NO_PASSWORD, g, now, now);
-      this.sawDevice(device, id);
-      return [200, await this.newSession(id)];
-    }
 
     // Everything else needs you to be signed in
     const me = await this.bySession(b.session);
@@ -505,20 +446,6 @@ export class Lobby extends DurableObject {
     if (isBlocked(me) && !this.isOwner(me)) return [403, { error: "blocked", until: blockedUntil(me) }];
     if (b.do === "me") { this.sawDevice(device, me.id); return [200, { me: this.meInfo(me) }]; }
     if (b.do === "signout") { const hash = await sha256(b.session); this.sql.exec("DELETE FROM sessions WHERE hash = ?", hash); this.sessions.delete(hash); return [200, {}]; }
-    // Add Google to an account you already have (so you can sign in either way), or take it off
-    if (b.do === "linkGoogle") {
-      const sub = await googleSub(b.credential, this.env);
-      if (!sub) return [401, { error: "google" }];
-      const g = await sha256(`google:${sub}`), other = this.sql.exec("SELECT id FROM players WHERE google = ?", g).toArray()[0];
-      if (other && other.id !== me.id) return [409, { error: "googleTaken" }];
-      this.sql.exec("UPDATE players SET google = ? WHERE id = ?", g, me.id); this.changed(me.id);
-      return [200, { me: this.meInfo(this.player(me.id)) }];
-    }
-    if (b.do === "unlinkGoogle") {
-      if (me.pass === NO_PASSWORD) return [400, { error: "needPassword" }];   // they'd have no way to sign in
-      this.sql.exec("UPDATE players SET google = NULL WHERE id = ?", me.id); this.changed(me.id);
-      return [200, { me: this.meInfo(this.player(me.id)) }];
-    }
     if (b.do === "pass") return me.role === "team" || me.role === "manager" ? [200, { pass: await this.reviewPass(me) }] : [403, { error: "level" }];
     // The team setup code (a secret a grown-up sets with "wrangler secret put SETUP_CODE") makes you team level
     if (b.do === "claim") {

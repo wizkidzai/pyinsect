@@ -41,8 +41,7 @@ The **owner** can do anything, and nobody can block or change the owner's accoun
 1. In this `server` folder, run `npx wrangler@4.151.1 secret put OWNER_CODE`.
 2. Type a long code only you know (not the same as the setup code), and press Enter.
 3. On the site: sign in, tap your name at the top, open **👑 Are you the owner?**, and type the code.
-   Your account now shows **👑 Owner** (the first one is the **main owner**). To make someone else an owner,
-   open **👥 Manage accounts**, find them, and tap **👑 Make owner**.
+   Your account now shows **👑 Owner**. Using the code on another account moves the owner there.
 
 ## Sign in with Google (a grown-up, once)
 

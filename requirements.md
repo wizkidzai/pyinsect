@@ -838,12 +838,9 @@ To add one, ask your AI helper to help you plan a new feature. It will use
     fine). A blocked device can't sign in, make accounts, play, or send reports. Devices our team
     uses are never blocked. Clearing the browser's data gets around a device block, so it's a speed
     bump, not a wall.
-  - 👑 **Owner:** whoever types the secret **owner code** (only the owner knows it) becomes an owner.
-    Owners are always Team, and nobody can block them, change their level, rename them, or give them a
-    new password. They can sign in even on a blocked device.
-  - 👑 **More owners** (asked by our team lead, 2026-11-10): an owner can tap **👑 Make owner** in
-    Manage accounts to make someone else an owner, and **Take owner away** later. The first owner is
-    the **main owner**: nobody can take owner away from them.
+  - 👑 **Owner:** whoever types the secret **owner code** (only the owner knows it) becomes the owner.
+    The owner is always Team, and nobody can block it, change its level, rename it, or give it a new
+    password. It can sign in even on a blocked device.
   - 🔗 **Sign in with Google** (asked by our team lead, 2026-11-08): a "Continue with Google" button
     next to the normal sign-in. We keep only a scrambled copy of Google's number for you: **no email,
     no real name, no photo**. The first time, you still pick a made-up name. Signed-in people can add
@@ -868,7 +865,6 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] A blocked account can't sign in.
   - [ ] Blocked for 1 hour: they can sign in again after an hour (the list says until when).
   - [ ] The owner code makes you the owner; nobody can block or change the owner, and the owner can sign in on a blocked device.
-  - [ ] An owner makes someone else an owner and takes it away again; nobody can take it from the main owner.
   - [ ] Blocked with their device: that browser can't sign in, make a new account, or send reports; Unblock fixes it.
   - [ ] A Team member changes their own name, and signs in with the new name.
   - [ ] Continue with Google makes an account with a made-up name, and signs in to it next time; a blocked account can't.

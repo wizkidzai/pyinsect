@@ -785,29 +785,6 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] ← Back to Home goes back to Home.
   - [ ] After saying no, the message explains how to change it with the 🔒.
 
-## Terms of Use and Privacy Policy
-
-- **Status:** Building
-- **Asked by:** our team lead, 2026-11-08
-- **Who it's for:** Everyone who uses Pyinsect, and their parents. Google also asks for these pages
-  for Sign in with Google.
-- **Problem or need:** People couldn't find out what Pyinsect saves about them, or what the rules are.
-- **Why they have it:** Pyinsect saves photos, rough locations, and accounts, and kids use it. Parents
-  should be able to check that it's safe, and websites with accounts need a privacy policy.
-- **Our idea:** Two simple pages, **terms/** and **privacy/**, written in easy words. Links at the
-  bottom of Home, and a small "By signing in, you agree to..." line in the sign-in pop-ups. The
-  privacy page says exactly what we save (and what we don't, like emails and IP addresses).
-- **Other ideas we talked about:**
-  - A pop-up everyone must accept first: it gets in the way of quick bug reports.
-  - Copying a long legal template: hard for kids to read, and parts wouldn't be true for us.
-- **User flow:**
-  1. They scroll to the bottom of Home and tap **Privacy Policy** (or **Terms of Use**).
-  2. The page opens, with a short version at the top. **← Pyinsect** goes back.
-- **Done when:**
-  - [ ] Both pages open from Home and from the sign-in pop-up.
-  - [ ] Everything the privacy page says matches what the code saves.
-  - [ ] A grown-up read both pages, and the links are in Google's sign-in settings.
-
 ## Accounts and levels
 
 - **Status:** Building

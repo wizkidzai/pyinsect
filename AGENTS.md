@@ -28,6 +28,7 @@ Kids in elementary and middle school. Please:
 | `assets/app.js` | The AI and report code: camera, photos, runs the model, sends reports |
 | `assets/flow.js` | The screens and menu bar: splash, permissions, home, the 3 Detect steps, and the results pop-up |
 | `assets/reportsmap.js` | The Map screen: our numbers and the reports map |
+| `assets/analytics.js` | Website analytics (Google Analytics): counts visits and screens, never photos, reports, or locations |
 | `assets/site.css` | Colors, fonts, and layout |
 | `assets/species.js` | Common names for each insect |
 | `assets/models/` | Settings for each model version, like the invasive list |

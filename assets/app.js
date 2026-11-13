@@ -346,6 +346,9 @@ async function fileReport(r, card, detail) {
 // Adds a report to "Your reports" and the waiting list, then sends it. r = { report, photo } or
 // { report, photos } (a Detect report from assets/flow.js). Returns false if the phone had no room.
 function queueReport(r, detail) {
+  // A report with a location gets a secret take-back key. It stays in "Your reports" on this phone,
+  // and the relay only keeps a scrambled copy (a hash), so only this phone can take the location back.
+  if (r.report.spot || r.report.area) r.report.forget_key = [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, "0")).join("");
   addMine(r, detail);
   const list = store.get(PENDING_KEY, []);
   list.push(r);
@@ -413,6 +416,26 @@ try {
   }
 } catch {}
 
+// "Take back my location" (Map screen): removes the rough area and team spot from one of this phone's
+// reports. Answers {} when it worked, or { error: "old" } (sent before take-back keys) or { error: "..." }.
+async function takeBackArea(id) {
+  // Not sent yet: it just goes without its location
+  const list = store.get(PENDING_KEY, []), waiting = list.find(x => x.report.id === id);
+  if (waiting) { delete waiting.report.spot; delete waiting.report.area; store.set(PENDING_KEY, list); }
+  await sending;   // if it was being sent right now, wait, then take it back on the relay too
+  if (!store.get(PENDING_KEY, []).some(x => x.report.id === id)) {
+    const key = mine.get().find(m => m.id === id)?.forget;
+    if (!key) return { error: "old" };
+    try {
+      const res = await fetch(RELAY_URL.replace(/\/$/, "") + "/forget", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, key }) });
+      if (!res.ok) return { error: (await res.json().catch(() => ({}))).error || `the report server answered ${res.status}` };
+    } catch { return { error: "Can't reach the report server. Check your internet and try again." }; }
+  }
+  updateMine(id, { area: null, forget: null });
+  return {};
+}
+
 // A small copy of a report photo (base64 JPEG) for "Your reports"
 function smallPhoto(base64) {
   return new Promise(resolve => {
@@ -436,7 +459,7 @@ function addMine({ report, photo, photos }, detail) {
   // The map shows this phone's reports in the public ~200 m square, like everyone else's
   const area = report.spot ? roughArea(report.spot.lat, report.spot.lon) : report.area || null;
   list.unshift({ id: report.id, name: report.name, detail: detail || mineDetail(report), kind: report.kind || "invasive",
-    area, timestamp: report.timestamp, model: report.model, photo: null, status: "Sending report…", ok: false });
+    area, forget: report.forget_key, timestamp: report.timestamp, model: report.model, photo: null, status: "Sending report…", ok: false });
   mine.set(list.slice(0, MINE_MAX));
   renderMine();
   const first = photo || photos?.[0];

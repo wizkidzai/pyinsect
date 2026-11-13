@@ -64,14 +64,16 @@ const SHOW = 40;                    // newest reports sent to the reports page
 const LIST_CACHE_MS = 5000;         // GitHub is asked for the file list at most every 5 s
 
 const ID_RE = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})-[0-9a-f]{1,8}$/;
+const KEY_RE = /^[0-9a-f]{32}$/;    // a take-back key from the phone (see forgetArea)
 const SPECIES_RE = /^[a-z_]{1,48}$/;
 const TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/;
 const recent = new Map(), wrong = new Map();
-const reportCache = new Map();      // id → report JSON (reports never change)
+const reportCache = new Map();      // id → report JSON (only "Take back my location" changes reports)
 let listCache = { at: 0, paths: null };
 // map.json (in the private repo): one small line per report, for the reports map and check levels:
 //   { id, kind: "invasive" | "tree" | "infested" | "check" | "nothing", name, area: { lat, lon } | null,
-//     month: "2026-10", level, found (Detect reports only: { eab, damage, galleries }) }
+//     month: "2026-10", level, found (Detect reports only: { eab, damage, galleries }),
+//     forget: the hash of the phone's take-back key (only for reports with an area, from v17) }
 // "check" = a Detect report that found something, "nothing" = a Detect report that found nothing.
 // level: "unchecked" (just sent), "ai" (an AI thinks it's a match; not used yet),
 //        "verified" (a person on the team confirmed it), "not_match" (a person said no).
@@ -151,11 +153,25 @@ async function submit(request, env) {
   }
   if (request.method === "GET") {
     // Says whether the reports page is set up, never what its address or password is
-    return reply(200, { ok: true, service: "pyinsect-relay", version: 16, reports_page: Boolean(viewWord(env) && env.VIEW_PASSWORD) });
+    return reply(200, { ok: true, service: "pyinsect-relay", version: 17, reports_page: Boolean(viewWord(env) && env.VIEW_PASSWORD) });
   }
   if (request.method !== "POST") return reply(405, { error: "Use POST." });
   if (!SITE_ORIGINS.includes(origin)) return reply(403, { error: "Reports are only accepted from the Pyinsect site." });
   if (!env.GITHUB_TOKEN) return reply(500, { error: "The relay isn't set up yet (GITHUB_TOKEN missing)." });
+
+  // "Take back my location": { id, key }. Only the phone that sent the report knows its key.
+  if (url.pathname === "/forget") {
+    let id, key;
+    try { ({ id, key } = await request.json()); } catch { return reply(400, { error: "Not valid JSON." }); }
+    if (typeof id !== "string" || !ID_RE.test(id) || typeof key !== "string" || !KEY_RE.test(key)) return reply(400, { error: "Bad take-back request." });
+    try {
+      const status = await forgetArea(env, id, await sha256Hex(key));
+      return status === 200 ? reply(200, { ok: true })
+        : reply(status, { error: status === 404 ? "That report isn't on the server." : "This phone can't take back that report's location." });
+    } catch (e) {
+      return reply(502, { error: e.message });
+    }
+  }
 
   const ip = request.headers.get("CF-Connecting-IP") || "?";
   if (!allow(recent, ip, 3600000, PER_IP_LIMIT)) return reply(429, { error: "Too many reports from this network. Try again later." });
@@ -167,6 +183,9 @@ async function submit(request, env) {
   count(recent, ip, 3600000);
 
   const { report, photo, photos } = checked;
+  // The phone's take-back key: only its hash is saved, and only for a report with an area
+  const key = body.report.forget_key;
+  if (report.area && typeof key === "string" && KEY_RE.test(key)) report.forget_hash = await sha256Hex(key);
   // Never save into a public repo (it happened when the old GITHUB_REPO setting was reset). Not a 400, so the
   // site keeps the report and sends it again once the setting is fixed.
   try {
@@ -556,6 +575,7 @@ function indexEntry(report, level) {
   const detect = report.kind === "check" || report.kind === "nothing";
   return { id: report.id, kind: detect ? report.kind : needsAction(report) ? "infested" : report.kind === "tree" ? "tree" : "invasive", name: report.name,
     area: report.area || null, month: String(report.timestamp || report.id).replace(/^(\d{4})-?(\d{2}).*/, "$1-$2"), level,
+    ...(report.forget_hash ? { forget: report.forget_hash } : {}),
     ...(detect ? { found: { eab: !!report.found?.eab, damage: !!report.found?.damage, galleries: report.found?.galleries || 0 } } : {}) };
 }
 
@@ -582,6 +602,36 @@ async function updateIndex(env, change) {
     if ((res.status === 409 || res.status === 422) && tries < 3) continue;
     throw new Error(ghError(res.status));
   }
+}
+
+// "Take back my location": removes the area and team spot from the report and from map.json, if
+// hash matches the one saved with it. Answers 200, 403 (wrong key, or no key), or 404.
+async function forgetArea(env, id, hash) {
+  const e = (await readIndex(env)).list.find(x => x.id === id);
+  if (!e) return 404;
+  if (e.forget !== hash) return 403;
+  for (const dir of ["reports", NOTHING_DIR]) {
+    const res = await gh(env, `contents/${dir}/${id}.json`);
+    if (res.status === 404) continue;
+    if (!res.ok) throw new Error(ghError(res.status));
+    const file = await res.json();
+    const report = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob((file.content || "").replace(/\s/g, "")), c => c.charCodeAt(0))));
+    if (report.area || report.spot) {
+      delete report.area; delete report.spot;
+      report.area_taken_back = new Date().toISOString();
+      const put = await gh(env, `contents/${dir}/${id}.json`, { method: "PUT",
+        body: JSON.stringify({ message: "Take back a report's location", sha: file.sha, content: toBase64(JSON.stringify(report, null, 1)) }) });
+      if (!put.ok) throw new Error(ghError(put.status));
+      reportCache.set(id, report);
+    }
+    break;
+  }
+  await updateIndex(env, list => { const x = list.find(y => y.id === id); if (x) x.area = null; });
+  return 200;
+}
+async function sha256Hex(text) {
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
 async function readIndexCached(env) {

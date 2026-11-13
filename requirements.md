@@ -784,3 +784,58 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] The button is at the bottom of Home and opens the permissions screen.
   - [ ] ← Back to Home goes back to Home.
   - [ ] After saying no, the message explains how to change it with the 🔒.
+
+## Website analytics (Google Analytics)
+
+- **Status:** Building
+- **Asked by:** Eshan, 2026-11-13
+- **Who it's for:** Our team, so we can see how people use Pyinsect.
+- **Problem or need:** We don't know how many people visit, which screens they use, or what devices
+  they have, so we can't tell what to make better.
+- **Why they have it:** The site has no visitor numbers at all. A grown-up agreed to analytics and
+  added it to the privacy policy (`privacy.html`, part 6).
+- **Our idea:** Add Google Analytics (`G-Z9TZM6MQKK`) to the main page and the privacy page. Each
+  screen (Home, Detect, Game, Map) counts as a page. Google's ad features are turned off, because
+  the privacy policy says we don't use analytics for ads. Photos, reports, and locations are never
+  sent to it.
+- **Other ideas we talked about:**
+  - Count visits on our own relay: no cookies, but much more work, and no device or country numbers.
+  - Cloudflare Web Analytics: no cookies, but a grown-up already picked Google Analytics.
+- **User flow:**
+  1. A visitor opens Pyinsect. Nothing looks different.
+  2. They move between Home, Detect, Game, and Map. Each screen counts as a page view.
+  3. Our team opens Google Analytics and sees visitors, screens, devices, and countries.
+- **Done when:**
+  - [ ] Opening the site shows up in Google Analytics (Realtime report).
+  - [ ] Moving to another screen shows up as a new page view.
+  - [ ] No photos, reports, or locations are sent to Google Analytics.
+
+## Take back my location
+
+- **Status:** Building
+- **Asked by:** Eshan, 2026-11-07
+- **Who it's for:** A kid or a parent who sent a report with their rough area, and doesn't want
+  their location known anymore.
+- **Problem or need:** Once a report is sent, there's no way to change your mind about its location.
+- **Why they have it:** An expert told us that people might change their minds.
+- **Our idea:** On the Map screen, tap a square with your own report, then **📍 Take back my
+  location**. The relay removes the rough area and the team spot from that report, so it leaves the
+  map for everyone. The photos and what was found stay, so the report still helps the experts.
+  - Only the phone that sent the report can do it. Each report gets a secret **take-back key** that
+    stays on the phone. The relay only keeps a scrambled copy of it (a hash), so nobody can read it.
+  - A report that hasn't been sent yet (no internet) just gets sent without its location.
+  - Reports sent before this feature have no key, so the message says to ask our team.
+- **Other ideas we talked about:**
+  - Delete the whole report: the experts would lose a real bug sighting.
+  - Ask our team to remove it: slower, and kids would need a way to reach us.
+- **User flow:**
+  1. They open the Map screen and tap their orange or purple square.
+  2. They tap **📍 Take back my location**.
+  3. It asks: "Your report stays, but it won't be on the map anymore." **Take it back** or **Keep it**.
+  4. Take it back: "Done! Your location was removed from the map." Their square goes away.
+  5. No internet, or it didn't work: a friendly message, and they can try again.
+- **Done when:**
+  - [ ] Taking back a report's location removes its square from the map, for everyone.
+  - [x] Another phone can't take back someone else's location.
+  - [ ] A report that wasn't sent yet goes without its location.
+  - [ ] A grown-up redeployed the relay.

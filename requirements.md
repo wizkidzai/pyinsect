@@ -784,3 +784,28 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] The button is at the bottom of Home and opens the permissions screen.
   - [ ] ← Back to Home goes back to Home.
   - [ ] After saying no, the message explains how to change it with the 🔒.
+
+## Website analytics (Google Analytics)
+
+- **Status:** Building
+- **Asked by:** Eshan, 2026-11-13
+- **Who it's for:** Our team, so we can see how people use Pyinsect.
+- **Problem or need:** We don't know how many people visit, which screens they use, or what devices
+  they have, so we can't tell what to make better.
+- **Why they have it:** The site has no visitor numbers at all. A grown-up agreed to analytics and
+  added it to the privacy policy (`privacy.html`, part 6).
+- **Our idea:** Add Google Analytics (`G-Z9TZM6MQKK`) to the main page and the privacy page. Each
+  screen (Home, Detect, Game, Map) counts as a page. Google's ad features are turned off, because
+  the privacy policy says we don't use analytics for ads. Photos, reports, and locations are never
+  sent to it.
+- **Other ideas we talked about:**
+  - Count visits on our own relay: no cookies, but much more work, and no device or country numbers.
+  - Cloudflare Web Analytics: no cookies, but a grown-up already picked Google Analytics.
+- **User flow:**
+  1. A visitor opens Pyinsect. Nothing looks different.
+  2. They move between Home, Detect, Game, and Map. Each screen counts as a page view.
+  3. Our team opens Google Analytics and sees visitors, screens, devices, and countries.
+- **Done when:**
+  - [ ] Opening the site shows up in Google Analytics (Realtime report).
+  - [ ] Moving to another screen shows up as a new page view.
+  - [ ] No photos, reports, or locations are sent to Google Analytics.

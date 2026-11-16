@@ -794,8 +794,8 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   they have, so we can't tell what to make better.
 - **Why they have it:** The site has no visitor numbers at all. A grown-up agreed to analytics and
   added it to the privacy policy (`privacy.html`, part 6).
-- **Our idea:** Add GoatCounter (site `wizkidzai`, shared by all our team's projects) to the main page
-  and the privacy page. Each screen (Home, Detect, Game, Map) counts as a page. GoatCounter uses no
+- **Our idea:** Add GoatCounter (site `wizkidz-pyinsect`, just for Pyinsect) to the main page and the
+  privacy page. Its dashboard is private: a grown-up shares a secret, view-only link with our team. Each screen (Home, Detect, Game, Map) counts as a page. GoatCounter uses no
   cookies and doesn't save IP addresses, so kids who visit stay private and no cookie pop-up is
   needed. Photos, reports, and locations are never sent to it.
 - **Other ideas we talked about:**
@@ -807,9 +807,9 @@ To add one, ask your AI helper to help you plan a new feature. It will use
 - **User flow:**
   1. A visitor opens Pyinsect. Nothing looks different.
   2. They move between Home, Detect, Game, and Map. Each screen counts as a page view.
-  3. Our team opens wizkidzai.goatcounter.com and sees visits, screens, browsers, and countries.
+  3. Our team opens our secret dashboard link and sees visits, screens, browsers, and countries.
 - **Done when:**
-  - [ ] Opening the site shows up in GoatCounter as `/pyinsect/`.
+  - [ ] Opening the site shows up in the wizkidz-pyinsect dashboard as `/pyinsect/`.
   - [ ] Moving to another screen shows up as a new page, like `/pyinsect/#map`.
   - [ ] The browser saves no cookies for the site (F12 → Application → Cookies is empty).
   - [ ] No photos, reports, or locations are sent to GoatCounter.

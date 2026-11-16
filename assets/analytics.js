@@ -1,8 +1,8 @@
 // Website analytics (GoatCounter), see "Website analytics" in requirements.md and part 6 of
 // privacy.html. It counts visits, screens, browsers, and countries. It uses no cookies and doesn't
 // save anyone's IP address. Photos, reports, and locations are never sent to it.
-// All our team's sites share one GoatCounter site ("wizkidzai"). The address starts with the
-// project's folder (like /pyinsect/), so each project's pages show up separately.
+// Pyinsect has its own GoatCounter site ("wizkidz-pyinsect"), so its numbers stay separate from our
+// other projects. Its dashboard is private: only people with our team's secret link can see it.
 // GoatCounter's own script (gc.zgo.at/count.js) is loaded right after this file in the page.
 
 // Don't count by itself on load: we count each screen ourselves, with the part after the #.

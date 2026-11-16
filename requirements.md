@@ -785,27 +785,31 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] ← Back to Home goes back to Home.
   - [ ] After saying no, the message explains how to change it with the 🔒.
 
-## Website analytics (Google Analytics)
+## Website analytics (GoatCounter)
 
 - **Status:** Building
-- **Asked by:** Eshan, 2026-11-13
+- **Asked by:** Eshan, 2026-11-13 (switched to GoatCounter by a grown-up, 2026-11-16)
 - **Who it's for:** Our team, so we can see how people use Pyinsect.
 - **Problem or need:** We don't know how many people visit, which screens they use, or what devices
   they have, so we can't tell what to make better.
 - **Why they have it:** The site has no visitor numbers at all. A grown-up agreed to analytics and
   added it to the privacy policy (`privacy.html`, part 6).
-- **Our idea:** Add Google Analytics (`G-Z9TZM6MQKK`) to the main page and the privacy page. Each
-  screen (Home, Detect, Game, Map) counts as a page. Google's ad features are turned off, because
-  the privacy policy says we don't use analytics for ads. Photos, reports, and locations are never
-  sent to it.
+- **Our idea:** Add GoatCounter (site `wizkidzai`, shared by all our team's projects) to the main page
+  and the privacy page. Each screen (Home, Detect, Game, Map) counts as a page. GoatCounter uses no
+  cookies and doesn't save IP addresses, so kids who visit stay private and no cookie pop-up is
+  needed. Photos, reports, and locations are never sent to it.
 - **Other ideas we talked about:**
+  - Google Analytics: we tried it first (#47), but it uses cookies that follow visitors, which isn't
+    a good fit for a site kids use.
+  - Cloudflare Web Analytics: no cookies too, but fewer details and each site needs a grown-up's login.
+  - Running GoatCounter on our own server: more control, but someone has to keep it updated and safe.
   - Count visits on our own relay: no cookies, but much more work, and no device or country numbers.
-  - Cloudflare Web Analytics: no cookies, but a grown-up already picked Google Analytics.
 - **User flow:**
   1. A visitor opens Pyinsect. Nothing looks different.
   2. They move between Home, Detect, Game, and Map. Each screen counts as a page view.
-  3. Our team opens Google Analytics and sees visitors, screens, devices, and countries.
+  3. Our team opens wizkidzai.goatcounter.com and sees visits, screens, browsers, and countries.
 - **Done when:**
-  - [ ] Opening the site shows up in Google Analytics (Realtime report).
-  - [ ] Moving to another screen shows up as a new page view.
-  - [ ] No photos, reports, or locations are sent to Google Analytics.
+  - [ ] Opening the site shows up in GoatCounter as `/pyinsect/`.
+  - [ ] Moving to another screen shows up as a new page, like `/pyinsect/#map`.
+  - [ ] The browser saves no cookies for the site (F12 → Application → Cookies is empty).
+  - [ ] No photos, reports, or locations are sent to GoatCounter.

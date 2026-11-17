@@ -110,13 +110,13 @@ function pilCoeffs(inSize, outSize, from, count) {
 // Pillow-style bilinear resize (as above), ImageNet normalisation, CHW
 const roundHalfEven = v => { const f = Math.floor(v), d = v - f; return d > 0.5 || (d === 0.5 && f % 2) ? f + 1 : f; };
 
+// The photo is read in strips of BAND rows, not all at once: a phone photo (12-50 megapixels) is
+// 48-200 MB as pixels, and copying the whole thing a few times made phones run out of memory
+// (Galaxy S24 FE, Nov 2026). Each strip is copied 1:1, so the pixels are exactly the same.
+const BAND = 64;
+
 function preprocess(bmp) {
   const { width: w, height: h } = bmp;
-  const c = document.createElement("canvas");
-  c.width = w; c.height = h;
-  const ctx = c.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(bmp, 0, 0);
-  const src = ctx.getImageData(0, 0, w, h).data;
 
   let cx, cy;
   if (RESIZE_MODE === "squash") {
@@ -131,18 +131,29 @@ function preprocess(bmp) {
   // Horizontal pass (rounded to 8-bit like Pillow), only over the source rows the crop needs
   const y0 = cy[0].min, y1 = cy[223].min + cy[223].w.length;
   const mid = new Uint8ClampedArray((y1 - y0) * 224 * 3);
-  for (let y = y0; y < y1; y++) {
-    const row = y * w * 4, outRow = (y - y0) * 224 * 3;
-    for (let x = 0; x < 224; x++) {
-      const { min, w: k } = cx[x];
-      let r = 0, g = 0, b = 0;
-      for (let i = 0; i < k.length; i++) {
-        const p = row + (min + i) * 4;
-        r += src[p] * k[i]; g += src[p + 1] * k[i]; b += src[p + 2] * k[i];
+  const c = document.createElement("canvas");
+  c.width = w; c.height = Math.min(BAND, y1 - y0);
+  const ctx = c.getContext("2d", { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = false;
+  for (let top = y0; top < y1; top += BAND) {
+    const rows = Math.min(BAND, y1 - top);
+    ctx.clearRect(0, 0, w, c.height);
+    ctx.drawImage(bmp, 0, top, w, rows, 0, 0, w, rows);
+    const src = ctx.getImageData(0, 0, w, rows).data;
+    for (let y = top; y < top + rows; y++) {
+      const row = (y - top) * w * 4, outRow = (y - y0) * 224 * 3;
+      for (let x = 0; x < 224; x++) {
+        const { min, w: k } = cx[x];
+        let r = 0, g = 0, b = 0;
+        for (let i = 0; i < k.length; i++) {
+          const p = row + (min + i) * 4;
+          r += src[p] * k[i]; g += src[p + 1] * k[i]; b += src[p + 2] * k[i];
+        }
+        mid[outRow + x * 3] = Math.round(r); mid[outRow + x * 3 + 1] = Math.round(g); mid[outRow + x * 3 + 2] = Math.round(b);
       }
-      mid[outRow + x * 3] = Math.round(r); mid[outRow + x * 3 + 1] = Math.round(g); mid[outRow + x * 3 + 2] = Math.round(b);
     }
   }
+  c.width = c.height = 0;   // give the strip's memory back now, not whenever the browser gets round to it
 
   // Vertical pass, then normalise into CHW
   const out = new Float32Array(3 * 224 * 224), plane = 224 * 224;
@@ -190,7 +201,9 @@ function reportPhoto(bmp) {
   const c = document.createElement("canvas");
   c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
   c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
-  return c.toDataURL("image/jpeg", 0.8).split(",")[1];
+  const data = c.toDataURL("image/jpeg", 0.8).split(",")[1];
+  c.width = c.height = 0;   // free it right away (phones run low on memory)
+  return data;
 }
 
 // A new report's id (UTC time + random letters) and its local time with the time zone
@@ -368,6 +381,7 @@ function sharpness(bmp) {
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(bmp, 0, 0, w, h);
   const d = ctx.getImageData(0, 0, w, h).data, g = new Float32Array(w * h);
+  c.width = c.height = 0;   // free the canvas, we have the pixels
   for (let i = 0; i < w * h; i++) g[i] = d[i * 4] * .299 + d[i * 4 + 1] * .587 + d[i * 4 + 2] * .114;
   const sum = new Float64Array(16), sq = new Float64Array(16), n = new Float64Array(16);
   for (let y = 1; y < h - 1; y++) {
@@ -672,8 +686,8 @@ function classify(file) {
   queue = queue.then(async () => {
     try {
       setStatus(`Analysing ${file.name}…`, "busy");
-      const bmp = await createImageBitmap(file);   // for the report photo (normal colours)
       const { top3, verdict } = await identify(file);
+      const bmp = await createImageBitmap(file);   // for the report photo (normal colours); after the AI, to save memory
       if (file.tree) {
         await treePhoto(file, bmp, top3, card, verdict);
         bmp.close?.();
@@ -1043,6 +1057,7 @@ async function checkCrop() {
     c.getContext("2d").drawImage(bmp, sx, sy, sw, sh, 0, 0, sw, sh);
     bmp.close?.();
     const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.92));
+    c.width = c.height = 0;   // free the big canvas right away (phones run low on memory)
     if (!blob) throw new Error("couldn't make the zoomed photo");
     const zoomed = new File([blob], file.name.replace(/\.[^.]+$/, "") + "-zoomed.jpg", { type: "image/jpeg" });
     zoomed.fromCamera = file.fromCamera;

@@ -399,8 +399,8 @@ async function showResults() {
     for (let i = 0; i < list.length; i++) {
       const p = list[i];
       wait.textContent = `Checking photo ${i + 1} of ${list.length}…`;
-      const bmp = await createImageBitmap(p.file);
       Object.assign(p, await identify(p.file));
+      const bmp = await createImageBitmap(p.file);   // opened after the AI is done, so only one big copy at a time
       p.blurry = sharpness(bmp) < BLUR_THRESHOLD;
       p.photo = reportPhoto(bmp);
       bmp.close?.();

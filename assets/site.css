@@ -1053,3 +1053,31 @@ body[data-screen="game"] #screens { padding-top: 14px; }
 .bot-tag { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); vertical-align: middle; }
 .btn.small { padding: 5px 10px; font-size: 13px; }
 .name-options { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Invasive species alarm: red glow around the screen and bright red text */
+.invasive-alarm { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 24px; cursor: pointer; background: rgba(255, 0, 0, .12); box-shadow: inset 0 0 0 10px #ff0000, inset 0 0 140px 50px rgba(255, 0, 0, .85); animation: alarm-pulse .7s ease-in-out infinite alternate; }
+.invasive-alarm-text { font-family: var(--display); font-weight: 800; font-size: clamp(30px, 8vw, 72px); line-height: 1.05; color: #ff0000; background: #fff; padding: 12px 22px; border-radius: 16px; border: 4px solid #ff0000; text-transform: uppercase; }
+.invasive-alarm-hint { color: #fff; font-weight: 600; text-shadow: 0 1px 4px #000; }
+@keyframes alarm-pulse { from { opacity: .8; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .invasive-alarm { animation: none; } }
+.invasive-alarm.glow-only { background: none; pointer-events: none; box-shadow: inset 0 0 0 10px #ff0000, inset 0 0 140px 50px rgba(255, 0, 0, .85); }
+.result-note .alert-line { font-family: var(--display); font-weight: 800; font-size: clamp(22px, 6vw, 34px); line-height: 1.1; color: #ff0000; margin: 0 0 10px; text-shadow: 0 0 12px rgba(255, 0, 0, .5); }
+.result-note .alert-bars { margin: 0 0 12px; }
+.result-note .alert-bars .alt { grid-template-columns: minmax(0, 1fr) 90px 52px; font-weight: 600; }
+.result-note .alert-bars .track { height: 10px; background: rgba(255, 255, 255, .2); }
+.result-note .alert-bars .fill { background: linear-gradient(90deg, #ff6b5e, #ff0000); }
+.result-note .alert-bars .pct { color: inherit; }
+
+/* Big readings in the alert box */
+.alert-photo { margin: 0 0 16px; }
+.alert-photo-title { font-weight: 700; margin: 0 0 6px; }
+.alert-reading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: baseline; margin: 0 0 8px; }
+.alert-reading .alert-name { font-size: 20px; font-weight: 700; }
+.alert-reading .pct { font-size: 22px; font-weight: 800; color: inherit; }
+.alert-reading .track { grid-column: 1 / -1; height: 12px; background: rgba(255, 255, 255, .2); }
+.alert-reading:first-of-type .fill { background: linear-gradient(90deg, #ff6b5e, #ff0000); }
+.alert-reading .fill { background: rgba(255, 255, 255, .55); }
+
+/* Emerald ash borer alert: a big photo of the beetle under the alert, no brown text */
+.result-note.care { background: rgba(255, 0, 0, .08); }
+.alert-eab-img { display: block; width: 100%; max-height: 60vh; object-fit: cover; border-radius: 16px; margin: 8px 0 0; border: 3px solid #ff0000; }

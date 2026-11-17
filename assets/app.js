@@ -561,6 +561,33 @@ function altName(species) {
   return name;
 }
 
+// Invasive species alarm: bright red text, a pulsing red glow around the screen, and a siren beep.
+// It goes away by itself after a few seconds, or when you tap it.
+let alarmEl = null, alarmTimer = 0;
+function invasiveAlarm(glowOnly = false) {   // glowOnly: just the red glow and siren (the words are shown somewhere else)
+  if (alarmEl) return;
+  alarmEl = el("div", "invasive-alarm" + (glowOnly ? " glow-only" : ""));
+  alarmEl.setAttribute("role", "alert");
+  if (!glowOnly) alarmEl.append(el("div", "invasive-alarm-text", "INVASIVE SPECIES DETECTED"), el("div", "invasive-alarm-hint", "Tap to close"));
+  const close = () => { clearTimeout(alarmTimer); alarmEl?.remove(); alarmEl = null; };
+  alarmEl.addEventListener("click", close);
+  document.body.append(alarmEl);
+  alarmTimer = setTimeout(close, 7000);
+  try {   // a fast, high fire-alarm beeping made by the browser (no sound file); silent if the browser blocks sound
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = "sawtooth"; osc.frequency.value = 1500;
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    for (let i = 0; i < 14; i++) {   // beep-beep-beep... (0.1s on, 0.1s off)
+      gain.gain.setValueAtTime(0.1, ctx.currentTime + i * 0.2);
+      gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.2 + 0.1);
+    }
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(); osc.stop(ctx.currentTime + 2.8);
+    osc.onended = () => ctx.close();
+  } catch {}
+}
+
 function fillCard(card, top3, verdict = "ok") {
   if (verdict !== "ok") return fillUnsureCard(card, top3, verdict);
   const best = top3[0], invasive = INVASIVE.has(best.species), sick = damagedTree(best.species);
@@ -665,8 +692,10 @@ function classify(file) {
         if (ai.verdict === "ai") { blockReport(card, ai); window.Innvadex?.fakePhoto(); }
         else if (infested) {
           // Sent right away, so the team knows about the infested tree
+          invasiveAlarm();
           fileReport(buildInfestedReport(bmp, infested, top3), card, "Infested tree: action needed");
         } else {
+          invasiveAlarm();
           fileReport(buildReport(bmp, top3[0].species, top3[0].confidence, top3), card);
           window.Innvadex?.encounter(top3[0].species, card.querySelector("img").src);   // the game (assets/game.js)
         }
@@ -707,6 +736,7 @@ async function treePhoto(file, bmp, top3, card, verdict) {
   }
   const ai = file.fromCamera ? { verdict: "camera", reasons: [] } : await checkAI(file.original || file).catch(() => ({ verdict: "unknown", reasons: [] }));
   if (ai.verdict === "ai") { blockReport(card, ai); return; }
+  if (infested) invasiveAlarm();
   fileReport(buildTreeReport(bmp, tree, top3, infested), card, infested ? "Infested tree: action needed" : tree.signsText);
   window.treeCheck?.reported(infested);
 }

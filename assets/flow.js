@@ -423,6 +423,10 @@ async function showResults() {
     sec.append(el("h3", null, `${STEP_ICON[k]} ${STEP_NAME[k]}`));
     if (!mine.length) sec.append(el("p", "muted", "Skipped"));
     for (const p of mine) {
+      // An emerald ash borer photo: the red alert below already says it, shows the readings, and has the big picture,
+      // so skip the small photo, the sentence, and the top 3 list
+      const eabAlert = p.step === "bug" && p.ai !== "ai" && p.verdict === "ok" && p.top3[0].confidence >= SURE && EAB.has(p.top3[0].species);
+      if (eabAlert) continue;
       const row = el("div", "result-row"), img = el("img"), words = el("div");
       img.src = p.url; img.alt = "";
       words.append(el("p", null, photoLine(p)));
@@ -436,18 +440,33 @@ async function showResults() {
 
   // The calm summary, and how to reach the experts directly if they want to
   const note = el("div", "result-note");
+  // Every reading the AI had for each photo, big, with a percentage bar and "Is this right?"
+  const alertBars = () => {
+    const box = el("div", "alert-readings");
+    for (const p of list) {
+      if (p.ai === "ai" || p.step === "tree" || p.verdict !== "ok") continue;
+      const sec = el("div", "alert-photo");
+      sec.append(el("p", "alert-photo-title", (p.step === "damage" ? "Signs of damage" : "The bug")));
+      for (const g of p.top3) {
+        const row = el("div", "alert-reading"), track = el("div", "track"), fill = el("div", "fill");
+        fill.style.width = `${g.confidence.toFixed(1)}%`; track.append(fill);
+        const name = g.species === TREE.damageClass ? "Emerald ash borer damage" : commonName(g.species);
+        row.append(el("span", "alert-name", name), el("span", "pct", `${g.confidence.toFixed(1)}%`), track);
+        sec.append(row);
+      }
+      box.append(sec);
+    }
+    return box;
+  };
   if (found.eab || found.damage || found.signs) {
     note.classList.add("care");
-    note.append(el("p", null, `🌳 ${TREE.infested.text}`));
-    const tips = el("ul");
-    for (const t of TREE.infested.tips) tips.append(el("li", null, t));
-    note.append(tips);
-    for (const l of TREE.infested.links || []) {
-      const a = el("a", null, l.text); a.href = l.url; a.target = "_blank"; a.rel = "noopener";
-      const p = el("p"); p.append(a); note.append(p);
-    }
+    note.append(el("p", "alert-line", `🚨 ${found.eab || found.damage ? "Emerald ash borer" : "Possible emerald ash borer"} detected`), alertBars());
+    const big = el("img", "alert-eab-img");   // a big picture of the beetle instead of words
+    big.src = "assets/trees/eab-closeup.jpg";
+    big.alt = "Emerald ash borer, a shiny green beetle";
+    note.append(big);
   } else if (found.others.length) {
-    note.append(el("p", null, `Thanks! Invasive bugs like the ${found.others.join(" and ")} are reported to the experts too.`));
+    note.append(el("p", "alert-line", `🚨 ${found.others.join(" and ")} detected`), alertBars(), el("p", null, `This is an invasive species. It is reported to the experts.`));
   } else {
     note.append(el("p", null, "We didn't find signs of the emerald ash borer. Great news! Your report still helps: it shows where trees were checked."));
   }
@@ -459,6 +478,7 @@ async function showResults() {
     return;
   }
   $("resultsArea").hidden = false;
+  if (found.eab || found.damage || found.signs || found.others.length) invasiveAlarm(true);   // red glow + siren; the words are in the box above (assets/app.js)
   resultsActions(["Send report", "primary", () => sendReport(found)], ["Back", "", closeResults]);
 }
 

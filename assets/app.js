@@ -786,6 +786,7 @@ async function startCamera() {
     cameraMessage("");
     setupZoom();
     setupFocus();
+    recheckControls(stream);
     $("shutter").disabled = false;
     $("useCameraApp").hidden = true;
     const cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
@@ -799,6 +800,20 @@ async function startCamera() {
       : "Couldn't start the camera here. You can use your camera app instead.");
     $("useCameraApp").hidden = false;
     $("switchCamera").hidden = true;
+  }
+}
+
+// Chrome on Android tells us about the camera's own zoom and focus a moment AFTER the camera
+// starts, so the first look can miss them (tap to focus then never turned on). Look again a few
+// times in the first 2 seconds. s = the camera we started with, so an old check stops when it changes.
+async function recheckControls(s) {
+  for (const wait of [250, 500, 1000]) {
+    await new Promise(r => setTimeout(r, wait));
+    if (stream !== s) return;
+    const caps = s.getVideoTracks()[0].getCapabilities?.() || {};
+    if (!realZoom && caps.zoom && caps.zoom.max > caps.zoom.min && zoom === 1) setupZoom();
+    if (!focusModes.length) setupFocus();
+    if (realZoom && focusModes.length) return;
   }
 }
 

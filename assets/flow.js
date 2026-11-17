@@ -417,27 +417,6 @@ async function showResults() {
   checked = list;
   const found = summarize(list);
 
-  for (const k of STEPS) {
-    const mine = list.filter(p => p.step === k);
-    const sec = el("section", "result-step");
-    sec.append(el("h3", null, `${STEP_ICON[k]} ${STEP_NAME[k]}`));
-    if (!mine.length) sec.append(el("p", "muted", "Skipped"));
-    for (const p of mine) {
-      // An emerald ash borer photo: the red alert below already says it, shows the readings, and has the big picture,
-      // so skip the small photo, the sentence, and the top 3 list
-      const eabAlert = p.step === "bug" && p.ai !== "ai" && p.verdict === "ok" && p.top3[0].confidence >= SURE && EAB.has(p.top3[0].species);
-      if (eabAlert) continue;
-      const row = el("div", "result-row"), img = el("img"), words = el("div");
-      img.src = p.url; img.alt = "";
-      words.append(el("p", null, photoLine(p)));
-      if (p.step !== "tree" && p.ai !== "ai") words.append(guessList(p.top3));
-      if (p.blurry && p.ai !== "ai") words.append(el("p", "muted", "A bit blurry, but we'll still send it."));
-      row.append(img, words);
-      sec.append(row);
-    }
-    body.append(sec);
-  }
-
   // The calm summary, and how to reach the experts directly if they want to
   const note = el("div", "result-note");
   // Every reading the AI had for each photo, big, with a percentage bar and "Is this right?"
@@ -460,15 +439,23 @@ async function showResults() {
   };
   if (found.eab || found.damage || found.signs) {
     note.classList.add("care");
-    note.append(el("p", "alert-line", `🚨 ${found.eab || found.damage ? "Emerald ash borer" : "Possible emerald ash borer"} detected`), alertBars());
-    const big = el("img", "alert-eab-img");   // a big picture of the beetle instead of words
+    note.append(el("p", "alert-line", `🚨 ${found.eab || found.damage ? "Emerald ash borer" : "Possible emerald ash borer"} detected`));
+    const big = el("img", "alert-eab-img");   // a big picture of the beetle at the top
     big.src = "assets/trees/eab-closeup.jpg";
     big.alt = "Emerald ash borer, a shiny green beetle";
-    note.append(big);
+    note.append(big, alertBars());
   } else if (found.others.length) {
-    note.append(el("p", "alert-line", `🚨 ${found.others.join(" and ")} detected`), alertBars(), el("p", null, `This is an invasive species. It is reported to the experts.`));
+    note.append(el("p", "alert-line", `🚨 ${found.others.join(" and ")} detected`));
+    const bug = list.find(p => p.step === "bug" && p.ai !== "ai" && p.verdict === "ok");
+    if (bug) { const big = el("img", "alert-eab-img"); big.src = bug.url; big.alt = "Your photo of the invasive insect"; note.append(big); }
+    note.append(alertBars(), el("p", null, `This is an invasive species. It is reported to the experts.`));
   } else {
     note.append(el("p", null, "We didn't find signs of the emerald ash borer. Great news! Your report still helps: it shows where trees were checked."));
+  }
+  // "Human in the loop" at the very bottom of the alert: one button per photo the AI read (assets/feedback.js)
+  if (window.Feedback && note.querySelector(".alert-line")) {
+    const shown = list.filter(p => p.ai !== "ai" && p.step !== "tree" && p.verdict === "ok");
+    for (const p of shown) note.append(window.Feedback.human(p, shown.length > 1 ? (p.step === "damage" ? "Signs of damage" : "The bug") : ""));
   }
   body.append(note);
 

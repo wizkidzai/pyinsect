@@ -315,6 +315,10 @@ function closeResults() {
 }
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("results").hidden && !sending) closeResults(); });
 
+// The button bar is moved up into the results (under the picture) while they show; put it back before the body is cleared
+function homeActions() { $("resultsArea").after($("resultsActions")); }
+$("resultsClose").onclick = () => { if (!sending) closeResults(); };
+
 function resultsActions(...buttons) {
   const bar = $("resultsActions"); bar.innerHTML = "";
   for (const [text, cls, onclick] of buttons) {
@@ -381,13 +385,14 @@ function summarize(list) {
 async function showResults() {
   const list = STEPS.flatMap(k => photos[k].map(p => ({ ...p, step: k })));
   const body = $("resultsBody");
+  homeActions();
   body.innerHTML = "";
   $("resultsArea").hidden = true;
   openResults();
   const title = el("h2", null, "Your results"); title.id = "resultsTitle";
   if (!list.length) {
     body.append(title, el("p", "big-note", "No activity"), el("p", null, "You skipped every step, so there's nothing to send. That's okay!"));
-    resultsActions(["See the map", "primary", () => { closeResults(); go("map"); }], ["Back", "", closeResults]);
+    resultsActions(["See the map", "primary", () => { closeResults(); go("map"); }]);
     return;
   }
   const wait = el("p", "checking", "Checking your photos…");
@@ -410,7 +415,7 @@ async function showResults() {
   } catch (e) {
     console.error(e);
     wait.textContent = "The AI couldn't check your photos. Check your internet and try again.";
-    resultsActions(["Try again", "primary", showResults], ["Back", "", closeResults]);
+    resultsActions(["Try again", "primary", showResults]);
     return;
   }
   wait.remove();
@@ -443,30 +448,25 @@ async function showResults() {
     const big = el("img", "alert-eab-img");   // a big picture of the beetle at the top
     big.src = "assets/trees/eab-closeup.jpg";
     big.alt = "Emerald ash borer, a shiny green beetle";
-    note.append(big, alertBars());
+    note.append(big, $("resultsActions"), alertBars());
   } else if (found.others.length) {
     note.append(el("p", "alert-line", `🚨 ${found.others.join(" and ")} detected`));
     const bug = list.find(p => p.step === "bug" && p.ai !== "ai" && p.verdict === "ok");
     if (bug) { const big = el("img", "alert-eab-img"); big.src = bug.url; big.alt = "Your photo of the invasive insect"; note.append(big); }
-    note.append(alertBars(), el("p", null, `This is an invasive species. It is reported to the experts.`));
+    note.append($("resultsActions"), alertBars(), el("p", null, `This is an invasive species. It is reported to the experts.`));
   } else {
-    note.append(el("p", null, "We didn't find signs of the emerald ash borer. Great news! Your report still helps: it shows where trees were checked."));
-  }
-  // "Human in the loop" at the very bottom of the alert: one button per photo the AI read (assets/feedback.js)
-  if (window.Feedback && note.querySelector(".alert-line")) {
-    const shown = list.filter(p => p.ai !== "ai" && p.step !== "tree" && p.verdict === "ok");
-    for (const p of shown) note.append(window.Feedback.human(p, shown.length > 1 ? (p.step === "damage" ? "Signs of damage" : "The bug") : ""));
+    note.append(el("p", null, "We didn't find signs of the emerald ash borer. Great news! Your report still helps: it shows where trees were checked."), $("resultsActions"));
   }
   body.append(note);
 
   if (!list.some(p => p.ai !== "ai")) {
     body.append(el("p", "muted", "There are no photos left to send."));
-    resultsActions(["Back", "primary", closeResults]);
+    resultsActions();
     return;
   }
   $("resultsArea").hidden = false;
   if (found.eab || found.damage || found.signs || found.others.length) invasiveAlarm(true);   // red glow + siren; the words are in the box above (assets/app.js)
-  resultsActions(["Send report", "primary", () => sendReport(found)], ["Back", "", closeResults]);
+  resultsActions(["Send report", "primary", () => sendReport(found)]);
 }
 
 // One report with every photo (except AI-made ones), then the map
@@ -488,6 +488,7 @@ async function sendReport(found) {
   const ok = queueReport({ report, photos: list.map(p => p.photo) }, detail);
   sending = false;
   const body = $("resultsBody");
+  homeActions();
   body.innerHTML = "";
   $("resultsArea").hidden = true;
   const title = el("h2", null, ok ? "✅ Report sent" : "Report not sent"); title.id = "resultsTitle";

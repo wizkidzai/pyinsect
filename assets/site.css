@@ -877,7 +877,7 @@ body.app.onboarding { padding-bottom: 0; overflow: hidden; }
 .overlay { position: fixed; top: 0; left: 0; right: 0; bottom: var(--menu-h); z-index: 120; overflow: auto; }
 .camera.overlay, .crop.overlay { border-radius: 0; padding: 12px max(12px, calc((100% - 820px) / 2)); background: var(--backdrop); }
 .camera.overlay .viewfinder { max-height: calc(100dvh - var(--menu-h) - 170px); }
-.crop.overlay .crop-stage img { max-height: calc(100dvh - var(--menu-h) - 200px); }
+.crop.overlay .crop-stage img { max-height: calc(100dvh - var(--menu-h) - 270px); }   /* 270px: the title, tip and buttons (2 rows on phones) */
 .sheet { display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(8, 12, 10, .55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .sheet-box { width: min(560px, 100%); max-height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 14px; padding: 20px; border-radius: 26px; background: var(--surface); box-shadow: var(--glass-shadow); }
 .results-close { position: sticky; top: 0; z-index: 2; align-self: flex-end; flex: none; width: 40px; height: 40px; margin-bottom: -10px; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .12); color: inherit; font-size: 20px; line-height: 1; cursor: pointer; }

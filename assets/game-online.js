@@ -313,7 +313,7 @@ function drawOnline() {
     const hp = el("div", "track"), fill = el("div", "fill" + (f.hp / f.max < 0.3 ? " low" : ""));
     fill.style.width = `${f.hp / f.max * 100}%`; hp.append(fill);
     const left = team.filter(x => x.hp > 0).length;
-    box.append(el("span", "muted", `${pl.look} ${pl.name}${pl.bot ? ` (${t("bot")})` : ""}`), el("span", "bug-emoji", SPECIES_FACTS[f.species].emoji),
+    box.append(el("span", "muted", `${pl.look} ${pl.name}${pl.bot ? ` (${t("bot")})` : ""}`), bugArt(f.species, "bug-emoji"),
       el("strong", null, `${commonName(f.species)}${f.level > 1 ? ` · ${t("Lv {lv}", { lv: f.level })}` : ""}`),
       el("span", "type-tag", t(TYPES[SPECIES_FACTS[f.species].group])),
       hp, el("span", "hp", `HP ${f.hp}/${f.max} · ${t(team.length === 1 ? "{n} of {total} bug left" : "{n} of {total} bugs left", { n: left, total: team.length })}`));

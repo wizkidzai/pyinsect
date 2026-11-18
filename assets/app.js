@@ -82,6 +82,10 @@ async function getLowresSession() {
 // sim is null when there's no fingerprint check (old models, or a low-res model without one).
 // cutoff is the "not in my list" line for the model that looked at the photo (the low-res model has its own).
 function verdictFor(best, sim, cutoff = MODEL.notInListCutoff) {
+  // Species that always count once the AI is this sure (%), even if the photo is blurry, small, or
+  // fails the "not in my list" check. Set in the model config (alwaysReport).
+  const always = MODEL.alwaysReport?.[best.species];
+  if (always != null && best.confidence >= always) return "ok";
   if (MODEL.otherClass && best.species === MODEL.otherClass) return "not_listed";
   if (sim != null && cutoff != null && sim < cutoff) return "not_listed";
   if (MODEL.minConfidence && best.confidence < MODEL.minConfidence) return "unable";

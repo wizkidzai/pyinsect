@@ -15,6 +15,9 @@ window.PYINSECT_MODEL = {
   scientific: true,     // class names are scientific names (show common + scientific)
   minConfidence: 50,    // below this % the answer is "Unable to determine"
   otherClass: "other_insect",   // if the model picks this, the answer is "Insect not in my list"
+  // Always report these when the AI is at least this sure (%), whatever the photo quality: they skip
+  // the "not in my list" check. Emerald ash borer at 60%+ (Nov 18 2026).
+  alwaysReport: { agrilus_planipennis: 60 },
   // The model file also gives "sim": how close the photo is to the nearest known insect
   // (the .notinlist.pt fingerprints). Below this it's "Insect not in my list" (keeps 95% of real photos).
   notInListCutoff: 0.49750953912734985,

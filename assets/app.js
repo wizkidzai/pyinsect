@@ -854,9 +854,9 @@ async function findFocusCamera(s) {
   $("shutter").disabled = true;
   cameraMessage("Finding the camera that can focus…");
   const video = $("cameraVideo");
-  let found = null;
+  let found = null, finished = true;
   for (const c of cams) {
-    if ($("camera").hidden) break;   // they closed the camera
+    if ($("camera").hidden) { finished = false; break; }   // they closed the camera before we tried them all
     let test;
     try { test = await navigator.mediaDevices.getUserMedia({ audio: false, video: { deviceId: { exact: c.deviceId }, ...BACK_SIZE } }); }
     catch { continue; }
@@ -870,7 +870,8 @@ async function findFocusCamera(s) {
     if (ok) { found = c.deviceId; break; }
   }
   camSearch = false;
-  store.set(CAM_KEY, found || "none");
+  // Only remember "none" if we really tried every camera. If they closed it early, look again next time.
+  if (found || finished) store.set(CAM_KEY, found || "none");
   if (!$("camera").hidden) startCamera();
 }
 

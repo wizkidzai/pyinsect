@@ -1083,6 +1083,10 @@ body[data-screen="game"] #screens { padding-top: 14px; }
 .alert-reading .track { grid-column: 1 / -1; height: 12px; background: rgba(255, 255, 255, .2); }
 .alert-reading:first-of-type .fill { background: linear-gradient(90deg, #ff6b5e, #ff0000); }
 .alert-reading .fill { background: rgba(255, 255, 255, .55); }
+/* Nothing invasive: the same readings, calm green instead of alarm red */
+.result-note .calm-line { font-family: var(--display); font-weight: 700; font-size: clamp(20px, 5vw, 26px); line-height: 1.2; color: var(--accent); margin: 0 0 10px; }
+.alert-readings.calm .track { background: rgba(127, 127, 127, .2); }
+.alert-readings.calm .alert-reading .fill, .alert-readings.calm .alert-reading:first-of-type .fill { background: var(--accent); }
 
 /* Emerald ash borer alert: a big photo of the beetle under the alert, no brown text */
 .result-note.care { background: rgba(255, 0, 0, .08); }

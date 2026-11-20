@@ -807,6 +807,7 @@ async function startCamera() {
     cameraMessage("");
     setupZoom();
     setupFocus();
+    setupTorch();
     recheckControls(stream);
     $("shutter").disabled = false;
     if ($("switchCamera")) {   // only the 2.7 page still has this button
@@ -893,9 +894,11 @@ async function recheckControls(s) {
     const caps = s.getVideoTracks()[0].getCapabilities?.() || {};
     if (!realZoom && caps.zoom && caps.zoom.max > caps.zoom.min && zoom === 1) setupZoom();
     if (!focusModes.length) setupFocus();
+    setupTorch();
     if (realZoom && focusModes.length) break;
   }
   if (stream !== s) return;
+  setupTorch();
   camDebug();
   if (!focusModes.length) findFocusCamera(s);   // this camera can't focus: look for one that can
 }
@@ -906,6 +909,38 @@ function stopStream() {
   $("cameraVideo").srcObject = null;
   resetZoom();
   resetFocus();
+  resetTorch();
+}
+
+// ---------- flash ----------
+// The phone's light, for dark places (under leaves, inside bark). Only phones that allow websites
+// to use it (mostly Android with Chrome) show the ⚡ button; iPhones don't. Same as the game camera.
+let torchOn = false;
+
+function setupTorch() {
+  if (!$("torchBtn") || !stream) return;
+  const caps = stream.getVideoTracks()[0].getCapabilities?.() || {};
+  $("torchBtn").hidden = !caps.torch;
+}
+
+function resetTorch() {   // the light goes off by itself when the camera stops
+  torchOn = false;
+  if (!$("torchBtn")) return;
+  $("torchBtn").hidden = true;
+  $("torchBtn").setAttribute("aria-pressed", "false");
+}
+
+if ($("torchBtn")) {
+  $("torchBtn").onclick = async () => {
+    if (!stream) return;
+    try {
+      await stream.getVideoTracks()[0].applyConstraints({ advanced: [{ torch: !torchOn }] });
+      torchOn = !torchOn;
+      $("torchBtn").setAttribute("aria-pressed", String(torchOn));
+    } catch {}
+  };
+  // A tap on the button isn't a tap to focus or the start of a pinch
+  $("torchBtn").addEventListener("pointerdown", e => e.stopPropagation());
 }
 
 // ---------- camera zoom ----------

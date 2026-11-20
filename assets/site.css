@@ -192,6 +192,10 @@ input[type=file] { display: none; }
 /* --zoom is the digital zoom (set by app.js); it stays 1 when the camera zooms by itself */
 .viewfinder video { width: 100%; height: 100%; object-fit: cover; display: block; transform: scale(var(--zoom, 1)); }
 .viewfinder video.mirror { transform: scaleX(-1) scale(var(--zoom, 1)); }
+/* Flash button in the corner of the camera view; yellow when the light is on */
+.torch-btn { position: absolute; top: 10px; right: 10px; z-index: 2; width: 48px; height: 48px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .7); background: rgba(0, 0, 0, .45); color: #fff; font-size: 22px; line-height: 1; cursor: pointer; }
+.torch-btn[aria-pressed="true"] { background: #ffd400; color: #000; border-color: #ffd400; }
+.torch-btn[hidden] { display: none; }
 .focus-ring { position: absolute; width: 72px; height: 72px; margin: -36px 0 0 -36px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(0, 0, 0, .35); pointer-events: none; animation: focus-ring .5s ease-out; }
 @keyframes focus-ring { from { transform: scale(1.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .focus-ring { animation: none; } }

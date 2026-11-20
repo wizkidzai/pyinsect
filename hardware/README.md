@@ -3,7 +3,7 @@
 **PyInsect Data Collector** builds photo datasets of insects. You put an insect on a turntable. A phone web app spins the turntable, changes the lighting and takes a photo at every angle. Then you review the photos and save them as a named folder.
 
 ```
-webapp/                 phone web app (plain HTML/CSS/JS, no build step)
+index.html, app.js, style.css   phone web app (plain HTML/CSS/JS, no build step)
 firmware/turntable/main.py       MicroPython controller used by the web app
 firmware/turntable/turntable.ino  Arduino alternative for the ESP32-C3
 ```
@@ -49,7 +49,7 @@ The turntable connects over **USB serial** using Web Serial, which works in **Ch
 **Android phones (Samsung Galaxy etc.):** use **Chrome** and a plain **USB-C to USB-C cable** from the phone to the ESP32-C3's USB-C port. The app uses WebUSB there. Press *Connect turntable*, pick the ESP32 and tap *Allow*. If the ESP32 board has its own 5V supply, use it for big servos, since a phone gives limited power.
 
 ```
-cd webapp && python3 -m http.server 8000
+python3 -m http.server 8000
 ```
 Open `http://localhost:8000`. The first time you press **Capture Dataset**, pick the ESP32's port (often "USB JTAG/serial debug unit"). After that it reconnects automatically. Close the Arduino Serial Monitor first, because only one program can use the port at a time.
 

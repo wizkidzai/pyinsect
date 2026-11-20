@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#14241b">
+  <title>PyInsect</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+
+<!-- ============ INTRO ============ -->
+<main id="screen-intro" class="screen active">
+  <header class="hero">
+    <h1>PyInsect</h1>
+    <p>Put the insect on the turntable and press the button. Photos are taken while it spins and the light changes by itself.</p>
+  </header>
+
+  <ol class="steps">
+    <li><b>1 · Capture</b>500 photos are taken while the turntable spins and the lighting changes (dim, dark, bright, flashlight).</li>
+    <li><b>2 · Review</b>Look through the photos. Tap one to remove it.</li>
+    <li><b>3 · Save</b>Name the folder after the insect and save it as a .zip.</li>
+  </ol>
+
+  <div class="launch">
+    <button id="capture" class="primary big">Take photos</button>
+    <label class="slider">
+      <span>Time <output id="interval-out">8 s</output></span>
+      <input type="range" id="interval" min="4" max="30" step="1" value="8">
+    </label>
+    <p id="estimate" class="hint center"></p>
+  </div>
+
+  <section class="card turntable-card">
+    <div class="card-head">
+      <h2>Turntable</h2>
+      <span id="tt-status" class="pill">Not connected</span>
+    </div>
+    <button id="tt-connect" class="secondary wide">Connect turntable</button>
+    <details class="calibrate">
+      <summary>Calibrate</summary>
+      <label class="field">Time for one full spin (ms)
+        <input id="cal-ms" type="number" inputmode="numeric" min="500" max="60000" step="50" value="6000">
+      </label>
+      <label class="field">Speed (negative reverses)
+        <input id="cal-speed" type="number" inputmode="numeric" min="-500" max="500" step="5" value="250">
+      </label>
+      <label class="field">Stop trim
+        <input id="cal-trim" type="number" inputmode="numeric" min="-100" max="100" step="1" value="0">
+      </label>
+      <div class="btn-row">
+        <button type="button" id="cal-save" class="primary">Save</button>
+        <button type="button" id="cal-stop" class="danger">Stop</button>
+        <button type="button" id="cal-90" class="secondary">Spin 90°</button>
+        <button type="button" id="cal-360" class="secondary">Spin 360°</button>
+      </div>
+    </details>
+  </section>
+</main>
+
+<!-- ============ CAPTURE ============ -->
+<main id="screen-camera" class="screen camera">
+  <div id="light-overlay" aria-hidden="true"></div>
+  <video id="video" playsinline muted autoplay></video>
+  <span id="run-tt" class="glass run-pill"></span>
+  <img id="last-shot" class="last-shot" alt="" hidden>
+
+  <section class="panel run">
+    <div class="hud-top">
+      <span class="step-tag">Taking photos</span>
+      <span id="hud-count">0 / 500</span>
+    </div>
+    <div class="bar"><div id="hud-bar"></div></div>
+    <p id="hud-main" class="hud-main">Starting camera…</p>
+    <p id="hud-sub" class="hud-sub"></p>
+    <button id="stop" class="danger wide">Stop</button>
+  </section>
+</main>
+
+<!-- ============ GALLERY ============ -->
+<main id="screen-gallery" class="screen">
+  <header class="page-head">
+    <span class="step-tag">Review</span>
+    <h2>Your photos</h2>
+    <p id="gallery-count" class="hint"></p>
+  </header>
+  <div id="gallery" class="gallery"></div>
+  <div class="footer-bar">
+    <button id="gallery-restart" class="secondary">Start over</button>
+    <button id="gallery-next" class="primary">Next: name folder</button>
+  </div>
+</main>
+
+<!-- ============ NAME ============ -->
+<main id="screen-name" class="screen">
+  <header class="page-head">
+    <span class="step-tag">Save</span>
+    <h2>Which insect is this?</h2>
+      </header>
+  <section class="card">
+    <label class="field">Folder name
+      <input id="folder-name" type="text" placeholder="e.g. ladybug" autocomplete="off" autocapitalize="none" maxlength="60">
+    </label>
+    <p id="name-preview" class="hint mono"></p>
+    <button id="save-zip" class="primary wide" disabled>Save folder (.zip)</button>
+    <button id="share-zip" class="secondary wide" hidden disabled>Share…</button>
+    <p id="save-status" class="hint"></p>
+  </section>
+  <div class="footer-bar">
+    <button id="name-back" class="secondary">Back to gallery</button>
+    <button id="name-new" class="secondary">Collect another insect</button>
+  </div>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

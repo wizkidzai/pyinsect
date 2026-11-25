@@ -57,4 +57,4 @@ Open `http://localhost:8000`. The first time you press **Start**, pick the ESP32
 The app no longer has calibration controls. It uses the settings already stored on the turntable. To change them, send `C<ms>` (time for one spin), `V<us>` (speed) or `T<us>` (stop trim) from a serial monitor.
 
 ## Using it offline on a phone
-Open https://wizkidzai.github.io/pyinsect/datacollector/ once with internet, then use the browser menu's **Add to Home screen**. After that it opens and takes photos with no internet.
+Open https://wizkidzai.github.io/pyinsect/datacollector/ once with internet, then tap **📲 Download app** (on iPhone, it shows how to use **Share → Add to Home Screen**). After that it opens and takes photos with no internet.

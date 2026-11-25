@@ -1191,3 +1191,38 @@ turntable.autoConnect();
 
 // Keep a copy of this page on the phone, so it opens with no internet.
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+/* ------------------------------------------------------------------ */
+/* "Download app" button: puts the Data Collector on the home screen   */
+/* ------------------------------------------------------------------ */
+let installPrompt = null;   // Chrome and Edge give us this when the app can be installed
+const installBtn = $('#install'), installHelp = $('#install-help');
+// Opened from the home screen: it's already installed, so there's nothing to download.
+installBtn.hidden = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPrompt = e;
+  installHelp.hidden = true;
+});
+window.addEventListener('appinstalled', () => {
+  installPrompt = null;
+  installBtn.hidden = true;
+  installHelp.hidden = true;
+  toast('App installed. Look for “Data Collector” on your home screen.', 6000);
+});
+
+installBtn.addEventListener('click', async () => {
+  if (installPrompt) {
+    const prompt = installPrompt;
+    installPrompt = null;   // each one can only be used once
+    prompt.prompt();
+    return;
+  }
+  // iPhones, and browsers that don't offer the pop-up: say where the menu item is.
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  installHelp.textContent = ios
+    ? 'In Safari, tap the Share button, then “Add to Home Screen”.'
+    : 'Open the browser menu (⋮), then tap “Install app” or “Add to Home screen”. If it is already installed, look for “Data Collector” with your other apps.';
+  installHelp.hidden = false;
+});

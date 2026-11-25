@@ -10,9 +10,9 @@
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
   <!-- Bump ?v= whenever app.js or style.css changes, so phones load the new copy instead of a cached one. -->
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=8">
   <script src="jszip.min.js"></script>
-  <script src="app.js?v=15" defer></script>
+  <script src="app.js?v=16" defer></script>
 </head>
 <body>
 
@@ -31,6 +31,8 @@
 
   <div class="launch">
     <button id="capture" class="primary big">Start</button>
+    <button id="install" class="secondary wide" type="button">📲 Download app</button>
+    <p id="install-help" class="hint" hidden></p>
   </div>
 
   <p class="center"><span id="tt-status" class="pill">Not connected</span></p>

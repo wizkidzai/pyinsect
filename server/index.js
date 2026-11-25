@@ -69,6 +69,13 @@ const AVATARS = ["🦊", "🐸", "🐼", "🐯", "🦉", "🐢", "🐙", "🦄",
 const pick = list => list[Math.floor(Math.random() * list.length)];
 const randomName = () => `${pick(ADJECTIVES)}${pick(NOUNS)}${1 + Math.floor(Math.random() * 99)}`;
 const NAME_RE = /^[A-Z][a-z]+[A-Z][a-z]+\d{1,2}$/;
+// The avatars a player can pick. Must match AVATARS in assets/game.js (node scripts/check.js checks),
+// plus 🙂 for "no avatar yet". Anything else shows as 🙂, so nobody can send words as an avatar.
+const PLAYER_AVATARS = ["🧢", "🦊", "🐸", "🦉", "🐢", "🦄", "🐼", "🤖", "🙂"];
+
+// ---------- keeping information only as long as needed (see part 9 of privacy.html) ----------
+const DAY_MS = 24 * 60 * 60 * 1000;
+const KEEP_DAYS = 365;              // players who haven't been online for this long are deleted
 
 // ---------- bots ----------
 const BOT_COUNT = 20;
@@ -174,6 +181,7 @@ export class Lobby extends DurableObject {
     if (!conn.id || this.conns.get(conn.id) !== conn) return;
     const id = conn.id;
     if (m.t === "name") return this.chooseName(conn, m.name);
+    if (m.t === "forget") return this.forget(conn);
     const me = this.player(id);
     if (!me?.name) return;
     switch (m.t) {
@@ -210,6 +218,7 @@ export class Lobby extends DurableObject {
     if (!p) { this.sql.exec("INSERT INTO players (id, look, created, seen) VALUES (?, ?, ?, ?)", id, conn.card.look, Date.now(), Date.now()); p = this.player(id); }
     this.sql.exec("UPDATE players SET seen = ?, look = ? WHERE id = ?", Date.now(), conn.card.look, id);
     this.changed(id); p = this.player(id);
+    await this.planCleanup();
     if (!p.name) return this.offerNames(conn);
     this.welcome(id);
   }
@@ -237,7 +246,41 @@ export class Lobby extends DurableObject {
   onClose(conn) {
     if (!conn.id || this.conns.get(conn.id) !== conn) return;
     this.conns.delete(conn.id);
+    this.sql.exec("UPDATE players SET seen = ? WHERE id = ?", Date.now(), conn.id);
+    this.changed(conn.id);
     this.leave(conn.id);
+  }
+
+  // ---------- deleting players ----------
+  // "Delete my online account": the player's name, avatar, wins, friends, and friend requests are
+  // deleted. Their device forgets its secret key, so next time they're a new player.
+  forget(conn) {
+    const id = conn.id;
+    this.reply(conn, { t: "forgotten" });
+    this.conns.delete(id);
+    this.leave(id);   // ends their battle, leaves queues and rooms, and tells their friends
+    this.deletePlayers([id]);
+    try { conn.ws.close(1000, "deleted"); } catch {}
+  }
+  deletePlayers(ids) {
+    for (const id of ids) {
+      this.friendsChanged(id);   // their friends get a new list without them (on the next tick)
+      this.sql.exec("DELETE FROM friends WHERE a = ? OR b = ?", id, id);
+      this.sql.exec("DELETE FROM players WHERE id = ? AND bot = 0", id);
+      this.changed(id);
+    }
+    this.lobbyChanged();
+  }
+  // Players who haven't been online for KEEP_DAYS are deleted. Cloudflare wakes the server once a
+  // day for this (an "alarm"), as long as there are players left to check.
+  async planCleanup() {
+    if (await this.ctx.storage.getAlarm() == null) await this.ctx.storage.setAlarm(Date.now() + DAY_MS);
+  }
+  async alarm() {
+    const old = this.sql.exec("SELECT id FROM players WHERE bot = 0 AND seen < ?", Date.now() - KEEP_DAYS * DAY_MS)
+      .toArray().map(p => p.id).filter(id => !this.conns.has(id));
+    this.deletePlayers(old);
+    if (this.sql.exec("SELECT COUNT(*) AS n FROM players WHERE bot = 0").one().n) await this.ctx.storage.setAlarm(Date.now() + DAY_MS);
   }
   // A player went offline: end their battle, leave queues, rooms, and challenges
   leave(id) {
@@ -538,5 +581,5 @@ function checkCard(m) {
   if (!m || !Array.isArray(m.team)) return null;
   const team = m.team.slice(0, TEAM_SIZE)
     .filter(f => Array.isArray(f) && SPECIES[f[0]] && Number.isInteger(f[1]) && f[1] >= 1 && f[1] <= MAX_LEVEL);
-  return { look: typeof m.look === "string" && [...m.look].length <= 4 ? m.look : "🙂", team, cheer: Math.max(0, Math.min(2, Number(m.cheer) || 0)) };
+  return { look: PLAYER_AVATARS.includes(m.look) ? m.look : "🙂", team, cheer: Math.max(0, Math.min(2, Number(m.cheer) || 0)) };
 }

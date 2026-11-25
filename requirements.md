@@ -875,3 +875,37 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] Moving to another screen shows up as a new page, like `/pyinsect/#map`.
   - [ ] The browser saves no cookies for the site (F12 → Application → Cookies is empty).
   - [ ] No photos, reports, or locations are sent to GoatCounter.
+
+## Innvadex: delete my online account
+
+- **Status:** Building
+- **Asked by:** Ashwin, 2026-11-24
+- **Who it's for:** Every Innvadex player who has gone online, and their parents.
+- **Problem or need:** The game server keeps each player's online name, avatar, wins, friends, and when
+  they were last online forever. There was no way to delete it, and clearing the browser's data
+  doesn't remove it from the server.
+- **Why they have it:** Privacy laws (COPPA in the U.S., GDPR in Europe) say to keep information only as
+  long as it's needed, and to let people delete it. Many of our players are kids.
+- **Our idea:**
+  - A **"Delete my online account"** button at the bottom of the Online lobby. It asks first, then the
+    server deletes your name, wins, friends, and friend requests. Your bugs, badges, and points on your
+    device stay. Next time you go online, you pick a new name.
+  - The server deletes players who haven't been online for **1 year**, once a day.
+  - The server only accepts the game's real avatars (so nobody can send words as an avatar).
+  - The privacy policy says what the server keeps, who sees it, and how long it's kept.
+- **Other ideas we talked about:**
+  - Delete players when they clear the browser's data: the server can't know when that happens.
+  - Keep everything forever: simplest, but it breaks the privacy rules.
+- **User flow:**
+  1. Game screen → Battles → "Online lobby" → **Go online**.
+  2. Scroll to the bottom and tap **Delete my online account**.
+  3. Read what gets deleted. Tap **Yes, delete it** (or **Keep my account** to go back).
+  4. A message says the account is deleted, and you're offline.
+  5. Go online again: you pick a new name, with no wins and no friends.
+  6. If the server doesn't answer, a message says to try again later, and nothing is deleted on your device.
+- **Done when:**
+  - [ ] After deleting, your old name can't be found with "Find a player", and your friends don't see you anymore.
+  - [ ] Going online again asks you to pick a new name.
+  - [ ] A player who hasn't been online for a year is deleted from the server.
+  - [ ] An avatar that isn't one of the game's avatars shows as 🙂.
+  - [ ] A grown-up redeployed the game server before this was merged.

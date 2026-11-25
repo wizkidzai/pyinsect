@@ -111,6 +111,7 @@ function onNet(m) {
       if (!net.challenges.some(c => c.name === m.name)) net.challenges.push({ name: m.name, look: m.look });
       sound("click"); return refreshLobby();
     case "info": net.note = infoText(m); return net.view === "lobby" ? refreshLobby() : null;
+    case "forgotten": return onForgotten();
     case "match": return onMatch(m);
     case "matchEnd": return onMatchEnd(m);
     case "error":
@@ -159,6 +160,17 @@ function showView() {
     openPopup([title, ...(w.kind === "room"
       ? [el("p", null, t("Tell your friend this code. They tap Join a room and type it:")), el("p", "room-code", w.code), el("p", "muted", t("Waiting for your friend…"))]
       : [el("p", null, t("Looking for a player…")), el("p", "muted", t("If nobody comes in a few seconds, a bot will battle you."))]), cancel], [["Close", false]]);
+  } else if (net.view === "forget") {
+    // "Delete my online account": ask first (Close leaves the lobby, like everywhere else)
+    const yes = el("button", "btn primary", t("Yes, delete it")); yes.type = "button"; yes.onclick = forgetMe;
+    const keep = el("button", "btn", t("Keep my account")); keep.type = "button"; keep.onclick = () => { net.view = "lobby"; showView(); };
+    const btns = el("div", "actions"); btns.append(yes, keep);
+    openPopup([el("h2", null, t("Delete your online account?")),
+      el("p", null, t("This removes your online name, wins, and friends from the game server. You can't undo it.")),
+      el("p", "muted", t("Your bugs, badges, and points on this device stay. Next time you go online, you'll pick a new name.")), btns],
+      [["Close", false]]);
+  } else if (net.view === "deleting") {
+    openPopup([title, el("p", "muted", t("Deleting your online account…"))], [["Close", false]]);
   } else if (net.view === "lobby") return showLobby();
   else if (net.view === "battle") return showBattleView();
   popupDone = closeLobby;
@@ -185,9 +197,36 @@ function showLobby() {
   const join = form(t("Join a room"), "ABCD", 4, code => sendNet({ t: "join", code }));
   join.querySelector("input").classList.add("code");
   const find = form(t("Find a player"), "BraveBeetle42", 30, name => { net.found = null; sendNet({ t: "find", name }); });
-  openPopup([el("h2", null, `🌐 ${t("Online lobby")}`), head, play, join, find, ui.note, ui.lists], [["Leave lobby", false]]);
+  const forget = el("button", "link", t("Delete my online account")); forget.type = "button";
+  forget.onclick = () => { net.view = "forget"; showView(); };
+  openPopup([el("h2", null, `🌐 ${t("Online lobby")}`), head, play, join, find, ui.note, ui.lists, forget], [["Leave lobby", false]]);
   popupDone = closeLobby;
   refreshLobby();
+}
+
+// Delete my online account: the server deletes it and says "forgotten". Only then does this device
+// forget its secret key. If the server doesn't answer, nothing is deleted here, so you can try again.
+function forgetMe() {
+  net.view = "deleting"; showView();
+  sendNet({ t: "forget" });
+  clearTimeout(net.forgetTimer);
+  net.forgetTimer = setTimeout(() => {
+    if (net.view !== "deleting") return;
+    closeLobby();
+    net.note = t("Couldn't delete your online account right now. Try again later.");
+    net.view = "offline"; showView();
+  }, 10000);
+}
+function onForgotten() {
+  clearTimeout(net.forgetTimer);
+  store.del(ONLINE_KEY);
+  net.friends = { list: [], incoming: [], outgoing: [] }; net.challenges = []; net.found = null;
+  closeLobby();
+  openPopup([el("h2", null, t("Your online account is deleted.")),
+    el("p", null, t("Your name, wins, and friends are gone from the game server.")),
+    el("p", "muted", t("Your bugs, badges, and points on this device stay. Next time you go online, you'll pick a new name."))],
+    [["OK", true]]);
+  popupDone = null;
 }
 
 // One person in a list: avatar, name, what they're doing, and buttons

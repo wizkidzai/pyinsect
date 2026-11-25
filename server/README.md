@@ -4,6 +4,10 @@ The online lobby for the Innvadex game: who's online, "Find a match", challenges
 codes, friends, live battles, watching battles, and about 20 bots. The code is `index.js`; the
 page side is `assets/game-online.js`.
 
+**Privacy:** players get made-up names and there's no chat. "Delete my online account" in the lobby
+deletes a player's name, wins, and friends right away, and the server deletes players who haven't been
+online for 1 year (it checks once a day with a Durable Object alarm). See part 4 of `privacy.html`.
+
 It's a Cloudflare Worker with one Durable Object, on Cloudflare's **free plan** (no card). Free
 limits: 100,000 requests a day. If it ever goes over, it just stops until the next day; it never
 costs money.

@@ -110,6 +110,22 @@ const listIn = (text, start) => {
     "make snapToGrid, AREA_DEG and SPOT_DEG in assets/app.js and relay/worker.js exactly the same. A grown-up then redeploys the relay.");
 }
 
+// 2d. The game server accepts every avatar the game offers (plus 🙂 for "no avatar yet"), and nothing else
+if (fs.existsSync("server/index.js") && fs.existsSync("assets/game.js")) {
+  const problems = [];
+  const game = listIn(fs.readFileSync("assets/game.js", "utf8"), "const AVATARS = [");
+  const server = listIn(fs.readFileSync("server/index.js", "utf8"), "const PLAYER_AVATARS = [");
+  if (!game) problems.push("couldn't find AVATARS in assets/game.js");
+  if (!server) problems.push("couldn't find PLAYER_AVATARS in server/index.js");
+  if (game && server) {
+    const want = [...game, "🙂"];
+    for (const a of want) if (!server.includes(a)) problems.push(`${a} is an avatar in assets/game.js but not in PLAYER_AVATARS in server/index.js`);
+    for (const a of server) if (!want.includes(a)) problems.push(`${a} is in PLAYER_AVATARS in server/index.js but isn't an avatar in assets/game.js`);
+  }
+  report("Avatars match the game server", problems,
+    "make PLAYER_AVATARS in server/index.js the same as AVATARS in assets/game.js, plus 🙂. A grown-up then redeploys the game server.");
+}
+
 // 3. No secrets (this code is public)
 {
   const SECRET = new RegExp([

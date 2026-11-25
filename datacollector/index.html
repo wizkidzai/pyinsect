@@ -3,14 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#14241b">
+  <meta name="theme-color" content="#2f6b45">
   <title>PyInsect Data Collector</title>
   <meta name="apple-mobile-web-app-title" content="Data Collector">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
+  <!-- Same fonts as the website. sw.js saves them for offline use. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Devanagari:wght@400;600&display=swap">
   <!-- Bump ?v= whenever app.js or style.css changes, so phones load the new copy instead of a cached one. -->
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
   <script src="jszip.min.js"></script>
   <script src="app.js?v=19" defer></script>
 </head>
@@ -18,14 +22,25 @@
 
 <!-- ============ INTRO ============ -->
 <main id="screen-intro" class="screen active">
-  <header class="hero">
-    <h1>PyInsect Data Collector</h1>
+  <div class="glass-card">
+  <header class="brand">
+    <svg aria-hidden="true" viewBox="0 0 64 64">
+      <rect width="64" height="64" rx="14" fill="#2f6b45"/>
+      <g stroke="#f3f5ef" stroke-width="3.2" stroke-linecap="round" fill="none">
+        <path d="M27 15 22 8M37 15 42 8"/>
+        <path d="M21 29 12 25M21 37 11 37M22 45 13 51M43 29 52 25M43 37 53 37M42 45 51 51"/>
+      </g>
+      <circle cx="32" cy="19" r="6" fill="#f3f5ef"/>
+      <ellipse cx="32" cy="39" rx="12.5" ry="16" fill="#f3f5ef"/>
+      <path d="M32 25v29" stroke="#2f6b45" stroke-width="2.6" stroke-linecap="round"/>
+    </svg>
+    <h1><span class="eyebrow">Pyinsect</span> Data Collector</h1>
   </header>
 
   <ol class="steps">
-    <li><b>1</b>Put the insect on the turntable, type its name and press Start.</li>
-    <li><b>2</b>Hold the bug in the ring. The camera zooms in on it and takes the photos.</li>
-    <li><b>3</b>The photos are sent to the computer by themselves.</li>
+    <li><b>1</b><span>Put the insect on the turntable, type its name and press Start.</span></li>
+    <li><b>2</b><span>Hold the bug in the ring. The camera zooms in on it and takes the photos.</span></li>
+    <li><b>3</b><span>The photos are sent to the computer by themselves.</span></li>
   </ol>
 
   <div class="launch">
@@ -33,6 +48,7 @@
       <input id="insect-name" type="text" placeholder="e.g. ladybug" autocomplete="off" autocapitalize="none" maxlength="60">
     </label>
     <button id="capture" class="primary big">Start</button>
+  </div>
   </div>
 </main>
 
@@ -51,6 +67,7 @@
 
 <!-- ============ SEND ============ -->
 <main id="screen-send" class="screen">
+  <div class="glass-card">
   <h1 id="send-title">Sending</h1>
   <h2>Computers</h2>
   <div id="rig-list" class="rig-list"></div>
@@ -59,6 +76,7 @@
     <p id="send-pill" class="send-pill">Auto sends</p>
     <!-- Only shows if no computer answers, so the photos are never stuck -->
     <button id="save-zip" class="secondary wide" type="button" hidden>Save to phone instead</button>
+  </div>
   </div>
 </main>
 

@@ -10,9 +10,9 @@
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
   <!-- Bump ?v= whenever app.js or style.css changes, so phones load the new copy instead of a cached one. -->
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
   <script src="jszip.min.js"></script>
-  <script src="app.js?v=16" defer></script>
+  <script src="app.js?v=17" defer></script>
 </head>
 <body>
 
@@ -20,101 +20,42 @@
 <main id="screen-intro" class="screen active">
   <header class="hero">
     <h1>PyInsect Data Collector</h1>
-    <p>Put the insect on the turntable and press Start. Photos are taken while it spins and the light changes by itself.</p>
   </header>
 
   <ol class="steps">
-    <li><b>1 · Capture</b>Press Start. Zoom in on the bug, then the photos are taken while the turntable spins and the lighting changes (dim, dark, bright, flashlight).</li>
-    <li><b>2 · Review</b>Look through the photos. Tap one to remove it.</li>
-    <li><b>3 · Save</b>Save the photo folder as a .zip.</li>
+    <li><b>1</b>Put the insect on the turntable and press Start.</li>
+    <li><b>2</b>Hold the bug in the ring while the photos are taken.</li>
+    <li><b>3</b>The photos are sent to the computer by themselves.</li>
   </ol>
 
   <div class="launch">
     <button id="capture" class="primary big">Start</button>
-    <button id="install" class="secondary wide" type="button">📲 Download app</button>
-    <p id="install-help" class="hint" hidden></p>
   </div>
-
-  <p class="center"><span id="tt-status" class="pill">Not connected</span></p>
 </main>
 
 <!-- ============ CAPTURE ============ -->
 <main id="screen-camera" class="screen camera">
   <div id="light-overlay" aria-hidden="true"></div>
   <div id="preview" class="preview"><video id="video" playsinline muted autoplay></video></div>
-  <div id="frame-guide" class="frame-guide" aria-hidden="true" hidden></div>
-  <span id="run-tt" class="glass run-pill"></span>
-  <img id="last-shot" class="last-shot" alt="" hidden>
+  <div id="frame-guide" class="frame-guide" aria-hidden="true"></div>
 
   <section class="panel run">
-    <div class="hud-top">
-      <span class="step-tag">Taking photos</span>
-      <span id="hud-count">0 / 500</span>
-    </div>
+    <p id="hud-count" class="hud-main">Photos taken: 0</p>
     <div class="bar"><div id="hud-bar"></div></div>
-    <p id="hud-main" class="hud-main">Starting camera…</p>
-    <p id="hud-sub" class="hud-sub"></p>
-    <div id="frame-controls" class="frame-controls" hidden>
-      <label class="slider">
-        <span>Zoom <output id="zoom-out">1.0×</output></span>
-        <input type="range" id="zoom" min="1" max="4" step="0.1" value="1">
-      </label>
-      <button id="start-burst" class="primary wide">Start</button>
-    </div>
-    <button id="stop" class="danger wide">Stop</button>
+    <p id="hud-sub" class="hud-sub">Starting camera…</p>
   </section>
 </main>
 
-<!-- ============ GALLERY ============ -->
-<main id="screen-gallery" class="screen">
-  <header class="page-head">
-    <span class="step-tag">Review</span>
-    <h2>Your photos</h2>
-    <p id="gallery-count" class="hint"></p>
-  </header>
-  <div id="gallery" class="gallery"></div>
-  <div class="footer-bar">
-    <button id="gallery-restart" class="secondary">Start over</button>
-    <button id="gallery-next" class="primary">Next: save folder</button>
-  </div>
-</main>
-
-<!-- ============ NAME ============ -->
-<main id="screen-name" class="screen">
-  <header class="page-head">
-    <span class="step-tag">Save</span>
-    <h2>Which insect is this?</h2>
-      </header>
-  <section class="card">
-    <label class="field">Folder name
-      <input id="folder-name" type="text" placeholder="e.g. ladybug" autocomplete="off" autocapitalize="none" maxlength="60">
-    </label>
-    <p id="name-preview" class="hint mono"></p>
-    <button id="save-zip" class="primary wide" disabled>Save folder (.zip)</button>
-    <label class="field">Send over
-      <select id="send-via">
-        <option value="auto">Automatic (USB cable, then hotspot)</option>
-        <option value="usb">USB cable</option>
-        <option value="hotspot">Hotspot (Wi-Fi)</option>
-      </select>
-    </label>
-    <div class="field" id="hotspot-field" hidden>
-      <span>Computers on the hotspot</span>
-      <button id="find-rigs" class="secondary" type="button">Find computers</button>
-      <div id="rig-list" class="rig-list"></div>
-      <p id="rig-status" class="hint"></p>
-      <details>
-        <summary class="hint">Type an address instead</summary>
-        <input id="hotspot-addr" type="text" value="" placeholder="e.g. 192.168.43.7:8090" autocomplete="off" autocapitalize="none" spellcheck="false">
-      </details>
-    </div>
-    <button id="send-pc" class="secondary wide" disabled>Send to computer</button>
-    <button id="share-zip" class="secondary wide" hidden disabled>Share…</button>
-    <p id="save-status" class="hint"></p>
-  </section>
-  <div class="footer-bar">
-    <button id="name-back" class="secondary">Back to gallery</button>
-    <button id="name-new" class="secondary">Collect another insect</button>
+<!-- ============ SEND ============ -->
+<main id="screen-send" class="screen">
+  <h1 id="send-title">Sending</h1>
+  <h2>Computers</h2>
+  <div id="rig-list" class="rig-list"></div>
+  <p id="save-status" class="hint" role="status"></p>
+  <div class="send-foot">
+    <p id="send-pill" class="send-pill">Auto sends</p>
+    <!-- Only shows if no computer answers, so the photos are never stuck -->
+    <button id="save-zip" class="secondary wide" type="button" hidden>Save to phone instead</button>
   </div>
 </main>
 

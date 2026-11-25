@@ -10,13 +10,11 @@ firmware/turntable/turntable.ino  Arduino alternative for the ESP32-C3
 
 ## User flow
 
-1. **Capture**: press **Start**. That is the only control on the first screen. The app takes 50 photos in 8 seconds, connects to the turntable over USB and opens the camera.
-   - **Zoom in on the bug**: the camera opens with a **Zoom** slider. Put the bug in the ring in the middle, zoom until it fills the picture, then press **Start** (or **Cancel**). The preview shows exactly what the photos keep. Phones with real camera zoom use it. Other cameras use a digital zoom that saves only the centre of each frame.
-   - The turntable spins while the app takes the photos as a fast burst. If the phone can't keep up, the burst still ends on time (fewer photos) so the angles stay correct. The lighting changes automatically:
-   - Camera with a flashlight (phone): the exposure steps through normal, dim, dark, bright and very bright, while the flashlight strobes on and off every 0.2 s on its own clock, independent of the number of photos and the burst time. Flashlight photos end in `_flash` (e.g. `dim_flash`). The strobe starts over at each exposure level, and the app adjusts its speed when needed (shown under the sliders) so every level gets both kinds of photo. Photos taken while the light is still switching are labelled `changing` instead of being guessed, so the `_flash` / no-flash labels can be trusted. The gallery shows how many there were and the strobe speed the phone really managed
+1. **Start**: the only button. The app connects to the turntable over USB and opens the camera.
+2. **Photos**: put the bug in the ring. After 3 seconds the app takes 50 photos in 8 seconds while the turntable spins, and shows how many are taken. There is no zoom.
+   - Camera with a flashlight (phone): the exposure steps through normal, dim, dark, bright and very bright, while the flashlight strobes on and off every 0.2 s on its own clock. Flashlight photos end in `_flash`. Photos taken while the light is switching are labelled `changing`.
    - No flashlight (laptop webcam): the screen glows white, warm and cool, plus room light
-2. **Review**: a gallery shows every photo. Tap a photo to remove it.
-3. **Save**: files are named `insect` unless you type a different folder name. The app saves `<name>.zip`, which holds `<name>/<name>_001_000p0deg_flash.jpg …` and a `labels.csv` (file, insect, angle, lighting, time).
+3. **Sending**: the app zips the photos (named `insect`, with a `labels.csv`) and sends them to the computer by itself: first over the USB cable, then over the hotspot or Wi-Fi. The first time, tap **Allow** if Chrome asks about the local network. If no computer answers it keeps trying, and **Save to phone instead** downloads the zip.
 
 ## Turntable hardware
 
@@ -57,4 +55,4 @@ Open `http://localhost:8000`. The first time you press **Start**, pick the ESP32
 The app no longer has calibration controls. It uses the settings already stored on the turntable. To change them, send `C<ms>` (time for one spin), `V<us>` (speed) or `T<us>` (stop trim) from a serial monitor.
 
 ## Using it offline on a phone
-Open https://wizkidzai.github.io/pyinsect/datacollector/ once with internet, then tap **📲 Download app** (on iPhone, it shows how to use **Share → Add to Home Screen**). After that it opens and takes photos with no internet.
+Open https://wizkidzai.github.io/pyinsect/datacollector/ once with internet, then use the browser menu's **Add to Home screen**. After that it opens and takes photos with no internet.

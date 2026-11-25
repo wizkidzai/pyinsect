@@ -257,5 +257,10 @@ input[type=range] { width: 100%; accent-color: var(--accent); height: 32px; }
 .rig-list button.picked { border-color: #4cc072; }
 .rig-list small { display: block; opacity: 0.7; }
 
-/* "Download app" button: hidden once the app is installed */
-#install[hidden], #install-help[hidden] { display: none; }
+/* ---------- send screen ---------- */
+#screen-send.active { display: flex; flex-direction: column; gap: 16px; max-width: 640px; margin: 0 auto; text-align: center; }
+#screen-send .rig-list { min-height: 56px; }
+.computer { padding: 14px; border-radius: 12px; border: 2px solid var(--accent); font-weight: 600; }
+.send-foot { margin-top: auto; display: grid; gap: 10px; }
+.send-pill { margin: 0; padding: 18px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 1.2rem; }
+#save-zip[hidden] { display: none; }

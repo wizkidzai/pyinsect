@@ -1,10 +1,10 @@
 'use strict';
 
 /* PyInsect Data Collector
- * Step 1: capture — a burst of PHOTO_TARGET photos (50) in INTERVAL seconds (8) while the
- *         turntable (ESP32-C3 over USB serial) spins continuously and the lighting changes automatically
- * Step 2: review  — gallery of every photo taken
- * Step 3: save    — save the folder as a .zip
+ * Step 1: Start   — the only button
+ * Step 2: capture — a burst of PHOTO_TARGET photos (50) in INTERVAL seconds (8) while the turntable
+ *         (ESP32-C3 over USB serial) spins continuously and the lighting changes automatically
+ * Step 3: send    — the photos are zipped and sent to the computer by themselves
  */
 
 const $ = (sel) => document.querySelector(sel);
@@ -12,10 +12,9 @@ const $ = (sel) => document.querySelector(sel);
 const PHOTO_TARGET = 50;      // photos per dataset
 const INTERVAL = 8;           // seconds the whole burst takes
 const STROBE_MS = 200;        // flashlight stays on this long, then off this long
-const DEFAULT_NAME = 'insect';  // names the files and folder unless changed on the save screen
-const MAX_ZOOM = 4;           // highest zoom on the slider (more when the camera has real zoom, up to 8)
+const INSECT_NAME = 'insect'; // names the files and folder
 const MAX_ENCODING = 24;      // photos allowed to wait for JPEG encoding at once (limits phone memory)
-const WARMUP_MS = 1500;       // let the camera focus/expose before the burst starts
+const WARMUP_MS = 3000;       // time to put the bug in the ring, and for the camera to focus
 
 // Lighting changes automatically through many levels during the burst.
 // ev = exposure compensation (hardware, if the camera supports it); soft = software fallback
@@ -44,7 +43,7 @@ const SCREEN_LIGHTS = [
 const LEVEL_SETTLE_FRAMES = 5, LIGHT_SETTLE_MS = 150;  // new exposure level (or screen colour)
 const TORCH_SETTLE_FRAMES = 2, TORCH_SETTLE_MS = 70;   // flashlight on/off only
 const state = {
-  photos: [],          // { blob, url, angle, light, lightLabel, flash (0 or 100 %), time, removed }
+  photos: [],          // { blob, angle, light, flash (0 or 100 %), time }
   stream: null,
   track: null,
   caps: {},
@@ -52,14 +51,7 @@ const state = {
   running: false,
   wakeLock: null,
   zipBlob: null,
-  zipName: '',
 };
-
-let zoom = 1;
-try {
-  const z = +localStorage.getItem('pyinsect-zoom');
-  if (z >= 1 && z <= 8) zoom = z;
-} catch (_) {}
 
 /* ------------------------------------------------------------------ */
 /* Small helpers                                                       */
@@ -376,16 +368,6 @@ class Turntable {
 
 const turntable = new Turntable();
 
-function renderTurntable() {
-  const on = turntable.connected;
-  const s = $('#tt-status');
-  s.textContent = on ? 'Connected' : (Turntable.supported ? 'Not connected' : 'Not supported here');
-  s.classList.toggle('ok', on);
-  $('#run-tt').textContent = on ? 'Turntable connected' : 'No turntable: turn by hand';
-  $('#run-tt').classList.toggle('ok', on);
-}
-turntable.onchange = renderTurntable;
-
 async function connectTurntable() {
   try {
     await turntable.connect();
@@ -412,12 +394,10 @@ async function startCamera() {
   stopCamera();
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: false,
-    // zoom: true asks Chrome to expose the camera's real zoom, when it has one.
-    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 960 }, frameRate: { ideal: 60 }, zoom: true },
+    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 960 }, frameRate: { ideal: 60 } },
   });
   state.stream = stream;
   state.track = stream.getVideoTracks()[0];
-  state.hwZoomBroken = false;
   const video = $('#video');
   video.srcObject = stream;
   await video.play();
@@ -439,29 +419,9 @@ function stopCamera() {
   $('#video').srcObject = null;
 }
 
-/* Zoom: real camera zoom when the camera has it (sharper), otherwise a digital zoom that keeps
- * only the centre of each frame. Either way the saved photos show just the zoomed-in part.
- * `zoom` is a multiple of the camera's widest view. Phones report their range as a ratio (1-8),
- * desktop webcams often in raw units (e.g. 100-500), so the real value is relative to the minimum. */
-function hwRange() {
-  const z = state.caps.zoom;
-  if (state.hwZoomBroken || !z || !(z.min > 0) || z.max / z.min < 2) return null;   // less than 2× isn't worth it
-  return z;
-}
-function hwZoom() {
-  const z = hwRange();
-  if (!z) return null;
-  let v = Math.max(z.min, Math.min(z.max, z.min * zoom));
-  if (z.step > 0) v = Math.min(z.max, z.min + Math.round((v - z.min) / z.step) * z.step);
-  return v;
-}
-function maxZoom() { const z = hwRange(); return z ? Math.min(8, z.max / z.min) : MAX_ZOOM; }
-function digitalZoom() { return hwZoom() === null ? zoom : 1; }
-
 // Sizes the preview so it shows exactly what the photos keep: a box with the photo's shape, as big
-// as fits in the free space above the controls panel (beside it in landscape) so the bug in the
-// middle is never hidden under the panel. With digital zoom the video inside the box is drawn
-// `d` times bigger and centred, so the box shows just the centre part the photos crop to.
+// as fits in the free space above the photo count (beside it in landscape) so the bug in the
+// middle is never hidden under it.
 function layoutPreview() {
   const cam = $('#screen-camera'), box = $('#preview'), video = $('#video');
   const r = $('.panel.run').getBoundingClientRect(), c = cam.getBoundingClientRect();
@@ -483,74 +443,13 @@ function layoutPreview() {
   }
   box.style.width = `${w}px`;
   box.style.height = `${h}px`;
-  const d = digitalZoom();
-  video.style.width = `${w * d}px`;
-  video.style.height = `${h * d}px`;
-  video.style.left = `${(w - w * d) / 2}px`;
-  video.style.top = `${(h - h * d) / 2}px`;
+  video.style.width = `${w}px`;
+  video.style.height = `${h}px`;
+  video.style.left = video.style.top = '0';
 }
 if (window.ResizeObserver) new ResizeObserver(layoutPreview).observe($('.panel.run'));
 window.addEventListener('resize', layoutPreview);
 $('#video').addEventListener('resize', layoutPreview);   // the camera's picture size became known or changed
-
-// The part of the camera frame the photos keep: { sx, sy, sw, sh } in video pixels.
-function cropRect(video) {
-  const d = digitalZoom();
-  const sw = Math.round(video.videoWidth / d), sh = Math.round(video.videoHeight / d);
-  return { sx: Math.round((video.videoWidth - sw) / 2), sy: Math.round((video.videoHeight - sh) / 2), sw, sh };
-}
-
-let zoomSeq = 0;
-async function setZoom(z) {
-  zoom = z;
-  const seq = ++zoomSeq;
-  $('#zoom-out').textContent = `${z.toFixed(1)}×`;
-  try { localStorage.setItem('pyinsect-zoom', String(z)); } catch (_) {}
-  layoutPreview();   // digital zoom: the preview shows the same centre part the photos keep
-  const want = hwZoom();
-  if (want === null || !state.track) return;
-  try { await state.track.applyConstraints({ advanced: [{ zoom: want }] }); } catch (_) { /* best effort */ }
-  if (seq !== zoomSeq || !state.track) return;   // the slider has moved on; only the latest request is checked
-  // Some cameras list a zoom range but ignore it. Then use digital zoom for the rest of this session.
-  const got = state.track.getSettings ? state.track.getSettings().zoom : undefined;
-  const min = state.caps.zoom.min;
-  if (want > min * 1.2 && typeof got === 'number' && Math.abs(got - min) < (want - min) * 0.1) {
-    state.hwZoomBroken = true;
-    $('#zoom').max = maxZoom();
-    const z2 = Math.min(zoom, maxZoom());
-    $('#zoom').value = z2;
-    setZoom(z2);
-  }
-}
-
-// Shows the zoom slider over the live camera and waits for Start (or Cancel).
-function frameBug() {
-  const cam = $('#screen-camera'), slider = $('#zoom');
-  slider.max = maxZoom();
-  zoom = Math.max(1, Math.min(zoom, +slider.max));
-  slider.value = zoom;
-  setZoom(zoom);
-  slider.oninput = () => setZoom(+slider.value);
-  $('#frame-controls').hidden = false;
-  $('#frame-guide').hidden = cam.classList.contains('screenlight');
-  cam.classList.add('framing');
-  $('#stop').textContent = 'Cancel';
-  hud('Zoom in on the bug', 'Put the bug in the ring, move the slider until it fills the picture, then press Start.');
-  layoutPreview();
-  return new Promise(resolve => {
-    const done = () => {
-      clearInterval(watch);
-      $('#frame-controls').hidden = true;
-      $('#frame-guide').hidden = true;
-      cam.classList.remove('framing');
-      if (!state.abort) $('#stop').textContent = 'Stop';
-      layoutPreview();
-      resolve();
-    };
-    const watch = setInterval(() => { if (state.abort) done(); }, 100);
-    $('#start-burst').onclick = done;
-  });
-}
 
 // Gives the browser a turn without waiting a whole timer tick (setTimeout(0) can take 4 ms or more).
 function yieldNow() {
@@ -576,7 +475,6 @@ async function applyLight(light, torch = false) {
   if (!state.track || (light && light.screen)) return;
   const adv = {};
   if (state.caps.torch) adv.torch = !!torch;
-  if (hwZoom() !== null) adv.zoom = hwZoom();   // sent every time so a light change can't undo the zoom
   if (state.caps.exposureCompensation) {
     const { min, max } = state.caps.exposureCompensation;
     adv.exposureCompensation = Math.max(min, Math.min(max, (light && light.ev) || 0));
@@ -596,16 +494,6 @@ function applySoft(ctx, w, h, level) {
   ctx.fillRect(0, 0, w, h);
 }
 
-function grabFrame() {
-  const video = $('#video');
-  const canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.getContext('2d').drawImage(video, 0, 0);
-  return new Promise((resolve, reject) =>
-    canvas.toBlob(b => (b ? resolve(b) : reject(new Error('Could not save photo'))), 'image/jpeg', 0.9));
-}
-
 async function keepScreenOn(on) {
   try {
     if (on && state.wakeLock && !state.wakeLock.released) return;   // already held
@@ -617,19 +505,14 @@ async function keepScreenOn(on) {
 /* ------------------------------------------------------------------ */
 /* Step 1: capture run                                                 */
 /* ------------------------------------------------------------------ */
-function hud(main, sub = '') {
-  $('#hud-main').textContent = main;
-  $('#hud-sub').textContent = sub;
-}
+function hud(text) { $('#hud-sub').textContent = text; }
 function hudProgress(done, total) {
-  $('#hud-count').textContent = `${done} / ${total}`;
+  $('#hud-count').textContent = `Photos taken: ${done} / ${total}`;
   $('#hud-bar').style.width = `${total ? Math.min(100, (100 * done) / total) : 0}%`;
 }
 
 async function runCapture() {
   if (state.running) return;
-  if (!cleanName($('#folder-name').value)) $('#folder-name').value = DEFAULT_NAME;
-
   // Pressing the button is what lets the browser show the serial-port picker.
   if (!turntable.connected && Turntable.supported) await connectTurntable();
   let useTurntable = turntable.connected;
@@ -639,12 +522,7 @@ async function runCapture() {
   state.running = true;
   state.abort = false;
   clearPhotos();
-  renderTurntable();
-  $('#last-shot').hidden = true;
-  $('#stop').textContent = 'Stop';
-  $('#screen-camera').classList.remove('screenlight', 'framing');
-  $('#frame-controls').hidden = true;
-  $('#frame-guide').hidden = true;
+  $('#screen-camera').classList.remove('screenlight');
   show('camera');
   hud('Starting camera…');
   hudProgress(0, PHOTO_TARGET);
@@ -660,11 +538,8 @@ async function runCapture() {
     $('#screen-camera').classList.toggle('screenlight', !!lights[0].screen);
     layoutPreview();
     await applyLight(lights[0]);
-    await frameBug();
-    if (state.abort) throw new Error('stopped');
-    // Framing can take a while: the screen may have locked (dropping the wake lock) or the
-    // turntable cable may have come loose, so check both again before the burst.
-    await keepScreenOn(true);
+    await wait(WARMUP_MS, (s) => hud(`Put the bug in the ring… ${s}`));
+    // The turntable cable may have come loose while the camera was starting.
     if (useTurntable && !turntable.connected) {
       await turntable.autoConnect();
       if (!turntable.connected) {
@@ -672,7 +547,6 @@ async function runCapture() {
         useTurntable = false;
       }
     }
-    await wait(WARMUP_MS, () => hud('Get ready…', `${PHOTO_TARGET} photos in ${INTERVAL} seconds`));
     if (state.abort) throw new Error('stopped');
 
     const video = $('#video');
@@ -703,11 +577,9 @@ async function runCapture() {
       video.requestVideoFrameCallback(onFrame);
     }
 
-    // Photos keep only the zoomed-in part of the frame (all of it with real camera zoom).
-    const crop = cropRect(video);
     const canvas = document.createElement('canvas');
-    canvas.width = crop.sw;
-    canvas.height = crop.sh;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
     const encoding = [];
 
@@ -720,7 +592,6 @@ async function runCapture() {
     // From the moment a change is asked for until enough frames have arrived to show it, photos are
     // labelled "changing" — never with a light the frames might not show. An exposure change keeps
     // its longer wait even if the flashlight switches again meanwhile.
-    const torchSwitches = [];   // when the flashlight really switched, to report the real strobe speed
     lighting = (async () => {
       let cur = shown;   // what the camera was last told
       let levelReadyFrame = 0, levelReadyAt = 0;
@@ -740,7 +611,6 @@ async function runCapture() {
         await applyLight(want.light, want.torch);
         cur = want;
         const now = performance.now();
-        if (torchChange) torchSwitches.push(now);
         if (!visible) { if (!pending) shown = want; continue; }
         if (levelChange) { levelReadyFrame = frames + LEVEL_SETTLE_FRAMES; levelReadyAt = now + LIGHT_SETTLE_MS; }
         pending = { want, readyFrame: Math.max(levelReadyFrame, frames + TORCH_SETTLE_FRAMES), readyAt: Math.max(levelReadyAt, now + TORCH_SETTLE_MS) };
@@ -765,48 +635,34 @@ async function runCapture() {
       const { light, torch } = shown;
       const shot = pending ? CHANGING : shotLight(light, torch);
 
-      ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       applySoft(ctx, canvas.width, canvas.height, softLevel(light));
       const angle = useTurntable ? Math.round(((elapsed / turntable.info.ms) * 360 % 360) * 10) / 10 : 0;
-      const photo = { blob: null, url: '', angle, light: shot.id, lightLabel: shot.label, flash: torch ? 100 : 0, time: new Date(), removed: false };
+      const photo = { blob: null, angle, light: shot.id, flash: torch ? 100 : 0, time: new Date() };
       state.photos.push(photo);
       // toBlob copies the canvas now and encodes in the background, so the next photo isn't delayed.
       encodingNow++;
       encoding.push(new Promise(res => canvas.toBlob(b => {
         encodingNow--;
-        if (b) { photo.blob = b; photo.url = URL.createObjectURL(b); }
+        if (b) photo.blob = b;
         res();
       }, 'image/jpeg', 0.85)));
 
-      {
-        hudProgress(i + 1, PHOTO_TARGET);
-        hud(`${Math.max(0, (durationMs - elapsed) / 1000).toFixed(1)} s`, `${shot.label} · ${i + 1} photos`);
-      }
-      if (i % 5 === 0) {
-        const n = encoding.length - 1;
-        encoding[n].then(() => { if (photo.url) { $('#last-shot').src = photo.url; $('#last-shot').hidden = false; } });
-      }
+      hudProgress(i + 1, PHOTO_TARGET);
+      hud(`${Math.max(0, (durationMs - elapsed) / 1000).toFixed(1)} s left`);
     }
     const burstMs = performance.now() - t0;
     counting = false;
     hudProgress(state.photos.length, PHOTO_TARGET);
-    hud('Saving photos…', `${state.photos.length} photos in ${(burstMs / 1000).toFixed(1)} s`);
+    hud('Saving photos…');
     lightingDone = true;
     await lighting;
     applyLight(null);
 
     await Promise.all(encoding);
     state.photos = state.photos.filter(p => p.blob);
-    state.cameraFrames = video.requestVideoFrameCallback ? frames : null;
-    state.burstMs = burstMs;
-    // The real strobe speed: a slow phone may not manage the chosen one.
-    const gaps = torchSwitches.slice(1).map((t, k) => t - torchSwitches[k]);
-    state.strobe = strobe && gaps.length >= 2
-      ? { planned: STROBE_MS, measured: gaps.reduce((a, b) => a + b, 0) / gaps.length }
-      : null;
-
     if (spin) {
-      hud('Saving photos…', 'Turntable finishing its spin');
+      hud('Turntable finishing its spin…');
       await spin;
       spun = (durationMs / turntable.info.ms) * 360;
       const back = Math.ceil(spun / 360 - 1e-6) * 360 - spun;
@@ -827,99 +683,15 @@ async function runCapture() {
     try { if (document.fullscreenElement) await document.exitFullscreen(); } catch (_) {}
     await keepScreenOn(false);
     state.running = false;
-    renderTurntable();
   }
 
-  if (state.photos.length) {
-    renderGallery();
-    show('gallery');
-  } else {
-    show('intro');
-  }
+  if (state.photos.length && !state.abort) autoSend();
+  else show('intro');
 }
 
 $('#capture').addEventListener('click', runCapture);
-$('#stop').addEventListener('click', () => {
-  if (state.photos.length && !confirm(`Stop now? You have ${state.photos.length} photos.`)) return;
-  state.abort = true;
-  $('#stop').textContent = 'Stopping…';
-  if (turntable.connected) turntable.stop();
-});
-
 /* ------------------------------------------------------------------ */
-/* Step 2: gallery                                                     */
-/* ------------------------------------------------------------------ */
-function keptPhotos() { return state.photos.filter(p => !p.removed); }
-
-function renderGallery() {
-  const g = $('#gallery');
-  g.innerHTML = '';
-  const frag = document.createDocumentFragment();
-  state.photos.forEach((p, i) => {
-    const fig = document.createElement('button');
-    fig.className = 'thumb' + (p.removed ? ' removed' : '');
-    fig.type = 'button';
-    fig.setAttribute('aria-pressed', String(p.removed));
-    fig.setAttribute('aria-label', `Photo ${i + 1}, ${p.angle} degrees, ${p.lightLabel}. Tap to ${p.removed ? 'keep' : 'remove'}.`);
-    const img = document.createElement('img');
-    img.src = p.url;
-    img.loading = 'lazy';
-    img.alt = '';
-    const cap = document.createElement('figcaption');
-    cap.textContent = `${p.angle}° · ${p.lightLabel}`;
-    fig.append(img, cap);
-    fig.addEventListener('click', () => {
-      p.removed = !p.removed;
-      fig.classList.toggle('removed', p.removed);
-      fig.setAttribute('aria-pressed', String(p.removed));
-      updateGalleryCount();
-    });
-    frag.append(fig);
-  });
-  g.append(frag);
-  updateGalleryCount();
-}
-
-function updateGalleryCount() {
-  const removed = state.photos.length - keptPhotos().length;
-  let text = `${state.photos.length} photos taken`;
-  if (state.burstMs) text += ` in ${(state.burstMs / 1000).toFixed(1)} s`;
-  if (state.cameraFrames && state.cameraFrames < state.photos.length) {
-    const fps = Math.round(state.cameraFrames / (state.burstMs / 1000));
-    text += `. Your camera ran at about ${fps} frames per second, so about ${state.cameraFrames} of them are different and the rest are repeats`;
-  }
-  if (state.strobe) {
-    // Level changes fall between strobe switches, so the measured average reads a bit shorter; allow for it.
-    const slow = state.strobe.measured > state.strobe.planned * 1.3;
-    text += ` · flashlight on/off about every ${fmtStrobe(Math.round(state.strobe.measured / 10) * 10)}`;
-    if (slow) text += ` (slower than ${fmtStrobe(state.strobe.planned)}: this phone can't switch it faster)`;
-  }
-  const changing = state.photos.filter(p => p.light === CHANGING.id).length;
-  if (changing) text += ` · ${changing} taken while the light was switching are labelled "${CHANGING.id}"`;
-  text += removed ? ` · ${removed} will be removed` : ' · tap a photo to remove it';
-  $('#gallery-count').textContent = text;
-  $('#gallery-next').disabled = keptPhotos().length === 0;
-}
-
-function clearPhotos() {
-  state.photos.forEach(p => URL.revokeObjectURL(p.url));
-  state.photos = [];
-  state.zipBlob = null;
-  state.burstMs = 0;
-  state.cameraFrames = null;
-  state.strobe = null;
-}
-
-$('#gallery-restart').addEventListener('click', () => {
-  if (confirm('Throw away these photos and start over?')) { clearPhotos(); show('intro'); }
-});
-$('#gallery-next').addEventListener('click', () => {
-  updateNamePreview();
-  show('name');
-});
-
-/* ------------------------------------------------------------------ */
-/* Step 3: name + save                                                 */
+/* Step 3: send to the computer, by itself                             */
 /* ------------------------------------------------------------------ */
 function cleanName(raw) {
   return raw.trim().replace(/\s+/g, '_').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60);
@@ -932,97 +704,61 @@ function stamp(d) {
 }
 // Photo file: <insect_name>_top_nofilter_<flash_intensity_percentage>_<photo_serial_number>_yyyy_mm_dd_hh_mm_ss.jpg
 // The flashlight is either on (100) or off (0). width = digits in the serial number, so 1000 photos still sort in order.
-function fileNameFor(insect, p, i, width = Math.max(3, String(keptPhotos().length).length)) {
+function fileNameFor(insect, p, i, width = Math.max(3, String(state.photos.length).length)) {
   const n = String(i + 1).padStart(width, '0');
   return `${insect}_top_nofilter_${p.flash}_${n}_${stamp(p.time)}.jpg`;
 }
 // Folder (and .zip): <insect_name>_yyyy_mm_dd_hh_mm_ss, the time of the first photo
-function folderFor(insect, kept) {
-  return `${insect}_${stamp(kept[0].time)}`;
+function folderFor(insect, photos) {
+  return `${insect}_${stamp(photos[0].time)}`;
 }
-
-function updateNamePreview() {
-  const folder = cleanName($('#folder-name').value);
-  const kept = keptPhotos();
-  $('#save-zip').disabled = !folder;
-  $('#share-zip').disabled = !folder;
-  $('#send-pc').disabled = !folder;
-  $('#save-status').textContent = '';
-  $('#name-preview').textContent = folder && kept.length
-    ? `${folderFor(folder, kept)}.zip → ${folderFor(folder, kept)}/${fileNameFor(folder, kept[0], 0)} … (${kept.length} photos + labels.csv)`
-    : `${kept.length} photos ready`;
-  state.zipBlob = null;
-}
-$('#folder-name').addEventListener('input', updateNamePreview);
 
 async function buildZip() {
-  const insect = cleanName($('#folder-name').value);
-  const kept = keptPhotos();
-  const folder = folderFor(insect, kept);
-  if (state.zipBlob && state.zipName === insect) return { blob: state.zipBlob, folder, insect };
-  if (typeof JSZip === 'undefined') throw new Error('Zip library failed to load. Check your internet connection.');
-
+  if (typeof JSZip === 'undefined') throw new Error('Zip library failed to load. Open the app once with internet.');
+  const folder = folderFor(INSECT_NAME, state.photos);
+  if (state.zipBlob) return { blob: state.zipBlob, folder };
   const zip = new JSZip();
   const dir = zip.folder(folder);
   const rows = [['file', 'insect', 'angle_deg', 'lighting', 'flash_pct', 'captured_at']];
-  const width = Math.max(3, String(kept.length).length);
-  kept.forEach((p, i) => {
-    const name = fileNameFor(insect, p, i, width);
+  state.photos.forEach((p, i) => {
+    const name = fileNameFor(INSECT_NAME, p, i);
     dir.file(name, p.blob);
-    rows.push([name, insect, p.angle, p.light, p.flash, p.time.toISOString()]);
+    rows.push([name, INSECT_NAME, p.angle, p.light, p.flash, p.time.toISOString()]);
   });
   dir.file('labels.csv', rows.map(r => r.join(',')).join('\n') + '\n');
-
-  $('#save-status').textContent = 'Packing photos…';
-  const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' }, (m) => {
-    $('#save-status').textContent = `Packing photos… ${Math.round(m.percent)}%`;
-  });
-  state.zipBlob = blob;
-  state.zipName = insect;
-  return { blob, folder, insect };
+  state.zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+  return { blob: state.zipBlob, folder };
 }
 
-$('#save-zip').addEventListener('click', async () => {
-  try {
-    const { blob, folder } = await buildZip();
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${folder}.zip`;
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
-    $('#save-status').textContent = `Saved ${folder}.zip (${(blob.size / 1e6).toFixed(1)} MB) to Downloads.`;
-  } catch (err) {
-    $('#save-status').textContent = err.message;
-  }
-});
+function clearPhotos() {
+  state.photos = [];
+  state.zipBlob = null;
+}
 
-// Send the zip straight to the Training Rig on the computer. The page works offline on the phone, so the
-// computer is looked for when you tap Send: first over the USB cable (adb reverse), then on the PyInsect
-// hotspot. When this page itself comes from the computer (/collect/), the same address is used.
-const USB_RIG = 'http://localhost:8100', DEFAULT_HOTSPOT = '';
+// The computer is looked for first over the USB cable (adb reverse), then on the hotspot or Wi-Fi.
+// When this page itself comes from the computer (/collect/), the same address is used.
+const USB_RIG = 'http://localhost:8100';
 const saved = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
 const save = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* private mode: fine */ } };
-$('#send-via').value = saved('pyinsect-send-via', 'auto');
-$('#hotspot-addr').value = saved('pyinsect-hotspot-addr', '');
-function showSendOptions() { $('#hotspot-field').hidden = $('#send-via').value === 'usb'; }
-$('#send-via').addEventListener('change', () => { save('pyinsect-send-via', $('#send-via').value); showSendOptions(); });
-$('#hotspot-addr').addEventListener('change', () => save('pyinsect-hotspot-addr', $('#hotspot-addr').value.trim()));
-showSendOptions();
-// "192.168.43.7:8090", "http://192.168.43.7:8090/" and "192.168.43.7" (port 8090) all work
+
+// The live site is https and the computer on the hotspot is http. Chrome allows that only for requests
+// marked as going to the local network, after the person taps Allow.
+const localFetch = (url, options = {}) =>
+  fetch(url, /^http:\/\/(localhost|127\.)/.test(url) ? options : { ...options, targetAddressSpace: 'local' });
+
+// "192.168.43.7:8090" -> "http://192.168.43.7:8090"
 function hotspotBase() {
-  let v = $('#hotspot-addr').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const v = saved('pyinsect-hotspot-addr', '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   if (!v) return null;
-  if (!/:\d+$/.test(v)) v += ':8090';
-  return 'http://' + v;
+  return 'http://' + (/:\d+$/.test(v) ? v : `${v}:8090`);
 }
+// Only asks "does anything answer there?" (no-cors), so the computer needs no special permission settings for it.
 async function reachable(base) {
   try {
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 3000);
-    const r = await fetch(`${base}/api/import`, { method: 'OPTIONS', signal: ctl.signal });
+    await localFetch(`${base}/api/import`, { mode: 'no-cors', cache: 'no-store', signal: ctl.signal });
     clearTimeout(t);
-    return r.status < 500;
+    return true;
   } catch (e) { return false; }
 }
 // ---- Find the computers on the hotspot ----
@@ -1055,14 +791,22 @@ async function phoneSubnets() {
   if (found.size <= 1) ['192.168.43', '192.168.49', '192.168.137', '192.168.0', '192.168.1', '172.20.10', '10.42.0'].forEach(s => found.add(s));
   return [...found];
 }
-async function whoIs(ip) {
+async function whoIs(ip, ms = 1500) {
   try {
-    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 1500);
-    const r = await fetch(`http://${ip}:${RIG_PORT}/api/whoami`, { signal: ctl.signal });
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ms);
+    const r = await localFetch(`http://${ip}:${RIG_PORT}/api/whoami`, { signal: ctl.signal });
     clearTimeout(t);
     const j = await r.json();
     return j && j.app === 'pyinsect-rig' ? { ip, name: j.name || ip } : null;
   } catch (e) { return null; }
+}
+// While Chrome is asking "Allow local network?", a quick search would give up before the answer.
+// So the first time, make one patient request and wait for the person to choose.
+async function askLocalNetwork(ip) {
+  try {
+    const p = await navigator.permissions.query({ name: 'local-network-access' });
+    if (p.state === 'prompt') await whoIs(ip, 30000);
+  } catch (e) { /* this browser doesn't ask */ }
 }
 async function scanForComputers(onProgress) {
   const subnets = await phoneSubnets(), ips = [];
@@ -1080,149 +824,99 @@ async function scanForComputers(onProgress) {
   await Promise.all(Array.from({ length: 48 }, worker));
   return found.slice(0, 1);
 }
-function pickComputer(c) {
-  $('#hotspot-addr').value = `${c.ip}:${RIG_PORT}`;
-  save('pyinsect-hotspot-addr', $('#hotspot-addr').value);
-  save('pyinsect-last-subnet', c.ip.replace(/\.\d+$/, ''));
-  for (const b of $('#rig-list').children) b.classList.toggle('picked', b.dataset.ip === c.ip);
-  $('#rig-status').textContent = `Sending to ${c.name} (${c.ip}).`;
-}
-function showComputers(found) {
-  const box = $('#rig-list');
-  box.textContent = '';
-  for (const c of found) {
-    const b = document.createElement('button');
-    b.type = 'button'; b.dataset.ip = c.ip;
-    b.append(c.name);
-    const small = document.createElement('small'); small.textContent = c.ip; b.append(small);
-    b.addEventListener('click', () => pickComputer(c));
-    box.append(b);
-  }
-}
-let scanning = false;
-async function findComputers() {
-  if (scanning) return [];
-  scanning = true;
-  const btn = $('#find-rigs'); btn.disabled = true;
-  $('#rig-list').textContent = '';
-  let found = [];
-  try {
-    $('#rig-status').textContent = 'Looking for computers…';
-    found = await scanForComputers((d, n, subs) => { if (d % 16 === 0) $('#rig-status').textContent = `Looking on ${subs.map(s => s + '.x').join(', ')} … ${Math.round(100 * d / n)}%`; });
-    showComputers(found);
-    if (found.length) pickComputer(found[0]);
-    else $('#rig-status').textContent = 'No computer found. Turn on the phone hotspot, join the computer to it, and tap Find computers again.';
-  } finally { scanning = false; btn.disabled = false; }
-  return found;
-}
-// Find computers also sends: the photos go to the first computer that shows up.
-$('#find-rigs').addEventListener('click', async () => {
-  const found = await findComputers();
-  if (found.length) $('#send-pc').click();   // does nothing if there is no name or a send is already going
-});
 
+// One box per computer, with a tick on the one the photos go to.
+function showComputer(name) {
+  const b = document.createElement('div');
+  b.className = 'computer';
+  b.textContent = `✓ ${name}`;
+  $('#rig-list').replaceChildren(b);
+}
+
+// Returns the address to send to, or null when no computer answers.
 async function findRig() {
-  if (location.pathname.startsWith('/collect')) return '';
-  const via = $('#send-via').value;
-  if (via !== 'hotspot' && await reachable(USB_RIG)) return USB_RIG;
-  if (via === 'usb') return null;
-  const chosen = hotspotBase();
-  if (chosen && await reachable(chosen)) return chosen;
-  // The chosen computer isn't answering (or none was chosen): look again, and use the first one that answers.
-  $('#save-status').textContent = 'Looking for the computer on the hotspot…';
-  const found = await findComputers();
-  if (found.length) return hotspotBase();
-  return null;
+  if (location.pathname.startsWith('/collect')) { showComputer('This computer'); return ''; }
+  if (await reachable(USB_RIG)) { showComputer('Computer on the USB cable'); return USB_RIG; }
+  const last = hotspotBase();
+  if (last && await reachable(last)) { showComputer(saved('pyinsect-computer-name', 'Computer')); return last; }
+  await askLocalNetwork((saved('pyinsect-last-subnet', '') || '192.168.43') + '.1');
+  const [c] = await scanForComputers((d, n) => { if (d % 16 === 0) $('#save-status').textContent = `Looking for computers… ${Math.round(100 * d / n)}%`; });
+  if (!c) return null;
+  save('pyinsect-hotspot-addr', `${c.ip}:${RIG_PORT}`);
+  save('pyinsect-computer-name', c.name);
+  save('pyinsect-last-subnet', c.ip.replace(/\.\d+$/, ''));
+  showComputer(c.name);
+  return `http://${c.ip}:${RIG_PORT}`;
 }
-$('#send-pc').addEventListener('click', async () => {
-  const btn = $('#send-pc');
-  btn.disabled = true;
-  try {
-    const { blob, folder, insect } = await buildZip();
-    $('#save-status').textContent = 'Looking for the computer…';
-    const base = await findRig();
-    if (base === null) {
-      const via = $('#send-via').value;
-      $('#save-status').textContent = (via === 'usb' ? "Can't reach the computer over the USB cable. Plug it in and tap Send again."
-        : via === 'hotspot' ? "Can't find the computer on the hotspot. Turn on the phone hotspot, join the computer to it, and tap Send again."
-        : "Can't reach the computer. Plug in the USB cable or join the PyInsect Wi-Fi, then tap Send again.")
-        + ' Your photos are still here; you can also tap Save folder (.zip).';
-      return;
-    }
-    $('#save-status').textContent = 'Sending to the computer…';
-    const res = await fetch(`${base}/api/import?name=${encodeURIComponent(insect)}&filename=${encodeURIComponent(folder)}.zip`,
-      { method: 'POST', body: blob });
-    const j = await res.json().catch(() => ({ error: `The computer answered ${res.status} but it is not the Training Rig.` }));
-    if (!res.ok) throw new Error(j.error || 'The computer refused the photos.');
-    const n = Object.values(j.added || {}).reduce((x, y) => x + y, 0);
-    $('#save-status').textContent = `Sent ${n} photos to the computer ✔` + (base ? (base.includes('localhost') ? ' (USB cable)' : ' (hotspot)') : '');
-  } catch (err) {
-    $('#save-status').textContent = err.message;
-  } finally {
-    btn.disabled = !cleanName($('#folder-name').value);
-  }
-});
 
-if (navigator.canShare && navigator.canShare({ files: [new File([''], 'x.zip', { type: 'application/zip' })] })) {
-  $('#share-zip').hidden = false;
-  $('#share-zip').addEventListener('click', async () => {
+const RETRY_MS = 5000;     // wait between tries when no computer answers
+const DONE_MS = 4000;      // how long "Sent" stays before going back to Start
+let sendRun = 0;           // changes when this send is over, so an old loop stops
+
+function finishSend() {
+  sendRun++;
+  keepScreenOn(false);
+  clearPhotos();
+  show('intro');
+}
+
+async function autoSend() {
+  const run = ++sendRun;
+  $('#send-title').textContent = 'Sending';
+  $('#send-pill').textContent = 'Auto sends';
+  $('#rig-list').replaceChildren();
+  $('#save-status').textContent = 'Packing photos…';
+  $('#save-zip').hidden = true;
+  show('send');
+  await keepScreenOn(true);
+  while (run === sendRun) {
     try {
       const { blob, folder } = await buildZip();
-      const file = new File([blob], `${folder}.zip`, { type: 'application/zip' });
-      await navigator.share({ files: [file], title: `${folder} dataset` });
-      $('#save-status').textContent = '';
+      $('#save-status').textContent = 'Looking for computers…';
+      const base = await findRig();
+      if (run !== sendRun) return;
+      if (base === null) throw new Error('No computer found. Plug in the USB cable, or put the phone and computer on the same hotspot.');
+      $('#save-status').textContent = 'Sending the photos…';
+      const res = await localFetch(`${base}/api/import?name=${INSECT_NAME}&filename=${encodeURIComponent(folder)}.zip`,
+        { method: 'POST', body: blob });
+      const j = await res.json().catch(() => ({ error: `The computer answered ${res.status} but it is not the Training Rig.` }));
+      if (!res.ok) throw new Error(j.error || 'The computer refused the photos.');
+      if (run !== sendRun) return;
+      const n = Object.values(j.added || {}).reduce((x, y) => x + y, 0);
+      $('#send-title').textContent = 'Sent';
+      $('#send-pill').textContent = '✓ Sent';
+      $('#save-status').textContent = `${n} photos are on the computer.`;
+      $('#save-zip').hidden = true;
+      await sleep(DONE_MS);
+      if (run === sendRun) finishSend();
+      return;
     } catch (err) {
-      if (err.name !== 'AbortError') $('#save-status').textContent = err.message;
+      if (run !== sendRun) return;
+      $('#rig-list').replaceChildren();
+      // A browser's own network error ("Failed to fetch") doesn't help anyone.
+      const why = err instanceof TypeError ? 'The connection to the computer broke.' : err.message;
+      $('#save-status').textContent = `${why} Trying again…`;
+      $('#save-zip').hidden = !state.photos.length;
+      await sleep(RETRY_MS);
     }
-  });
+  }
 }
 
-$('#name-back').addEventListener('click', () => { renderGallery(); show('gallery'); });
-$('#name-new').addEventListener('click', () => {
-  if (!state.zipBlob && !confirm("You haven't saved this folder yet. Start a new insect anyway?")) return;
-  clearPhotos();
-  $('#folder-name').value = '';
-  show('intro');
+$('#save-zip').addEventListener('click', async () => {
+  const { blob, folder } = await buildZip();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${folder}.zip`;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+  toast(`Saved ${folder}.zip to Downloads.`, 5000);
+  finishSend();
 });
 
 /* ------------------------------------------------------------------ */
-renderTurntable();
 turntable.autoConnect();
 
 // Keep a copy of this page on the phone, so it opens with no internet.
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-
-/* ------------------------------------------------------------------ */
-/* "Download app" button: puts the Data Collector on the home screen   */
-/* ------------------------------------------------------------------ */
-let installPrompt = null;   // Chrome and Edge give us this when the app can be installed
-const installBtn = $('#install'), installHelp = $('#install-help');
-// Opened from the home screen: it's already installed, so there's nothing to download.
-installBtn.hidden = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  installPrompt = e;
-  installHelp.hidden = true;
-});
-window.addEventListener('appinstalled', () => {
-  installPrompt = null;
-  installBtn.hidden = true;
-  installHelp.hidden = true;
-  toast('App installed. Look for “Data Collector” on your home screen.', 6000);
-});
-
-installBtn.addEventListener('click', async () => {
-  if (installPrompt) {
-    const prompt = installPrompt;
-    installPrompt = null;   // each one can only be used once
-    prompt.prompt();
-    return;
-  }
-  // iPhones, and browsers that don't offer the pop-up: say where the menu item is.
-  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
-  installHelp.textContent = ios
-    ? 'In Safari, tap the Share button, then “Add to Home Screen”.'
-    : 'Open the browser menu (⋮), then tap “Install app” or “Add to Home screen”. If it is already installed, look for “Data Collector” with your other apps.';
-  installHelp.hidden = false;
-});

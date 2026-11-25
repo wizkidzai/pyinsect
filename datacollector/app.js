@@ -13,6 +13,9 @@ const PHOTO_TARGET = 50;      // photos per dataset
 const INTERVAL = 8;           // seconds the whole burst takes
 const STROBE_MS = 200;        // flashlight stays on this long, then off this long
 const DEFAULT_NAME = 'insect'; // names the files and folder when no name is typed
+const MAX_ZOOM = 4;           // auto zoom never goes closer than this
+const ZOOM_ROOM = 1.1;        // a little extra space around the bug after zooming
+const FIND_MS = 8000;         // give up looking for the bug after this long
 const MAX_ENCODING = 24;      // photos allowed to wait for JPEG encoding at once (limits phone memory)
 const WARMUP_MS = 3000;       // time to put the bug in the ring, and for the camera to focus
 
@@ -42,6 +45,8 @@ const SCREEN_LIGHTS = [
 // frames (so it's right at 30 and 60 fps); the ms values are the fallback without frame timing.
 const LEVEL_SETTLE_FRAMES = 5, LIGHT_SETTLE_MS = 150;  // new exposure level (or screen colour)
 const TORCH_SETTLE_FRAMES = 2, TORCH_SETTLE_MS = 70;   // flashlight on/off only
+let zoom = 1;                 // set by the auto zoom for each set of photos
+
 const state = {
   photos: [],          // { blob, angle, light, flash (0 or 100 %), time }
   stream: null,
@@ -422,7 +427,8 @@ function stopCamera() {
 
 // Sizes the preview so it shows exactly what the photos keep: a box with the photo's shape, as big
 // as fits in the free space above the photo count (beside it in landscape) so the bug in the
-// middle is never hidden under it.
+// middle is never hidden under it. When zoomed, the video inside the box is drawn `zoom` times
+// bigger and centred, so the box shows just the centre part the photos keep.
 function layoutPreview() {
   const cam = $('#screen-camera'), box = $('#preview'), video = $('#video');
   const r = $('.panel.run').getBoundingClientRect(), c = cam.getBoundingClientRect();
@@ -444,13 +450,86 @@ function layoutPreview() {
   }
   box.style.width = `${w}px`;
   box.style.height = `${h}px`;
-  video.style.width = `${w}px`;
-  video.style.height = `${h}px`;
-  video.style.left = video.style.top = '0';
+  video.style.width = `${w * zoom}px`;
+  video.style.height = `${h * zoom}px`;
+  video.style.left = `${(w - w * zoom) / 2}px`;
+  video.style.top = `${(h - h * zoom) / 2}px`;
 }
 if (window.ResizeObserver) new ResizeObserver(layoutPreview).observe($('.panel.run'));
 window.addEventListener('resize', layoutPreview);
 $('#video').addEventListener('resize', layoutPreview);   // the camera's picture size became known or changed
+
+/* ------------------------------------------------------------------ */
+/* Auto zoom: the website's insect finder AI looks for the bug         */
+/* ------------------------------------------------------------------ */
+// The finder, its model and the AI engine are the same ones the website uses. Copies of this app that are
+// served from the computer don't have those files next to them, so they get them from the website.
+const SITE = location.hostname.endsWith('github.io') ? new URL('../', location.href).href : 'https://wizkidzai.github.io/pyinsect/';
+const ORT = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
+
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = () => { s.remove(); reject(new Error(`could not load ${src}`)); };
+    document.head.append(s);
+  });
+}
+
+let finderReady = null;
+function loadFinder() {
+  finderReady = finderReady || (async () => {
+    await loadScript(`${ORT}ort.wasm.min.js`);
+    ort.env.wasm.wasmPaths = ORT;
+    ort.env.wasm.numThreads = 1;
+    await loadScript(`${SITE}assets/insect-finder.js`);
+    const blank = document.createElement('canvas');
+    blank.width = blank.height = 8;
+    await window.findInsect(blank);   // loads the model now, so Start doesn't have to wait for it
+  })().catch(err => { finderReady = null; throw err; });
+  return finderReady;
+}
+
+// How far to zoom for a box {x, y, w, h} (fractions of the picture). The zoom stays centred on the ring,
+// which is where the turntable spins, so a bug that is a bit off-centre stays in view as it goes round.
+function zoomFor(box) {
+  const reach = Math.max(0.5 - box.x, box.x + box.w - 0.5, 0.5 - box.y, box.y + box.h - 0.5);
+  return Math.max(1, Math.min(MAX_ZOOM, 0.5 / (reach * ZOOM_ROOM)));
+}
+
+// Looks at a few camera frames. Returns the bug's box, or null if it can't be found.
+async function findBug(video) {
+  await loadFinder();
+  const frame = document.createElement('canvas');
+  frame.width = video.videoWidth;
+  frame.height = video.videoHeight;
+  for (let i = 0; i < 3 && !state.abort; i++) {
+    frame.getContext('2d').drawImage(video, 0, 0);
+    const box = await window.findInsect(frame);
+    if (box) return box;
+    await sleep(200);
+  }
+  return null;
+}
+
+async function autoZoom(video) {
+  hud('Looking for the bug…');
+  let box = null;
+  try {
+    box = await Promise.race([findBug(video), sleep(FIND_MS).then(() => null)]);
+  } catch (err) { console.warn('auto zoom:', err); }
+  zoom = box ? zoomFor(box) : 1;
+  layoutPreview();
+  hud(zoom > 1.05 ? `Zoomed in ${zoom.toFixed(1)}×` : 'Using the full view');
+  await sleep(1000);   // time to see it
+}
+
+// The part of the camera frame the photos keep: { sx, sy, sw, sh } in video pixels.
+function cropRect(video) {
+  const sw = Math.round(video.videoWidth / zoom), sh = Math.round(video.videoHeight / zoom);
+  return { sx: Math.round((video.videoWidth - sw) / 2), sy: Math.round((video.videoHeight - sh) / 2), sw, sh };
+}
 
 // Gives the browser a turn without waiting a whole timer tick (setTimeout(0) can take 4 ms or more).
 function yieldNow() {
@@ -526,6 +605,7 @@ async function runCapture() {
   state.abort = false;
   clearPhotos();
   $('#screen-camera').classList.remove('screenlight');
+  zoom = 1;
   show('camera');
   hud('Starting camera…');
   hudProgress(0, PHOTO_TARGET);
@@ -542,6 +622,12 @@ async function runCapture() {
     layoutPreview();
     await applyLight(lights[0]);
     await wait(WARMUP_MS, (s) => hud(`Put the bug in the ring… ${s}`));
+    const video = $('#video');
+    // The camera can briefly report a tiny placeholder size (2×2) before real frames arrive.
+    // Wait for the real size, or every photo would be a few pixels.
+    for (let t = 0; video.videoWidth <= 16 && t < 60 && !state.abort; t++) await sleep(50);
+    if (video.videoWidth <= 16) throw new Error('The camera did not start properly. Please try again.');
+    await autoZoom(video);
     // The turntable cable may have come loose while the camera was starting.
     if (useTurntable && !turntable.connected) {
       await turntable.autoConnect();
@@ -552,12 +638,6 @@ async function runCapture() {
     }
     if (state.abort) throw new Error('stopped');
 
-    const video = $('#video');
-    // The camera can briefly report a tiny placeholder size (2×2) before real frames arrive.
-    // Wait for the real size, or every photo would be a few pixels.
-    for (let t = 0; video.videoWidth <= 16 && t < 60 && !state.abort; t++) await sleep(50);
-    if (state.abort) throw new Error('stopped');
-    if (video.videoWidth <= 16) throw new Error('The camera did not start properly. Please try again.');
     const durationMs = INTERVAL * 1000;
     const gapMs = durationMs / PHOTO_TARGET;        // 160 ms for 50 photos in 8 s
     const lightMs = durationMs / lights.length;     // each lighting gets an equal slice of the burst
@@ -581,8 +661,10 @@ async function runCapture() {
     }
 
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Photos keep only the zoomed-in part of the frame.
+    const crop = cropRect(video);
+    canvas.width = crop.sw;
+    canvas.height = crop.sh;
     const ctx = canvas.getContext('2d');
     const encoding = [];
 
@@ -638,7 +720,7 @@ async function runCapture() {
       const { light, torch } = shown;
       const shot = pending ? CHANGING : shotLight(light, torch);
 
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
       applySoft(ctx, canvas.width, canvas.height, softLevel(light));
       const angle = useTurntable ? Math.round(((elapsed / turntable.info.ms) * 360 % 360) * 10) / 10 : 0;
       const photo = { blob: null, angle, light: shot.id, flash: torch ? 100 : 0, time: new Date() };
@@ -921,6 +1003,7 @@ $('#save-zip').addEventListener('click', async () => {
 
 /* ------------------------------------------------------------------ */
 turntable.autoConnect();
+loadFinder().catch(() => {});   // tried again at Start if it fails (like no internet the first time)
 
 // Keep a copy of this page on the phone, so it opens with no internet.
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -909,3 +909,25 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] A player who hasn't been online for a year is deleted from the server.
   - [ ] An avatar that isn't one of the game's avatars shows as 🙂.
   - [ ] A grown-up redeployed the game server before this was merged.
+
+## Data Collector: auto zoom
+
+- **Status:** Building
+- **Asked by:** Aariv, 2026-11-25
+- **Who it's for:** Our team, when we collect insect photos for training the AI.
+- **Problem or need:** The bug is small in the photos, and the Data Collector no longer has a zoom slider.
+- **Why they have it:** Only Start and the name box should need a person.
+- **Our idea:** Use the website's insect finder AI during the countdown to zoom in on the bug, then keep that
+  zoom for all the photos. The zoom stays centred, so the bug stays in view while the turntable spins.
+- **Other ideas we talked about:**
+  - Crop each photo after taking them: follows the spinning, but you don't see the zoom happen.
+  - Both: the most work.
+- **User flow:**
+  1. Type the name and press Start.
+  2. Hold the bug in the ring. The view zooms in on it.
+  3. The photos are taken and sent.
+- **Done when:**
+  - [ ] A small bug in the ring gets bigger in the view before the photos start.
+  - [ ] The bug stays in the picture while the turntable spins.
+  - [ ] With nothing to find, photos are still taken with the full view.
+  - [ ] It works offline after opening the app once with internet.

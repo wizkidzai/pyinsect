@@ -1,8 +1,8 @@
 // Keeps the Data Collector on the phone: open it once with internet, and after that it works offline.
 // With internet the newest copy is used and saved again. A very slow connection falls back to the saved copy.
 const PREFIX = 'pyinsect-collector-';
-const CACHE = PREFIX + '10';
-const FILES = ['./', 'index.html', 'style.css?v=9', 'jszip.min.js', 'app.js?v=17', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const CACHE = PREFIX + '11';
+const FILES = ['./', 'index.html', 'style.css?v=9', 'jszip.min.js', 'app.js?v=18', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
 });

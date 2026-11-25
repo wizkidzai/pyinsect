@@ -1,7 +1,7 @@
 'use strict';
 
 /* PyInsect Data Collector
- * Step 1: Start   — the only button
+ * Step 1: Start   — type the insect's name (optional) and press Start, the only button
  * Step 2: capture — a burst of PHOTO_TARGET photos (50) in INTERVAL seconds (8) while the turntable
  *         (ESP32-C3 over USB serial) spins continuously and the lighting changes automatically
  * Step 3: send    — the photos are zipped and sent to the computer by themselves
@@ -12,7 +12,7 @@ const $ = (sel) => document.querySelector(sel);
 const PHOTO_TARGET = 50;      // photos per dataset
 const INTERVAL = 8;           // seconds the whole burst takes
 const STROBE_MS = 200;        // flashlight stays on this long, then off this long
-const INSECT_NAME = 'insect'; // names the files and folder
+const DEFAULT_NAME = 'insect'; // names the files and folder when no name is typed
 const MAX_ENCODING = 24;      // photos allowed to wait for JPEG encoding at once (limits phone memory)
 const WARMUP_MS = 3000;       // time to put the bug in the ring, and for the camera to focus
 
@@ -51,6 +51,7 @@ const state = {
   running: false,
   wakeLock: null,
   zipBlob: null,
+  name: DEFAULT_NAME,  // the insect name for this set of photos
 };
 
 /* ------------------------------------------------------------------ */
@@ -513,6 +514,8 @@ function hudProgress(done, total) {
 
 async function runCapture() {
   if (state.running) return;
+  state.name = cleanName($('#insect-name').value) || DEFAULT_NAME;
+
   // Pressing the button is what lets the browser show the serial-port picker.
   if (!turntable.connected && Turntable.supported) await connectTurntable();
   let useTurntable = turntable.connected;
@@ -715,15 +718,15 @@ function folderFor(insect, photos) {
 
 async function buildZip() {
   if (typeof JSZip === 'undefined') throw new Error('Zip library failed to load. Open the app once with internet.');
-  const folder = folderFor(INSECT_NAME, state.photos);
+  const folder = folderFor(state.name, state.photos);
   if (state.zipBlob) return { blob: state.zipBlob, folder };
   const zip = new JSZip();
   const dir = zip.folder(folder);
   const rows = [['file', 'insect', 'angle_deg', 'lighting', 'flash_pct', 'captured_at']];
   state.photos.forEach((p, i) => {
-    const name = fileNameFor(INSECT_NAME, p, i);
+    const name = fileNameFor(state.name, p, i);
     dir.file(name, p.blob);
-    rows.push([name, INSECT_NAME, p.angle, p.light, p.flash, p.time.toISOString()]);
+    rows.push([name, state.name, p.angle, p.light, p.flash, p.time.toISOString()]);
   });
   dir.file('labels.csv', rows.map(r => r.join(',')).join('\n') + '\n');
   state.zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
@@ -857,6 +860,7 @@ function finishSend() {
   sendRun++;
   keepScreenOn(false);
   clearPhotos();
+  $('#insect-name').value = '';   // the next one is probably a different insect
   show('intro');
 }
 
@@ -877,7 +881,7 @@ async function autoSend() {
       if (run !== sendRun) return;
       if (base === null) throw new Error('No computer found. Plug in the USB cable, or put the phone and computer on the same hotspot.');
       $('#save-status').textContent = 'Sending the photos…';
-      const res = await localFetch(`${base}/api/import?name=${INSECT_NAME}&filename=${encodeURIComponent(folder)}.zip`,
+      const res = await localFetch(`${base}/api/import?name=${encodeURIComponent(state.name)}&filename=${encodeURIComponent(folder)}.zip`,
         { method: 'POST', body: blob });
       const j = await res.json().catch(() => ({ error: `The computer answered ${res.status} but it is not the Training Rig.` }));
       if (!res.ok) throw new Error(j.error || 'The computer refused the photos.');

@@ -10,11 +10,11 @@ firmware/turntable/turntable.ino  Arduino alternative for the ESP32-C3
 
 ## User flow
 
-1. **Start**: the only button. The app connects to the turntable over USB and opens the camera.
+1. **Start**: type the insect's name (optional), then press **Start**, the only button. The app connects to the turntable over USB and opens the camera.
 2. **Photos**: put the bug in the ring. After 3 seconds the app takes 50 photos in 8 seconds while the turntable spins, and shows how many are taken. There is no zoom.
    - Camera with a flashlight (phone): the exposure steps through normal, dim, dark, bright and very bright, while the flashlight strobes on and off every 0.2 s on its own clock. Flashlight photos end in `_flash`. Photos taken while the light is switching are labelled `changing`.
    - No flashlight (laptop webcam): the screen glows white, warm and cool, plus room light
-3. **Sending**: the app zips the photos (named `insect`, with a `labels.csv`) and sends them to the computer by itself: first over the USB cable, then over the hotspot or Wi-Fi. The first time, tap **Allow** if Chrome asks about the local network. If no computer answers it keeps trying, and **Save to phone instead** downloads the zip.
+3. **Sending**: the app zips the photos (named after the insect, or `insect` if no name was typed, with a `labels.csv`) and sends them to the computer by itself: first over the USB cable, then over the hotspot or Wi-Fi. The first time, tap **Allow** if Chrome asks about the local network. If no computer answers it keeps trying, and **Save to phone instead** downloads the zip.
 
 ## Turntable hardware
 

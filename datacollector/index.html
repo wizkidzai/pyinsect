@@ -12,7 +12,7 @@
   <!-- Bump ?v= whenever app.js or style.css changes, so phones load the new copy instead of a cached one. -->
   <link rel="stylesheet" href="style.css?v=9">
   <script src="jszip.min.js"></script>
-  <script src="app.js?v=17" defer></script>
+  <script src="app.js?v=18" defer></script>
 </head>
 <body>
 
@@ -23,12 +23,15 @@
   </header>
 
   <ol class="steps">
-    <li><b>1</b>Put the insect on the turntable and press Start.</li>
+    <li><b>1</b>Put the insect on the turntable, type its name and press Start.</li>
     <li><b>2</b>Hold the bug in the ring while the photos are taken.</li>
     <li><b>3</b>The photos are sent to the computer by themselves.</li>
   </ol>
 
   <div class="launch">
+    <label class="field">Insect name
+      <input id="insect-name" type="text" placeholder="e.g. ladybug" autocomplete="off" autocapitalize="none" maxlength="60">
+    </label>
     <button id="capture" class="primary big">Start</button>
   </div>
 </main>

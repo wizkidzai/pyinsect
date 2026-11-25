@@ -4,69 +4,36 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#14241b">
-  <title>PyInsect</title>
+  <title>PyInsect Data Collector</title>
+  <meta name="apple-mobile-web-app-title" content="Data Collector">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <!-- Bump ?v= whenever app.js or style.css changes, so phones load the new copy instead of a cached one. -->
-  <link rel="stylesheet" href="style.css?v=5">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-  <script src="app.js?v=5" defer></script>
+  <link rel="stylesheet" href="style.css?v=7">
+  <script src="jszip.min.js"></script>
+  <script src="app.js?v=15" defer></script>
 </head>
 <body>
 
 <!-- ============ INTRO ============ -->
 <main id="screen-intro" class="screen active">
   <header class="hero">
-    <h1>PyInsect</h1>
-    <p>Put the insect on the turntable and press the button. Photos are taken while it spins and the light changes by itself.</p>
+    <h1>PyInsect Data Collector</h1>
+    <p>Put the insect on the turntable and press Start. Photos are taken while it spins and the light changes by itself.</p>
   </header>
 
   <ol class="steps">
-    <li><b>1 · Capture</b>Zoom in on the bug, then the photos are taken while the turntable spins and the lighting changes (dim, dark, bright, flashlight).</li>
+    <li><b>1 · Capture</b>Press Start. Zoom in on the bug, then the photos are taken while the turntable spins and the lighting changes (dim, dark, bright, flashlight).</li>
     <li><b>2 · Review</b>Look through the photos. Tap one to remove it.</li>
-    <li><b>3 · Save</b>Name the folder after the insect and save it as a .zip.</li>
+    <li><b>3 · Save</b>Save the photo folder as a .zip.</li>
   </ol>
 
   <div class="launch">
-    <button id="capture" class="primary big">Take photos</button>
-    <label class="slider">
-      <span>Photos <output id="count-out">500</output></span>
-      <input type="range" id="count" min="50" max="1000" step="50" value="500">
-    </label>
-    <label class="slider">
-      <span>Time <output id="interval-out">8 s</output></span>
-      <input type="range" id="interval" min="4" max="30" step="1" value="8">
-    </label>
-    <label class="slider">
-      <span>Flashlight strobe <output id="strobe-out">0.2 s</output></span>
-      <input type="range" id="strobe" min="0.1" max="1" step="0.05" value="0.2">
-    </label>
-    <p id="estimate" class="hint center"></p>
+    <button id="capture" class="primary big">Start</button>
   </div>
 
-  <section class="card turntable-card">
-    <div class="card-head">
-      <h2>Turntable</h2>
-      <span id="tt-status" class="pill">Not connected</span>
-    </div>
-    <button id="tt-connect" class="secondary wide">Connect turntable</button>
-    <details class="calibrate">
-      <summary>Calibrate</summary>
-      <label class="field">Time for one full spin (ms)
-        <input id="cal-ms" type="number" inputmode="numeric" min="500" max="60000" step="50" value="6000">
-      </label>
-      <label class="field">Speed (negative reverses)
-        <input id="cal-speed" type="number" inputmode="numeric" min="-500" max="500" step="5" value="250">
-      </label>
-      <label class="field">Stop trim
-        <input id="cal-trim" type="number" inputmode="numeric" min="-100" max="100" step="1" value="0">
-      </label>
-      <div class="btn-row">
-        <button type="button" id="cal-save" class="primary">Save</button>
-        <button type="button" id="cal-stop" class="danger">Stop</button>
-        <button type="button" id="cal-90" class="secondary">Spin 90°</button>
-        <button type="button" id="cal-360" class="secondary">Spin 360°</button>
-      </div>
-    </details>
-  </section>
+  <p class="center"><span id="tt-status" class="pill">Not connected</span></p>
 </main>
 
 <!-- ============ CAPTURE ============ -->
@@ -106,7 +73,7 @@
   <div id="gallery" class="gallery"></div>
   <div class="footer-bar">
     <button id="gallery-restart" class="secondary">Start over</button>
-    <button id="gallery-next" class="primary">Next: name folder</button>
+    <button id="gallery-next" class="primary">Next: save folder</button>
   </div>
 </main>
 
@@ -122,6 +89,24 @@
     </label>
     <p id="name-preview" class="hint mono"></p>
     <button id="save-zip" class="primary wide" disabled>Save folder (.zip)</button>
+    <label class="field">Send over
+      <select id="send-via">
+        <option value="auto">Automatic (USB cable, then hotspot)</option>
+        <option value="usb">USB cable</option>
+        <option value="hotspot">Hotspot (Wi-Fi)</option>
+      </select>
+    </label>
+    <div class="field" id="hotspot-field" hidden>
+      <span>Computers on the hotspot</span>
+      <button id="find-rigs" class="secondary" type="button">Find computers</button>
+      <div id="rig-list" class="rig-list"></div>
+      <p id="rig-status" class="hint"></p>
+      <details>
+        <summary class="hint">Type an address instead</summary>
+        <input id="hotspot-addr" type="text" value="" placeholder="e.g. 192.168.43.7:8090" autocomplete="off" autocapitalize="none" spellcheck="false">
+      </details>
+    </div>
+    <button id="send-pc" class="secondary wide" disabled>Send to computer</button>
     <button id="share-zip" class="secondary wide" hidden disabled>Share…</button>
     <p id="save-status" class="hint"></p>
   </section>

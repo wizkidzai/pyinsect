@@ -1,16 +1,18 @@
 'use strict';
 
 /* PyInsect Data Collector
- * Step 1: capture — a burst of photoTarget photos in CAPTURE seconds (default 500 in 8 s) while the
+ * Step 1: capture — a burst of PHOTO_TARGET photos (50) in INTERVAL seconds (8) while the
  *         turntable (ESP32-C3 over USB serial) spins continuously and the lighting changes automatically
  * Step 2: review  — gallery of every photo taken
- * Step 3: name    — name the folder and save it as a .zip
+ * Step 3: save    — save the folder as a .zip
  */
 
 const $ = (sel) => document.querySelector(sel);
 
-const DEFAULT_PHOTOS = 500;   // photos per dataset (the Photos slider changes it, 50-1000)
-const DEFAULT_INTERVAL = 8;   // seconds the whole burst takes
+const PHOTO_TARGET = 50;      // photos per dataset
+const INTERVAL = 8;           // seconds the whole burst takes
+const STROBE_MS = 200;        // flashlight stays on this long, then off this long
+const DEFAULT_NAME = 'insect';  // names the files and folder unless changed on the save screen
 const MAX_ZOOM = 4;           // highest zoom on the slider (more when the camera has real zoom, up to 8)
 const MAX_ENCODING = 24;      // photos allowed to wait for JPEG encoding at once (limits phone memory)
 const WARMUP_MS = 1500;       // let the camera focus/expose before the burst starts
@@ -27,7 +29,6 @@ const CAMERA_LIGHTS = [
 ];
 // The flashlight strobes on, off, on, off... through the whole burst, on top of the levels above,
 // so every angle and every level gets photos both with and without the flashlight.
-const DEFAULT_STROBE_MS = 200; // flashlight stays on this long, then off this long (Strobe slider: 100-1000)
 // No flashlight (laptop webcam / front camera): the screen glows in different colours and levels.
 const SCREEN_LIGHTS = [
   { id: 'white',  label: 'Screen white',  screen: '#ffffff' },
@@ -42,18 +43,8 @@ const SCREEN_LIGHTS = [
 // frames (so it's right at 30 and 60 fps); the ms values are the fallback without frame timing.
 const LEVEL_SETTLE_FRAMES = 5, LIGHT_SETTLE_MS = 150;  // new exposure level (or screen colour)
 const TORCH_SETTLE_FRAMES = 2, TORCH_SETTLE_MS = 70;   // flashlight on/off only
-const MIN_PHOTOS_PER_PHASE = 3;   // each flashlight on or off phase holds at least this many photos
-
-// The flashlight on/off time actually used. It is the Strobe setting, but adjusted when needed so
-// every flashlight phase holds a few photos (otherwise photos can line up with the strobe and all
-// get the same flash state) and every exposure level gets both flash and no-flash photos.
-function strobePhaseMs() {
-  const gap = interval * 1000 / photoTarget, levelMs = interval * 1000 / CAMERA_LIGHTS.length;
-  return Math.round(Math.min(Math.max(strobeMs, MIN_PHOTOS_PER_PHASE * gap), (levelMs - LIGHT_SETTLE_MS) / 2));
-}
-
 const state = {
-  photos: [],          // { blob, url, angle, light, lightLabel, time, removed }
+  photos: [],          // { blob, url, angle, light, lightLabel, flash (0 or 100 %), time, removed }
   stream: null,
   track: null,
   caps: {},
@@ -64,17 +55,8 @@ const state = {
   zipName: '',
 };
 
-let interval = DEFAULT_INTERVAL;
-let photoTarget = DEFAULT_PHOTOS;
-let strobeMs = DEFAULT_STROBE_MS;
 let zoom = 1;
 try {
-  const st = +localStorage.getItem('pyinsect-strobe-ms');
-  if (st >= 100 && st <= 1000) strobeMs = st;
-  const saved = +localStorage.getItem('pyinsect-capture-seconds');
-  if (saved >= 4 && saved <= 30) interval = saved;
-  const count = +localStorage.getItem('pyinsect-photo-count');
-  if (count >= 50 && count <= 1000) photoTarget = count;
   const z = +localStorage.getItem('pyinsect-zoom');
   if (z >= 1 && z <= 8) zoom = z;
 } catch (_) {}
@@ -399,20 +381,8 @@ function renderTurntable() {
   const s = $('#tt-status');
   s.textContent = on ? 'Connected' : (Turntable.supported ? 'Not connected' : 'Not supported here');
   s.classList.toggle('ok', on);
-  $('#tt-connect').textContent = on ? 'Disconnect' : 'Connect turntable';
-  $('#tt-connect').disabled = !Turntable.supported || state.running;
-  $('#cal-save').disabled = !on || turntable.moving;
-  $('#cal-90').disabled = !on || turntable.moving;
-  $('#cal-360').disabled = !on || turntable.moving;
-  $('#cal-stop').disabled = !on;
-  if (on) {
-    $('#cal-ms').value = turntable.info.ms;
-    $('#cal-speed').value = turntable.info.v;
-    $('#cal-trim').value = turntable.info.t;
-  }
   $('#run-tt').textContent = on ? 'Turntable connected' : 'No turntable: turn by hand';
   $('#run-tt').classList.toggle('ok', on);
-  updateEstimate();
 }
 turntable.onchange = renderTurntable;
 
@@ -427,69 +397,10 @@ async function connectTurntable() {
   }
 }
 
-$('#tt-connect').addEventListener('click', () => {
-  if (turntable.connected) turntable.disconnect();
-  else connectTurntable();
-});
-
-$('#cal-save').addEventListener('click', async () => {
-  try {
-    await turntable.command(`C${Math.round(+$('#cal-ms').value)}`);
-    await turntable.command(`V${Math.round(+$('#cal-speed').value)}`);
-    await turntable.command(`T${Math.round(+$('#cal-trim').value)}`);
-    await turntable.refresh();
-    toast('Calibration saved on the turntable');
-  } catch (err) { toast(err.message); }
-});
-$('#cal-90').addEventListener('click', () => turntable.rotate(90).catch(err => toast(err.message)));
-$('#cal-360').addEventListener('click', () => turntable.rotate(360).catch(err => toast(err.message)));
-$('#cal-stop').addEventListener('click', () => turntable.stop());
-
 if (Turntable.supported) {
   const usbApi = Turntable.useWebSerial ? navigator.serial : navigator.usb;
   usbApi.addEventListener('connect', () => { if (!turntable.connected) turntable.autoConnect(); });
 }
-
-/* ------------------------------------------------------------------ */
-/* Intro screen                                                        */
-/* ------------------------------------------------------------------ */
-function updateEstimate() {
-  const fps = photoTarget / interval;
-  let text = `${photoTarget} photos in ${interval} s · ${fps.toFixed(fps < 100 ? 1 : 0)} photos per second`;
-  // The camera is asked for 60 frames per second; warn only when well above that (not on the default 62.5).
-  if (fps > 75) text += '. Some photos will be the same, because that is faster than the camera. Use fewer photos or more time.';
-  const phase = strobePhaseMs();
-  text += ` · flashlight on/off every ${fmtStrobe(phase)}`;
-  if (phase !== strobeMs) text += ` (not ${fmtStrobe(strobeMs)}, so every light level gets photos with and without it)`;
-  $('#estimate').textContent = text;
-}
-
-$('#count').value = photoTarget;
-$('#count-out').textContent = String(photoTarget);
-$('#count').addEventListener('input', (e) => {
-  photoTarget = +e.target.value;
-  $('#count-out').textContent = String(photoTarget);
-  try { localStorage.setItem('pyinsect-photo-count', String(photoTarget)); } catch (_) {}
-  updateEstimate();
-});
-
-$('#interval').value = interval;
-$('#interval-out').textContent = `${interval} s`;
-$('#interval').addEventListener('input', (e) => {
-  interval = +e.target.value;
-  $('#interval-out').textContent = `${interval} s`;
-  try { localStorage.setItem('pyinsect-capture-seconds', String(interval)); } catch (_) {}
-  updateEstimate();
-});
-
-$('#strobe').value = strobeMs / 1000;
-$('#strobe-out').textContent = fmtStrobe(strobeMs);
-$('#strobe').addEventListener('input', (e) => {
-  strobeMs = Math.round(+e.target.value * 1000);
-  $('#strobe-out').textContent = fmtStrobe(strobeMs);
-  try { localStorage.setItem('pyinsect-strobe-ms', String(strobeMs)); } catch (_) {}
-  updateEstimate();
-});
 
 /* ------------------------------------------------------------------ */
 /* Camera + automatic lighting                                         */
@@ -717,6 +628,7 @@ function hudProgress(done, total) {
 
 async function runCapture() {
   if (state.running) return;
+  if (!cleanName($('#folder-name').value)) $('#folder-name').value = DEFAULT_NAME;
 
   // Pressing the button is what lets the browser show the serial-port picker.
   if (!turntable.connected && Turntable.supported) await connectTurntable();
@@ -735,7 +647,7 @@ async function runCapture() {
   $('#frame-guide').hidden = true;
   show('camera');
   hud('Starting camera…');
-  hudProgress(0, photoTarget);
+  hudProgress(0, PHOTO_TARGET);
   await keepScreenOn(true);
 
   let spun = 0;          // degrees the turntable turned during the burst
@@ -760,7 +672,7 @@ async function runCapture() {
         useTurntable = false;
       }
     }
-    await wait(WARMUP_MS, () => hud('Get ready…', `${photoTarget} photos in ${interval} seconds`));
+    await wait(WARMUP_MS, () => hud('Get ready…', `${PHOTO_TARGET} photos in ${INTERVAL} seconds`));
     if (state.abort) throw new Error('stopped');
 
     const video = $('#video');
@@ -769,11 +681,10 @@ async function runCapture() {
     for (let t = 0; video.videoWidth <= 16 && t < 60 && !state.abort; t++) await sleep(50);
     if (state.abort) throw new Error('stopped');
     if (video.videoWidth <= 16) throw new Error('The camera did not start properly. Please try again.');
-    const durationMs = interval * 1000;
-    const gapMs = durationMs / photoTarget;        // 16 ms for 500 photos in 8 s
+    const durationMs = INTERVAL * 1000;
+    const gapMs = durationMs / PHOTO_TARGET;        // 160 ms for 50 photos in 8 s
     const lightMs = durationMs / lights.length;     // each lighting gets an equal slice of the burst
     const strobe = !!state.caps.torch && !lights[0].screen;
-    const phaseMs = strobePhaseMs();
     let shown = { light: lights[0], torch: false };  // the light the frames really show (photo labels)
     let pending = null;   // a light change the frames may not show yet: { want, readyFrame, readyAt }
     const hasFrameTiming = !!video.requestVideoFrameCallback;
@@ -804,8 +715,8 @@ async function runCapture() {
     const t0 = performance.now();
 
     // Runs beside the photo loop so the burst stays on time: one camera change at a time, on
-    // schedule, never waiting for a change to show up before making the next one. The strobe starts
-    // over at each exposure level so every level gets both flash and no-flash photos.
+    // schedule, never waiting for a change to show up before making the next one. The strobe runs on
+    // its own clock: it doesn't depend on the number of photos, the burst time or the exposure levels.
     // From the moment a change is asked for until enough frames have arrived to show it, photos are
     // labelled "changing" — never with a light the frames might not show. An exposure change keeps
     // its longer wait even if the flashlight switches again meanwhile.
@@ -818,7 +729,7 @@ async function runCapture() {
         const level = Math.min(lights.length - 1, Math.floor(elapsed / lightMs));
         const want = {
           light: lights[level],
-          torch: strobe && Math.floor((elapsed - level * lightMs) / phaseMs) % 2 === 0,
+          torch: strobe && Math.floor(elapsed / STROBE_MS) % 2 === 0,
         };
         if (want.light === cur.light && want.torch === cur.torch) { await sleep(2); continue; }
         const levelChange = want.light !== cur.light, torchChange = want.torch !== cur.torch;
@@ -837,7 +748,7 @@ async function runCapture() {
     })();
 
     let encodingNow = 0;   // photos still being turned into JPEGs
-    for (let i = 0; i < photoTarget && !state.abort; i++) {
+    for (let i = 0; i < PHOTO_TARGET && !state.abort; i++) {
       const due = t0 + i * gapMs;
       const early = due - performance.now();
       // Always give the browser a turn, even when behind schedule, so the flashlight strobe,
@@ -857,7 +768,7 @@ async function runCapture() {
       ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
       applySoft(ctx, canvas.width, canvas.height, softLevel(light));
       const angle = useTurntable ? Math.round(((elapsed / turntable.info.ms) * 360 % 360) * 10) / 10 : 0;
-      const photo = { blob: null, url: '', angle, light: shot.id, lightLabel: shot.label, time: new Date(), removed: false };
+      const photo = { blob: null, url: '', angle, light: shot.id, lightLabel: shot.label, flash: torch ? 100 : 0, time: new Date(), removed: false };
       state.photos.push(photo);
       // toBlob copies the canvas now and encodes in the background, so the next photo isn't delayed.
       encodingNow++;
@@ -867,18 +778,18 @@ async function runCapture() {
         res();
       }, 'image/jpeg', 0.85)));
 
-      if (i % 8 === 0) {
-        hudProgress(i + 1, photoTarget);
+      {
+        hudProgress(i + 1, PHOTO_TARGET);
         hud(`${Math.max(0, (durationMs - elapsed) / 1000).toFixed(1)} s`, `${shot.label} · ${i + 1} photos`);
       }
-      if (i % 25 === 0) {
+      if (i % 5 === 0) {
         const n = encoding.length - 1;
         encoding[n].then(() => { if (photo.url) { $('#last-shot').src = photo.url; $('#last-shot').hidden = false; } });
       }
     }
     const burstMs = performance.now() - t0;
     counting = false;
-    hudProgress(state.photos.length, photoTarget);
+    hudProgress(state.photos.length, PHOTO_TARGET);
     hud('Saving photos…', `${state.photos.length} photos in ${(burstMs / 1000).toFixed(1)} s`);
     lightingDone = true;
     await lighting;
@@ -891,7 +802,7 @@ async function runCapture() {
     // The real strobe speed: a slow phone may not manage the chosen one.
     const gaps = torchSwitches.slice(1).map((t, k) => t - torchSwitches[k]);
     state.strobe = strobe && gaps.length >= 2
-      ? { planned: phaseMs, measured: gaps.reduce((a, b) => a + b, 0) / gaps.length }
+      ? { planned: STROBE_MS, measured: gaps.reduce((a, b) => a + b, 0) / gaps.length }
       : null;
 
     if (spin) {
@@ -1005,7 +916,6 @@ $('#gallery-restart').addEventListener('click', () => {
 $('#gallery-next').addEventListener('click', () => {
   updateNamePreview();
   show('name');
-  $('#folder-name').focus();
 });
 
 /* ------------------------------------------------------------------ */
@@ -1015,11 +925,20 @@ function cleanName(raw) {
   return raw.trim().replace(/\s+/g, '_').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60);
 }
 
-// width = digits in the photo number, so 1000 photos are numbered 0001...1000 and still sort in order.
-function fileNameFor(folder, p, i, width = Math.max(3, String(keptPhotos().length).length)) {
+// yyyy_mm_dd_hh_mm_ss in the phone's local time
+function stamp(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}_${p(d.getMonth() + 1)}_${p(d.getDate())}_${p(d.getHours())}_${p(d.getMinutes())}_${p(d.getSeconds())}`;
+}
+// Photo file: <insect_name>_top_nofilter_<flash_intensity_percentage>_<photo_serial_number>_yyyy_mm_dd_hh_mm_ss.jpg
+// The flashlight is either on (100) or off (0). width = digits in the serial number, so 1000 photos still sort in order.
+function fileNameFor(insect, p, i, width = Math.max(3, String(keptPhotos().length).length)) {
   const n = String(i + 1).padStart(width, '0');
-  const deg = p.angle.toFixed(1).replace('.', 'p').padStart(5, '0');
-  return `${folder}_${n}_${deg}deg_${p.light}.jpg`;
+  return `${insect}_top_nofilter_${p.flash}_${n}_${stamp(p.time)}.jpg`;
+}
+// Folder (and .zip): <insect_name>_yyyy_mm_dd_hh_mm_ss, the time of the first photo
+function folderFor(insect, kept) {
+  return `${insect}_${stamp(kept[0].time)}`;
 }
 
 function updateNamePreview() {
@@ -1027,28 +946,30 @@ function updateNamePreview() {
   const kept = keptPhotos();
   $('#save-zip').disabled = !folder;
   $('#share-zip').disabled = !folder;
+  $('#send-pc').disabled = !folder;
   $('#save-status').textContent = '';
   $('#name-preview').textContent = folder && kept.length
-    ? `${folder}.zip → ${folder}/${fileNameFor(folder, kept[0], 0)} … (${kept.length} photos + labels.csv)`
+    ? `${folderFor(folder, kept)}.zip → ${folderFor(folder, kept)}/${fileNameFor(folder, kept[0], 0)} … (${kept.length} photos + labels.csv)`
     : `${kept.length} photos ready`;
   state.zipBlob = null;
 }
 $('#folder-name').addEventListener('input', updateNamePreview);
 
 async function buildZip() {
-  const folder = cleanName($('#folder-name').value);
-  if (state.zipBlob && state.zipName === folder) return { blob: state.zipBlob, folder };
+  const insect = cleanName($('#folder-name').value);
+  const kept = keptPhotos();
+  const folder = folderFor(insect, kept);
+  if (state.zipBlob && state.zipName === insect) return { blob: state.zipBlob, folder, insect };
   if (typeof JSZip === 'undefined') throw new Error('Zip library failed to load. Check your internet connection.');
 
   const zip = new JSZip();
   const dir = zip.folder(folder);
-  const rows = [['file', 'insect', 'angle_deg', 'lighting', 'captured_at']];
-  const kept = keptPhotos();
+  const rows = [['file', 'insect', 'angle_deg', 'lighting', 'flash_pct', 'captured_at']];
   const width = Math.max(3, String(kept.length).length);
   kept.forEach((p, i) => {
-    const name = fileNameFor(folder, p, i, width);
+    const name = fileNameFor(insect, p, i, width);
     dir.file(name, p.blob);
-    rows.push([name, folder, p.angle, p.light, p.time.toISOString()]);
+    rows.push([name, insect, p.angle, p.light, p.flash, p.time.toISOString()]);
   });
   dir.file('labels.csv', rows.map(r => r.join(',')).join('\n') + '\n');
 
@@ -1057,8 +978,8 @@ async function buildZip() {
     $('#save-status').textContent = `Packing photos… ${Math.round(m.percent)}%`;
   });
   state.zipBlob = blob;
-  state.zipName = folder;
-  return { blob, folder };
+  state.zipName = insect;
+  return { blob, folder, insect };
 }
 
 $('#save-zip').addEventListener('click', async () => {
@@ -1074,6 +995,171 @@ $('#save-zip').addEventListener('click', async () => {
     $('#save-status').textContent = `Saved ${folder}.zip (${(blob.size / 1e6).toFixed(1)} MB) to Downloads.`;
   } catch (err) {
     $('#save-status').textContent = err.message;
+  }
+});
+
+// Send the zip straight to the Training Rig on the computer. The page works offline on the phone, so the
+// computer is looked for when you tap Send: first over the USB cable (adb reverse), then on the PyInsect
+// hotspot. When this page itself comes from the computer (/collect/), the same address is used.
+const USB_RIG = 'http://localhost:8100', DEFAULT_HOTSPOT = '';
+const saved = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* private mode: fine */ } };
+$('#send-via').value = saved('pyinsect-send-via', 'auto');
+$('#hotspot-addr').value = saved('pyinsect-hotspot-addr', '');
+function showSendOptions() { $('#hotspot-field').hidden = $('#send-via').value === 'usb'; }
+$('#send-via').addEventListener('change', () => { save('pyinsect-send-via', $('#send-via').value); showSendOptions(); });
+$('#hotspot-addr').addEventListener('change', () => save('pyinsect-hotspot-addr', $('#hotspot-addr').value.trim()));
+showSendOptions();
+// "192.168.43.7:8090", "http://192.168.43.7:8090/" and "192.168.43.7" (port 8090) all work
+function hotspotBase() {
+  let v = $('#hotspot-addr').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  if (!v) return null;
+  if (!/:\d+$/.test(v)) v += ':8090';
+  return 'http://' + v;
+}
+async function reachable(base) {
+  try {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 3000);
+    const r = await fetch(`${base}/api/import`, { method: 'OPTIONS', signal: ctl.signal });
+    clearTimeout(t);
+    return r.status < 500;
+  } catch (e) { return false; }
+}
+// ---- Find the computers on the hotspot ----
+// A web page can't read Wi-Fi names, so it looks at the network the phone is on: it asks the phone for its own
+// address, then asks every address next to it whether a PyInsect computer answers on port 8090.
+const RIG_PORT = 8090;
+async function phoneSubnets() {
+  const found = new Set();
+  let stream = null;
+  try { stream = await navigator.mediaDevices.getUserMedia({ video: true }); } catch (e) { /* no camera permission: fine */ }
+  try {
+    const pc = new RTCPeerConnection({ iceServers: [] });
+    pc.createDataChannel('x');
+    await new Promise(res => {
+      const done = () => res();
+      pc.onicecandidate = e => {
+        if (!e.candidate) return done();
+        const ip = (e.candidate.candidate.split(' ')[4] || '');
+        const m = /^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}$/.exec(ip);
+        if (m && !ip.startsWith('127.')) found.add(m[1]);
+      };
+      pc.createOffer().then(o => pc.setLocalDescription(o)).catch(done);
+      setTimeout(done, 2500);
+    });
+    pc.close();
+  } catch (e) { /* use the guesses below */ }
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  const last = saved('pyinsect-last-subnet', '');
+  if (last) found.add(last);
+  if (found.size <= 1) ['192.168.43', '192.168.49', '192.168.137', '192.168.0', '192.168.1', '172.20.10', '10.42.0'].forEach(s => found.add(s));
+  return [...found];
+}
+async function whoIs(ip) {
+  try {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 1500);
+    const r = await fetch(`http://${ip}:${RIG_PORT}/api/whoami`, { signal: ctl.signal });
+    clearTimeout(t);
+    const j = await r.json();
+    return j && j.app === 'pyinsect-rig' ? { ip, name: j.name || ip } : null;
+  } catch (e) { return null; }
+}
+async function scanForComputers(onProgress) {
+  const subnets = await phoneSubnets(), ips = [];
+  for (const s of subnets) for (let i = 1; i < 255; i++) ips.push(`${s}.${i}`);
+  const found = [];
+  let next = 0, done = 0;
+  const worker = async () => {
+    while (next < ips.length && !found.length) {   // stop at the first computer that answers
+      const ip = ips[next++];
+      const r = await whoIs(ip);
+      if (r) found.push(r);
+      onProgress && onProgress(++done, ips.length, subnets);
+    }
+  };
+  await Promise.all(Array.from({ length: 48 }, worker));
+  return found.slice(0, 1);
+}
+function pickComputer(c) {
+  $('#hotspot-addr').value = `${c.ip}:${RIG_PORT}`;
+  save('pyinsect-hotspot-addr', $('#hotspot-addr').value);
+  save('pyinsect-last-subnet', c.ip.replace(/\.\d+$/, ''));
+  for (const b of $('#rig-list').children) b.classList.toggle('picked', b.dataset.ip === c.ip);
+  $('#rig-status').textContent = `Sending to ${c.name} (${c.ip}).`;
+}
+function showComputers(found) {
+  const box = $('#rig-list');
+  box.textContent = '';
+  for (const c of found) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.dataset.ip = c.ip;
+    b.append(c.name);
+    const small = document.createElement('small'); small.textContent = c.ip; b.append(small);
+    b.addEventListener('click', () => pickComputer(c));
+    box.append(b);
+  }
+}
+let scanning = false;
+async function findComputers() {
+  if (scanning) return [];
+  scanning = true;
+  const btn = $('#find-rigs'); btn.disabled = true;
+  $('#rig-list').textContent = '';
+  let found = [];
+  try {
+    $('#rig-status').textContent = 'Looking for computers…';
+    found = await scanForComputers((d, n, subs) => { if (d % 16 === 0) $('#rig-status').textContent = `Looking on ${subs.map(s => s + '.x').join(', ')} … ${Math.round(100 * d / n)}%`; });
+    showComputers(found);
+    if (found.length) pickComputer(found[0]);
+    else $('#rig-status').textContent = 'No computer found. Turn on the phone hotspot, join the computer to it, and tap Find computers again.';
+  } finally { scanning = false; btn.disabled = false; }
+  return found;
+}
+// Find computers also sends: the photos go to the first computer that shows up.
+$('#find-rigs').addEventListener('click', async () => {
+  const found = await findComputers();
+  if (found.length) $('#send-pc').click();   // does nothing if there is no name or a send is already going
+});
+
+async function findRig() {
+  if (location.pathname.startsWith('/collect')) return '';
+  const via = $('#send-via').value;
+  if (via !== 'hotspot' && await reachable(USB_RIG)) return USB_RIG;
+  if (via === 'usb') return null;
+  const chosen = hotspotBase();
+  if (chosen && await reachable(chosen)) return chosen;
+  // The chosen computer isn't answering (or none was chosen): look again, and use the first one that answers.
+  $('#save-status').textContent = 'Looking for the computer on the hotspot…';
+  const found = await findComputers();
+  if (found.length) return hotspotBase();
+  return null;
+}
+$('#send-pc').addEventListener('click', async () => {
+  const btn = $('#send-pc');
+  btn.disabled = true;
+  try {
+    const { blob, folder, insect } = await buildZip();
+    $('#save-status').textContent = 'Looking for the computer…';
+    const base = await findRig();
+    if (base === null) {
+      const via = $('#send-via').value;
+      $('#save-status').textContent = (via === 'usb' ? "Can't reach the computer over the USB cable. Plug it in and tap Send again."
+        : via === 'hotspot' ? "Can't find the computer on the hotspot. Turn on the phone hotspot, join the computer to it, and tap Send again."
+        : "Can't reach the computer. Plug in the USB cable or join the PyInsect Wi-Fi, then tap Send again.")
+        + ' Your photos are still here; you can also tap Save folder (.zip).';
+      return;
+    }
+    $('#save-status').textContent = 'Sending to the computer…';
+    const res = await fetch(`${base}/api/import?name=${encodeURIComponent(insect)}&filename=${encodeURIComponent(folder)}.zip`,
+      { method: 'POST', body: blob });
+    const j = await res.json().catch(() => ({ error: `The computer answered ${res.status} but it is not the Training Rig.` }));
+    if (!res.ok) throw new Error(j.error || 'The computer refused the photos.');
+    const n = Object.values(j.added || {}).reduce((x, y) => x + y, 0);
+    $('#save-status').textContent = `Sent ${n} photos to the computer ✔` + (base ? (base.includes('localhost') ? ' (USB cable)' : ' (hotspot)') : '');
+  } catch (err) {
+    $('#save-status').textContent = err.message;
+  } finally {
+    btn.disabled = !cleanName($('#folder-name').value);
   }
 });
 
@@ -1102,3 +1188,6 @@ $('#name-new').addEventListener('click', () => {
 /* ------------------------------------------------------------------ */
 renderTurntable();
 turntable.autoConnect();
+
+// Keep a copy of this page on the phone, so it opens with no internet.
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

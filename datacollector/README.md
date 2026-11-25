@@ -1,6 +1,6 @@
-# pyinsect-hardware
+# PyInsect Data Collector
 
-**PyInsect Data Collector** builds photo datasets of insects. You put an insect on a turntable. A phone web app spins the turntable, changes the lighting and takes a photo at every angle. Then you review the photos and save them as a named folder.
+**PyInsect Data Collector** builds photo datasets of insects. You put an insect on a turntable. A phone web app spins the turntable, changes the lighting and takes a photo at every angle. Then you review the photos and save them as a folder.
 
 ```
 index.html, app.js, style.css   phone web app (plain HTML/CSS/JS, no build step)
@@ -10,13 +10,13 @@ firmware/turntable/turntable.ino  Arduino alternative for the ESP32-C3
 
 ## User flow
 
-1. **Capture**: choose how many photos to take with the **Photos** slider (50 to 1000, default 500) and how long the burst lasts with the **Time** slider (default 8 s). Then press *Take photos*. The app connects to the turntable over USB serial and opens the camera.
+1. **Capture**: press **Start**. That is the only control on the first screen. The app takes 50 photos in 8 seconds, connects to the turntable over USB and opens the camera.
    - **Zoom in on the bug**: the camera opens with a **Zoom** slider. Put the bug in the ring in the middle, zoom until it fills the picture, then press **Start** (or **Cancel**). The preview shows exactly what the photos keep. Phones with real camera zoom use it. Other cameras use a digital zoom that saves only the centre of each frame.
    - The turntable spins while the app takes the photos as a fast burst. If the phone can't keep up, the burst still ends on time (fewer photos) so the angles stay correct. The lighting changes automatically:
-   - Camera with a flashlight (phone): the exposure steps through normal, dim, dark, bright and very bright, while the flashlight strobes on and off (0.2 s each by default; change it with the **Flashlight strobe** slider, 0.1 to 1 s) the whole time, so every angle gets photos with and without the flashlight. Flashlight photos end in `_flash` (e.g. `dim_flash`). The strobe starts over at each exposure level, and the app adjusts its speed when needed (shown under the sliders) so every level gets both kinds of photo. Photos taken while the light is still switching are labelled `changing` instead of being guessed, so the `_flash` / no-flash labels can be trusted. A faster strobe means more `changing` photos. The gallery shows how many there were and the strobe speed the phone really managed
+   - Camera with a flashlight (phone): the exposure steps through normal, dim, dark, bright and very bright, while the flashlight strobes on and off every 0.2 s on its own clock, independent of the number of photos and the burst time. Flashlight photos end in `_flash` (e.g. `dim_flash`). The strobe starts over at each exposure level, and the app adjusts its speed when needed (shown under the sliders) so every level gets both kinds of photo. Photos taken while the light is still switching are labelled `changing` instead of being guessed, so the `_flash` / no-flash labels can be trusted. The gallery shows how many there were and the strobe speed the phone really managed
    - No flashlight (laptop webcam): the screen glows white, warm and cool, plus room light
 2. **Review**: a gallery shows every photo. Tap a photo to remove it.
-3. **Name**: type the insect's name. The app saves `<name>.zip`, which holds `<name>/<name>_001_000p0deg_flash.jpg …` and a `labels.csv` (file, insect, angle, lighting, time).
+3. **Save**: files are named `insect` unless you type a different folder name. The app saves `<name>.zip`, which holds `<name>/<name>_001_000p0deg_flash.jpg …` and a `labels.csv` (file, insect, angle, lighting, time).
 
 ## Turntable hardware
 
@@ -46,12 +46,15 @@ The Arduino sketch is an alternative controller. To use it instead, install the 
 
 The turntable connects over **USB serial** using Web Serial, which works in **Chrome or Edge on a computer**. Plug the ESP32 into the same computer that runs the app.
 
-**Android phones (Samsung Galaxy etc.):** use **Chrome** and a plain **USB-C to USB-C cable** from the phone to the ESP32-C3's USB-C port. The app uses WebUSB there. Press *Connect turntable*, pick the ESP32 and tap *Allow*. If the ESP32 board has its own 5V supply, use it for big servos, since a phone gives limited power.
+**Android phones (Samsung Galaxy etc.):** use **Chrome** and a plain **USB-C to USB-C cable** from the phone to the ESP32-C3's USB-C port. The app uses WebUSB there. Press *Start*, pick the ESP32 and tap *Allow*. If the ESP32 board has its own 5V supply, use it for big servos, since a phone gives limited power.
 
 ```
 python3 -m http.server 8000
 ```
-Open `http://localhost:8000`. The first time you press **Capture Dataset**, pick the ESP32's port (often "USB JTAG/serial debug unit"). After that it reconnects automatically. Close the Arduino Serial Monitor first, because only one program can use the port at a time.
+Open `http://localhost:8000`. The first time you press **Start**, pick the ESP32's port (often "USB JTAG/serial debug unit"). After that it reconnects automatically. Close the Arduino Serial Monitor first, because only one program can use the port at a time.
 
-### First-time calibration
-A 360° servo can't sense its position, so it turns for a set time. Connect the turntable, open **Calibrate turntable** and press **Spin 360°**. If it turns too far, lower *Time for one full spin*. If it stops short, raise it. Then press **Save**. The setting is stored on the ESP32. If the turntable creeps when it should be still, adjust *Stop trim*.
+### Calibration
+The app no longer has calibration controls. It uses the settings already stored on the turntable. To change them, send `C<ms>` (time for one spin), `V<us>` (speed) or `T<us>` (stop trim) from a serial monitor.
+
+## Using it offline on a phone
+Open https://wizkidzai.github.io/pyinsect/datacollector/ once with internet, then use the browser menu's **Add to Home screen**. After that it opens and takes photos with no internet.

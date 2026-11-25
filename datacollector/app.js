@@ -45,7 +45,8 @@ const SCREEN_LIGHTS = [
 // frames (so it's right at 30 and 60 fps); the ms values are the fallback without frame timing.
 const LEVEL_SETTLE_FRAMES = 5, LIGHT_SETTLE_MS = 150;  // new exposure level (or screen colour)
 const TORCH_SETTLE_FRAMES = 2, TORCH_SETTLE_MS = 70;   // flashlight on/off only
-let zoom = 1;                 // set by the auto zoom for each set of photos
+let zoom = 1;                 // how much the preview is zoomed in
+let aim = { x: 0.5, y: 0.5 }; // the spot in the preview that the zoom shows
 
 const state = {
   photos: [],          // { blob, angle, light, flash (0 or 100 %), time }
@@ -452,8 +453,8 @@ function layoutPreview() {
   box.style.height = `${h}px`;
   video.style.width = `${w * zoom}px`;
   video.style.height = `${h * zoom}px`;
-  video.style.left = `${(w - w * zoom) / 2}px`;
-  video.style.top = `${(h - h * zoom) / 2}px`;
+  video.style.left = `${w / 2 - aim.x * w * zoom}px`;
+  video.style.top = `${h / 2 - aim.y * h * zoom}px`;
 }
 if (window.ResizeObserver) new ResizeObserver(layoutPreview).observe($('.panel.run'));
 window.addEventListener('resize', layoutPreview);
@@ -491,11 +492,15 @@ function loadFinder() {
   return finderReady;
 }
 
-// How far to zoom for a box {x, y, w, h} (fractions of the picture). The zoom stays centred on the ring,
-// which is where the turntable spins, so a bug that is a bit off-centre stays in view as it goes round.
-function zoomFor(box) {
-  const reach = Math.max(0.5 - box.x, box.x + box.w - 0.5, 0.5 - box.y, box.y + box.h - 0.5);
-  return Math.max(1, Math.min(MAX_ZOOM, 0.5 / (reach * ZOOM_ROOM)));
+// How much of the picture to keep (1 = all of it) so a box {x, y, w, h} (fractions of the picture) fits.
+function shareFor(box) {
+  return Math.max(1 / MAX_ZOOM, Math.min(1, Math.max(box.w, box.h) * ZOOM_ROOM));
+}
+
+// The part to keep, centred on (cx, cy) but never going past the edge of the picture. All are fractions.
+function cropAround(cx, cy, share) {
+  const place = (c) => Math.max(0, Math.min(1 - share, c - share / 2));
+  return { x: place(cx), y: place(cy), share };
 }
 
 // Looks at a few camera frames. Returns the bug's box, or null if it can't be found.
@@ -519,16 +524,59 @@ async function autoZoom(video) {
   try {
     box = await Promise.race([findBug(video), sleep(FIND_MS).then(() => null)]);
   } catch (err) { console.warn('auto zoom:', err); }
-  zoom = box ? zoomFor(box) : 1;
+  const share = box ? shareFor(box) : 1;
+  const view = box ? cropAround(box.x + box.w / 2, box.y + box.h / 2, share) : cropAround(0.5, 0.5, 1);
+  zoom = 1 / share;
+  // Where the middle of the zoomed view is. The front camera preview is mirrored, so flip left and right.
+  const cx = view.x + share / 2;
+  aim = { x: video.classList.contains('mirror') ? 1 - cx : cx, y: view.y + share / 2 };
   layoutPreview();
   hud(zoom > 1.05 ? `Zoomed in ${zoom.toFixed(1)}×` : 'Using the full view');
   await sleep(1000);   // time to see it
+  // The photos are taken with the full view, because the bug moves as the turntable spins.
+  // zoomPhotos() then crops every photo around the bug.
+  zoom = 1;
+  aim = { x: 0.5, y: 0.5 };
+  layoutPreview();
 }
 
-// The part of the camera frame the photos keep: { sx, sy, sw, sh } in video pixels.
-function cropRect(video) {
-  const sw = Math.round(video.videoWidth / zoom), sh = Math.round(video.videoHeight / zoom);
-  return { sx: Math.round((video.videoWidth - sw) / 2), sy: Math.round((video.videoHeight - sh) / 2), sw, sh };
+// After the burst: finds the bug in every photo and crops the photo around it. All photos of a set get
+// the same zoom. A photo where the bug isn't found (like a very dark one) uses the nearest photo's spot.
+async function zoomPhotos(photos) {
+  try { await loadFinder(); } catch (err) { console.warn('auto zoom:', err); return; }
+  const boxes = [];
+  for (let i = 0; i < photos.length && !state.abort; i++) {
+    hud(`Zooming in on the bug… ${i + 1} / ${photos.length}`);
+    let box = null;
+    try {
+      const img = await createImageBitmap(photos[i].blob);
+      box = await window.findInsect(img);
+      img.close();
+    } catch (err) { console.warn('auto zoom:', err); }
+    boxes.push(box);
+    await sleep(0);   // lets the screen update
+  }
+  const found = boxes.map((b, i) => (b ? i : -1)).filter((i) => i >= 0);
+  if (!found.length || state.abort) return;
+  // Zoom so the bug fits from nearly every side (ignoring the biggest 10%, which may be mistakes).
+  const sizes = found.map((i) => shareFor(boxes[i])).sort((a, b) => a - b);
+  const share = sizes[Math.floor((sizes.length - 1) * 0.9)];
+  if (share > 0.95) return;
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  for (let i = 0; i < photos.length && !state.abort; i++) {
+    const near = found.reduce((best, j) => (Math.abs(j - i) < Math.abs(best - i) ? j : best));
+    const box = boxes[near];
+    const view = cropAround(box.x + box.w / 2, box.y + box.h / 2, share);
+    const img = await createImageBitmap(photos[i].blob);
+    canvas.width = Math.round(img.width * share);
+    canvas.height = Math.round(img.height * share);
+    ctx.drawImage(img, Math.round(img.width * view.x), Math.round(img.height * view.y), canvas.width, canvas.height,
+      0, 0, canvas.width, canvas.height);
+    img.close();
+    const blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', 0.9));
+    if (blob) photos[i].blob = blob;
+  }
 }
 
 // Gives the browser a turn without waiting a whole timer tick (setTimeout(0) can take 4 ms or more).
@@ -661,10 +709,8 @@ async function runCapture() {
     }
 
     const canvas = document.createElement('canvas');
-    // Photos keep only the zoomed-in part of the frame.
-    const crop = cropRect(video);
-    canvas.width = crop.sw;
-    canvas.height = crop.sh;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
     const ctx = canvas.getContext('2d');
     const encoding = [];
 
@@ -720,7 +766,7 @@ async function runCapture() {
       const { light, torch } = shown;
       const shot = pending ? CHANGING : shotLight(light, torch);
 
-      ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       applySoft(ctx, canvas.width, canvas.height, softLevel(light));
       const angle = useTurntable ? Math.round(((elapsed / turntable.info.ms) * 360 % 360) * 10) / 10 : 0;
       const photo = { blob: null, angle, light: shot.id, flash: torch ? 100 : 0, time: new Date() };
@@ -756,6 +802,7 @@ async function runCapture() {
         await turntable.rotate(back);
       }
     }
+    await zoomPhotos(state.photos);
   } catch (err) {
     if (!state.abort) toast(err.message || String(err), 6000);
   } finally {

@@ -1,8 +1,8 @@
 // Keeps the Data Collector on the phone: open it once with internet, and after that it works offline.
 // With internet the newest copy is used and saved again. A very slow connection falls back to the saved copy.
 const PREFIX = 'pyinsect-collector-';
-const CACHE = PREFIX + '14';
-const FILES = ['./', 'index.html', 'style.css?v=10', 'jszip.min.js', 'app.js?v=19', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const CACHE = PREFIX + '15';
+const FILES = ['./', 'index.html', 'style.css?v=10', 'jszip.min.js', 'app.js?v=20', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 // The auto zoom files (about 20 MB) have their own copy, so an app update doesn't download them again.
 const AI_CACHE = PREFIX + 'ai-1';
 const SITE = self.location.hostname.endsWith('github.io') ? new URL('../', self.location.href).href : 'https://wizkidzai.github.io/pyinsect/';

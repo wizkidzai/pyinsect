@@ -23,9 +23,9 @@
     radial-gradient(30rem 26rem at 45% 52%, rgba(150, 225, 205, .45), transparent 65%),
     linear-gradient(160deg, #eef6ef 0%, #f3f1ea 100%);
 
-  --display: "Bricolage Grotesque", "Noto Sans Devanagari", "Segoe UI", system-ui, sans-serif;
-  --body: "IBM Plex Sans", "Noto Sans Devanagari", "Segoe UI", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", "Noto Sans Devanagari", ui-monospace, Consolas, monospace;
+  --display: "Bricolage Grotesque", "Noto Sans SC", "Noto Sans TC", "Noto Sans KR", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", "Malgun Gothic", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Noto Sans SC", "Noto Sans TC", "Noto Sans KR", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", "Malgun Gothic", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", "Noto Sans SC", "Noto Sans TC", "Noto Sans KR", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", "Malgun Gothic", ui-monospace, Consolas, monospace;
   --surface: #ffffff;
 }
 @media (prefers-color-scheme: dark) {
@@ -532,8 +532,6 @@ input[type=file] { display: none; }
 .lang-pick select { font: 500 14px var(--body); color: var(--ink); padding: 9px 12px; border-radius: 999px; border: 1px solid var(--glass-edge); background: var(--glass-strong); cursor: pointer; }
 .lang-pick select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-/* Hindi uses the Devanagari script */
-:lang(hi) .cs-box p, :lang(hi) .speech { line-height: 1.7; }
 
 /* The Innva-Orb: a glowing green-and-purple ball */
 .innva-orb { position: absolute; left: 0; top: 0; width: 46px; height: 46px; margin: -23px 0 0 -23px; pointer-events: none; z-index: 2; border-radius: 50%;
@@ -1038,6 +1036,21 @@ body[data-screen="game"] #screens { padding-top: 14px; }
 .scene-card .scene-play { color: var(--accent); }
 .scene-card:hover { transform: translateY(-1px); }
 .scene-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* Next month's challenges: a preview, locked until the month starts */
+.monthly-icons.coming .monthly-item, .monthly-rows.coming .monthly-item { border-style: dashed; opacity: .8; }
+.monthly-icons.coming .badge-slot::after { content: "🔒"; position: absolute; font-size: 16px; transform: translate(18px, 18px); }
+.badge-slot { position: relative; }
+
+/* The Pyinsect logo on every screen. On cameras, photos, and cutscenes it's a small chip in the corner. */
+.logo-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px 5px 6px; border-radius: 999px; font-family: var(--display); font-weight: 700; font-size: 14px;
+  color: #fff; background: rgba(0, 0, 0, .45); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); pointer-events: none; }
+.logo-chip img { border-radius: 6px; }
+.viewfinder > .logo-chip, .viewer > .logo-chip, .cs-logo { position: absolute; top: 12px; left: 12px; z-index: 3; }
+.cutscene .cs-logo { top: 16px; left: 14px; }
+.gc-top .logo-chip { flex: none; align-self: center; }
+.page-title { margin: 0; font-size: 24px; }
+#perms .brand-name { font-family: var(--display); font-weight: 700; font-size: 22px; }
+.crop > .brand, .sheet-box > .brand { align-self: center; }
 /* Innvadex quick battles: a friend online, or a bot (assets/game-online.js) */
 .foe-buttons { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 @media (max-width: 560px) {
@@ -1095,3 +1108,136 @@ body[data-screen="game"] #screens { padding-top: 14px; }
 /* Emerald ash borer alert: a big photo of the beetle under the alert, no brown text */
 .result-note.care { background: rgba(255, 0, 0, .08); }
 .alert-eab-img { display: block; width: 100%; max-height: 60vh; object-fit: cover; border-radius: 16px; margin: 8px 0 0; border: 3px solid #ff0000; }
+
+/* ===== Cutscenes in 3D: a classroom at Pyinsect University ===== */
+/* The room is 5 flat walls turned in 3D (CSS transforms). The camera turns a little toward whoever is talking. */
+.cutscene .cs-stage { background: #3a3226; }
+.cs-room { position: absolute; inset: 0; perspective: 700px; perspective-origin: 50% 42%; overflow: hidden; }
+.cs-cam { position: absolute; inset: 0; transform-style: preserve-3d;
+  transform: translateZ(var(--z, 0px)) translateX(var(--x, 0px)) rotateY(var(--ry, 0deg)) scale(1.1); transition: transform 1.6s cubic-bezier(.4, .1, .2, 1); }
+.cs-3d { position: absolute; left: 50%; top: 50%; backface-visibility: visible; }
+.cs-back { width: var(--W); height: var(--H); margin: calc(var(--H) / -2) 0 0 calc(var(--W) / -2); transform: translateZ(calc(var(--D) * -1));
+  background: linear-gradient(180deg, #e9dcc0 0 70%, #c9b48d 70% 72%, #b39a6e 72%); box-shadow: inset 0 0 120px rgba(60, 40, 10, .35); }
+.cs-floor { width: var(--W); height: var(--D); margin: calc(var(--D) / -2) 0 0 calc(var(--W) / -2);
+  transform: translateY(calc(var(--H) / 2)) translateZ(calc(var(--D) / -2)) rotateX(90deg);
+  background: linear-gradient(0deg, rgba(255, 255, 255, .18), transparent 60%), repeating-conic-gradient(#d9ccb0 0 25%, #b9a882 0 50%) 0 0 / 110px 110px; }
+.cs-ceiling { width: var(--W); height: var(--D); margin: calc(var(--D) / -2) 0 0 calc(var(--W) / -2);
+  transform: translateY(calc(var(--H) / -2)) translateZ(calc(var(--D) / -2)) rotateX(-90deg);
+  background: radial-gradient(ellipse 12% 7% at 30% 30%, #fffbe6 0 70%, transparent 72%), radial-gradient(ellipse 12% 7% at 70% 30%, #fffbe6 0 70%, transparent 72%),
+    radial-gradient(ellipse 12% 7% at 30% 70%, #fffbe6 0 70%, transparent 72%), radial-gradient(ellipse 12% 7% at 70% 70%, #fffbe6 0 70%, transparent 72%),
+    repeating-linear-gradient(90deg, #d6cfbf 0 2px, transparent 2px 90px), repeating-linear-gradient(0deg, #d6cfbf 0 2px, transparent 2px 90px), #efe9dc; }
+.cs-left, .cs-right { width: var(--D); height: var(--H); margin: calc(var(--H) / -2) 0 0 calc(var(--D) / -2);
+  background: linear-gradient(180deg, #e3d4b4 0 70%, #a98f62 70% 72%, #9a7f53 72%); box-shadow: inset 0 0 140px rgba(60, 40, 10, .4); }
+.cs-left { transform: translateX(calc(var(--W) / -2)) translateZ(calc(var(--D) / -2)) rotateY(90deg); display: flex; justify-content: space-evenly; align-items: flex-start; padding-top: 12%; }
+.cs-right { transform: translateX(calc(var(--W) / 2)) translateZ(calc(var(--D) / -2)) rotateY(-90deg); }
+.cs-window { width: 18%; height: 46%; border: 10px solid #f5efe2; border-radius: 6px; box-shadow: 0 0 0 3px #8c7650, inset 0 0 0 3px #8c7650;
+  background: linear-gradient(90deg, transparent 48%, #f5efe2 48% 52%, transparent 52%), linear-gradient(180deg, #9fd2f0 0 55%, #4c8a4f 55% 70%, #2f6b3a 70%); }
+.cs-door { position: absolute; left: 14%; bottom: 28%; width: 16%; height: 50%; border-radius: 4px 4px 0 0; background: linear-gradient(90deg, #8a5a32, #a06a3c 50%, #8a5a32); box-shadow: inset 0 0 0 6px #6e4524; }
+.cs-door::after { content: ""; position: absolute; right: 12%; top: 52%; width: 10px; height: 10px; border-radius: 50%; background: #e8c45a; }
+.cs-shelf { position: absolute; right: 12%; bottom: 28%; width: 40%; height: 52%; background: #6e4524; padding: 8px;
+  background-image: repeating-linear-gradient(90deg, #c0392b 0 14px, #2e86c1 14px 26px, #f1c40f 26px 36px, #27ae60 36px 52px, #8e44ad 52px 62px, #e67e22 62px 76px),
+    repeating-linear-gradient(180deg, transparent 0 28%, #6e4524 28% 33%); background-blend-mode: multiply; box-shadow: inset 0 0 0 8px #6e4524; }
+.cs-sign { position: absolute; top: 5%; left: 50%; transform: translateX(-50%); padding: 6px 22px; border-radius: 8px; background: #2f6b45; color: #fff;
+  font: 700 clamp(14px, 2.4vw, 22px) var(--display); white-space: nowrap; box-shadow: 0 3px 0 #1f4a2f; }
+.cs-screen { position: absolute; top: 17%; left: 50%; width: 52%; height: 46%; transform: translateX(-50%); border: 10px solid #2a2a2a; border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .35), inset 0 0 40px rgba(0, 0, 0, .25); overflow: hidden; transition: background .6s; }
+.cs-screen .cs-decor { position: absolute; left: 0; right: 0; bottom: 8%; font-size: clamp(22px, 4.5vw, 44px); letter-spacing: .15em; text-align: center; white-space: nowrap; opacity: 1; }
+.cs-screen-label { position: absolute; top: 8%; left: 0; right: 0; text-align: center; font: 700 clamp(13px, 2vw, 20px) var(--display); color: #fff; text-shadow: 0 2px 6px rgba(0, 0, 0, .6); }
+.cs-screen-label:empty { display: none; }
+.cs-poster { position: absolute; left: 6%; top: 22%; width: 15%; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 8px; background: #fffaf0; border-radius: 4px; box-shadow: 0 4px 10px rgba(0, 0, 0, .25); }
+.cs-poster .bug-art { width: 100%; height: auto; aspect-ratio: 1; }
+.cs-clock { position: absolute; right: 9%; top: 20%; width: 9%; aspect-ratio: 1; border-radius: 50%; background: #fff; border: 5px solid #333;
+  background-image: linear-gradient(90deg, transparent 48%, #333 48% 52%, transparent 52%), linear-gradient(30deg, transparent 49%, #c0392b 49% 51%, transparent 51%);
+  background-size: 50% 50%, 100% 100%; background-repeat: no-repeat; background-position: 50% 0, 0 0; }
+/* The speaker stands in the front of the room, with a shadow on the floor */
+.cutscene .cs-actor { z-index: 2; filter: drop-shadow(0 18px 14px rgba(0, 0, 0, .35)); }
+.cs-face .cs-art { display: inline-block; width: 1em; height: 1em; }
+.cs-face .cs-art svg { width: 100%; height: 100%; display: block; }
+/* Interactive slides: answer buttons, and a bug to tap */
+.cs-choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.cs-choices:empty { display: none; }
+.cs-choice { flex: 1 1 200px; justify-content: center; font-size: 16px; min-height: 48px; }
+.cs-box.shake { animation: shake .4s ease-in-out; }
+.cs-play { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.cs-bug { position: absolute; width: clamp(70px, 16vw, 110px); aspect-ratio: 1; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto;
+  transform: translate(-50%, -50%); transition: left .5s ease, top .5s ease; filter: drop-shadow(0 6px 6px rgba(0, 0, 0, .35)); animation: wiggle 1s ease-in-out infinite; }
+.cs-bug .bug-art { display: block; width: 100%; height: 100%; }
+.cs-bug .bug-art svg { width: 100%; height: 100%; }
+.cs-bug.hit { animation: hit .25s ease-out; }
+.cs-bug:focus-visible { outline: 3px solid #fff; outline-offset: 4px; border-radius: 50%; }
+@media (prefers-reduced-motion: reduce) { .cs-cam { transition: none; } .cs-bug { transition: none; animation: none; } }
+
+/* Cartoon bugs (see "cartoon bugs" in assets/game.js) */
+.bug-art { display: inline-block; width: 1.3em; height: 1.3em; line-height: 1; vertical-align: middle; }
+.bug-art svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.bug-art.emoji { width: auto; height: auto; }
+.clue-art { width: 2em; height: 2em; margin-right: 6px; }
+.peek .bug-art { width: 1.1em; height: 1.1em; }
+.trap-bug .bug-art { width: 1.2em; height: 1.2em; }
+/* Learn about species: a wide tile under Battles & Forests and Badges */
+.half-tile.wide-tile { grid-column: 1 / -1; min-height: 0; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 4px 12px; }
+.half-tile.wide-tile .muted { flex-basis: 100%; padding-left: 46px; margin-top: -6px; }
+/* Bug Buddy cartoons */
+.buddy-btn .btn-art { width: 1.6em; height: 1.6em; margin: -4px 2px -4px -4px; }
+.tip-art { width: 1.8em; height: 1.8em; margin-right: 4px; }
+.buddy-big .bug-art { width: 110px; height: 110px; }
+.arena-buddy .bug-art { width: 46px; height: 46px; }
+.super-art svg { filter: drop-shadow(0 0 6px rgba(255, 215, 90, .95)) drop-shadow(0 0 2px rgba(255, 215, 90, .9)); }
+
+/* ===== Badges as medals (like Apple Watch awards) ===== */
+.badge-list:has(.medal-item) { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 12px; }
+.medal-item { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px; border: 0; background: none; cursor: pointer; font: inherit; color: var(--ink); text-align: center; border-radius: 16px; }
+.medal-item strong { font-size: 12px; line-height: 1.2; }
+.medal-item:not(.earned) strong { color: var(--muted); }
+.medal-item:hover .medal { transform: translateY(-3px) rotate(-4deg); }
+.medal-item:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+/* A medal: a metal rim, a shiny face, and its emoji */
+.medal { --m1: #ffe17a; --m2: #d39b12; position: relative; width: 74px; height: 74px; display: grid; place-items: center; transition: transform .2s;
+  background: radial-gradient(circle at 32% 28%, #fff 0 8%, var(--m1) 30%, var(--m2) 78%, color-mix(in srgb, var(--m2) 70%, #000) 100%);
+  box-shadow: inset 0 0 0 5px color-mix(in srgb, var(--m2) 80%, #000 20%), inset 0 0 0 8px var(--m1), 0 6px 14px rgba(0, 0, 0, .25); border-radius: 50%; }
+.medal.hex { border-radius: 0; clip-path: polygon(25% 3%, 75% 3%, 99% 50%, 75% 97%, 25% 97%, 1% 50%); }
+.medal.shield { border-radius: 0; clip-path: polygon(50% 0, 96% 14%, 92% 62%, 50% 100%, 8% 62%, 4% 14%); }
+.medal-emoji { font-size: 34px; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .3)); }
+.medal.locked, .medal-spin.locked { filter: grayscale(1) brightness(.85); opacity: .55; }
+/* The big medal you can spin */
+.medal3d { align-self: center; width: 220px; height: 220px; perspective: 800px; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.medal3d:active { cursor: grabbing; }
+.medal3d:focus-visible { outline: 3px solid var(--accent); outline-offset: 6px; border-radius: 20px; }
+.medal-spin { --a: 0deg; --shine: 50%; position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transform: rotateY(var(--a)); }
+.medal-edge, .medal-side { position: absolute; inset: 0; border-radius: 50%; }
+.medal-spin.hex .medal-edge, .medal-spin.hex .medal-side { border-radius: 0; clip-path: polygon(25% 3%, 75% 3%, 99% 50%, 75% 97%, 25% 97%, 1% 50%); }
+.medal-spin.shield .medal-edge, .medal-spin.shield .medal-side { border-radius: 0; clip-path: polygon(50% 0, 96% 14%, 92% 62%, 50% 100%, 8% 62%, 4% 14%); }
+.medal-edge { background: color-mix(in srgb, var(--m2) 75%, #000); }
+.medal-side { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; backface-visibility: hidden; -webkit-backface-visibility: hidden; padding: 30px; text-align: center;
+  background: linear-gradient(105deg, transparent calc(var(--shine) - 18%), rgba(255, 255, 255, .55) var(--shine), transparent calc(var(--shine) + 18%)),
+    radial-gradient(circle at 32% 28%, #fff 0 6%, var(--m1) 30%, var(--m2) 80%, color-mix(in srgb, var(--m2) 70%, #000) 100%);
+  box-shadow: inset 0 0 0 12px color-mix(in srgb, var(--m2) 80%, #000 20%), inset 0 0 0 18px var(--m1), inset 0 0 30px rgba(0, 0, 0, .25); }
+.medal-front { transform: translateZ(6px); }
+.medal-back { transform: rotateY(180deg) translateZ(6px); color: color-mix(in srgb, var(--m2) 45%, #000); }
+.medal-front .medal-emoji { font-size: 84px; }
+.medal-name { font: 700 13px var(--display); color: color-mix(in srgb, var(--m2) 40%, #000); text-transform: uppercase; letter-spacing: .06em; }
+/* The back looks engraved: dark letters with a light edge under them */
+.medal-engrave, .medal-date { text-shadow: 0 1px 0 rgba(255, 255, 255, .6); }
+.medal-engrave { font: 600 12px var(--body); text-transform: uppercase; letter-spacing: .08em; }
+.medal-date { font: 700 18px var(--display); line-height: 1.2; }
+.medal-why { text-align: left; padding: 12px 14px; border-radius: 16px; background: var(--accent-soft); }
+.medal-why strong { display: block; margin-bottom: 4px; }
+.medal-why p, .medal-hint { margin: 0; }
+@media (prefers-reduced-motion: reduce) { .medal-item:hover .medal { transform: none; } }
+
+/* Each badge's own shape and cartoon are drawn in SVG (see "badge shapes and cartoons" in assets/game.js) */
+.medal { width: 78px; height: 78px; background: none; box-shadow: none; border-radius: 0; clip-path: none; filter: drop-shadow(0 5px 6px rgba(0, 0, 0, .25)); }
+.medal svg, .medal-edge svg, .medal-front svg, .medal-back-art svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.medal-edge, .medal-side { border-radius: 0; background: none; box-shadow: none; clip-path: none; }
+.medal-front { padding: 0; }
+.medal-back { padding: 0; }
+.medal-back-art { position: absolute; inset: 0; z-index: -1; }
+.medal-back > :not(.medal-back-art) { max-width: 66%; }
+.medal3d { width: 240px; height: 240px; }
+/* Limited-time badges (5 every 3 months) */
+.season-badges { display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 20px; background: var(--glass); border: 1px solid var(--glass-edge); }
+.season-badges > p { margin: 0; }
+.season-badges-title { margin: 6px 0 0; font-size: 16px; }
+.medal-progress { font: 600 12px var(--mono); color: var(--accent); }
+.medal-item.late .medal-progress { color: #c77b00; }
+.medal-month { font-size: 11px; margin-top: -4px; }

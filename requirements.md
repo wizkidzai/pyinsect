@@ -181,17 +181,19 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] The Story tab replays the intro.
   - [ ] Big text makes the game bigger.
 
-## Innvadex in Spanish, French, and Hindi
+## Innvadex in Spanish, French, and Mandarin
 
 - **Status:** Building
-- **Asked by:** Aadit, 2026-10-12
-- **Who it's for:** People in Oregon (and anywhere) who read Spanish, French, or Hindi better than English.
+- **Asked by:** Aadit, 2026-10-12 (Hindi at first; on 2026-10-28 Aadit asked to swap Hindi for Mandarin)
+- **Who it's for:** People in Oregon (and anywhere) who read Spanish, French, or Mandarin Chinese better than English.
 - **Problem:** The game was only in English.
 - **Why it matters:** More people can play, learn about invasive bugs, and report them.
-- **Our idea:** A language menu (🌐) in the Innvadex with English, Español, Français, and हिन्दी.
-  Every sentence in the game is translated in `assets/game-i18n.js`. Bug names and people's
+- **Our idea:** A language menu (🌐 in ⚙️ Settings) with English, Español, Français, and 中文（普通话）.
+  Spanish and French are in `assets/game-i18n.js`, and Mandarin (Simplified Chinese) is in
+  `assets/i18n/zh.js`. Bug names and people's
   names stay the same. The bug-photo part of the website is still English for now.
-- **Other ideas we talked about:** translating the whole website (maybe later).
+- **Other ideas we talked about:** translating the whole website (maybe later). Vietnamese,
+  Cantonese, Russian, Korean, and German (we picked just Mandarin for now).
 - **Done when:**
   - [ ] Picking a language changes the whole game, including cutscenes and battles.
   - [ ] The language is remembered after a reload.
@@ -572,6 +574,66 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [x] In the tree check, a damage photo ends with the warning and tips; a healthy-bark photo still says "Report made, thank you".
   - [ ] A grown-up redeployed the relay (version 13) before this was merged.
 
+## Innvadex: limited-time badges and monthly challenge badges
+
+- **Status:** Building
+- **Asked by:** Aadit, 2026-11-18
+- **Who it's for:** Everyday people, kids or adults, who play the Innvadex game.
+- **Our idea:**
+  - **5 new badges every 3 months**, starting November 2026 (Winter, then Spring, Summer, Fall,
+    and so on, forever): catch bugs, find native bugs, win battles, win minigames, and catch
+    different kinds. They count what you do during those 3 months.
+  - **Missed badges can still be earned:** after a season ends, what you do still counts toward
+    its badges you didn't get yet ("Catch up").
+  - **Monthly challenge badges** show on the Badges page too, as medals you can spin.
+  - Every badge, now and in the future, gets its own shape and cartoon.
+- **Done when:**
+  - [ ] The 5 new badges show each season with their dates.
+  - [ ] A missed badge can still be earned after its season.
+  - [ ] Monthly challenge badges show on the Badges page.
+
+## Innvadex: badges as medals (like Apple Watch awards)
+
+- **Status:** Building
+- **Asked by:** Aadit, 2026-11-18
+- **Who it's for:** Everyday people, kids or adults, who play the Innvadex game.
+- **Problem:** Badges were a plain list with an emoji, and you couldn't see when you got them.
+- **Our idea:**
+  - Each badge is a shiny medal with **its own shape** (no two are the same) and **its own
+    cartoon**, like the Innva-Orb for First Catch! and a little picture of each forest.
+  - Tap a badge to see it big and **why you got it**.
+  - Drag (or use the arrow keys or the Spin button) to **spin it in 3D**. The back is engraved
+    with the **date and time** you got it. Badges earned before this say so.
+- **Done when:**
+  - [ ] Every badge has a different shape and its own cartoon.
+  - [ ] Spinning a badge shows the date and time on the back.
+
+## Innvadex: 3D cutscenes, quizzes, read aloud, and cartoon bugs
+
+- **Status:** Building
+- **Asked by:** Aadit, 2026-11-18
+- **Who it's for:** Everyday people, kids or adults, who play the Innvadex game.
+- **Problem:** Cutscenes were long (beating Boss Burdock was 19 slides in a row), and you only
+  tapped Next. Many bugs looked the same, because most beetles were the same 🪲 emoji.
+- **Why it matters:** Short, interactive cutscenes keep people paying attention, and a cartoon
+  that looks like the real bug helps people recognize it outside.
+- **Our idea:**
+  - **3D cutscenes:** every cutscene happens in a 3D classroom at "Pyinsect University", with a
+    tiled floor, windows, a bookshelf, ceiling lights, and a big screen that shows the place in
+    the story. The camera turns a little toward whoever is talking.
+  - **Shorter:** most cutscenes are 2 to 5 slides now, and Team Tangle's motto plays only once.
+  - **Interactive:** quiz questions with answer buttons (a wrong answer explains why), and a bug
+    to tap and catch in How to play.
+  - **Read aloud is on by default** (it can still be turned off in Settings).
+  - **Cartoon bugs:** each invasive bug and native bug has its own cartoon, drawn to look like
+    the real bug (colors, spots, stripes, wings, and antennae). Pip is a cartoon western bumble bee.
+    In "Where's the Bug?", the other hiding bugs are cartoons too, so you have to find the right one.
+- **Done when:**
+  - [ ] Every cutscene shows the 3D classroom.
+  - [ ] A quiz needs the right answer before Next shows up, and the tap practice catches a bug.
+  - [ ] Read aloud is on for new and old players.
+  - [ ] Every bug in the game has its own cartoon.
+
 ## Game screen: new user flow (home, challenge page, camera)
 
 - **Status:** Building
@@ -813,3 +875,37 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] Moving to another screen shows up as a new page, like `/pyinsect/#map`.
   - [ ] The browser saves no cookies for the site (F12 → Application → Cookies is empty).
   - [ ] No photos, reports, or locations are sent to GoatCounter.
+
+## Innvadex: delete my online account
+
+- **Status:** Building
+- **Asked by:** Ashwin, 2026-11-24
+- **Who it's for:** Every Innvadex player who has gone online, and their parents.
+- **Problem or need:** The game server keeps each player's online name, avatar, wins, friends, and when
+  they were last online forever. There was no way to delete it, and clearing the browser's data
+  doesn't remove it from the server.
+- **Why they have it:** Privacy laws (COPPA in the U.S., GDPR in Europe) say to keep information only as
+  long as it's needed, and to let people delete it. Many of our players are kids.
+- **Our idea:**
+  - A **"Delete my online account"** button at the bottom of the Online lobby. It asks first, then the
+    server deletes your name, wins, friends, and friend requests. Your bugs, badges, and points on your
+    device stay. Next time you go online, you pick a new name.
+  - The server deletes players who haven't been online for **1 year**, once a day.
+  - The server only accepts the game's real avatars (so nobody can send words as an avatar).
+  - The privacy policy says what the server keeps, who sees it, and how long it's kept.
+- **Other ideas we talked about:**
+  - Delete players when they clear the browser's data: the server can't know when that happens.
+  - Keep everything forever: simplest, but it breaks the privacy rules.
+- **User flow:**
+  1. Game screen → Battles → "Online lobby" → **Go online**.
+  2. Scroll to the bottom and tap **Delete my online account**.
+  3. Read what gets deleted. Tap **Yes, delete it** (or **Keep my account** to go back).
+  4. A message says the account is deleted, and you're offline.
+  5. Go online again: you pick a new name, with no wins and no friends.
+  6. If the server doesn't answer, a message says to try again later, and nothing is deleted on your device.
+- **Done when:**
+  - [ ] After deleting, your old name can't be found with "Find a player", and your friends don't see you anymore.
+  - [ ] Going online again asks you to pick a new name.
+  - [ ] A player who hasn't been online for a year is deleted from the server.
+  - [ ] An avatar that isn't one of the game's avatars shows as 🙂.
+  - [ ] A grown-up redeployed the game server before this was merged.

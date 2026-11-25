@@ -179,7 +179,7 @@ const TRAINERS = [
 // Gyms are named after real Oregon places. You beat them in order: each one opens when your
 // Innvadex has `unlock` kinds of bugs AND you've beaten the gym before it. Later gyms are harder:
 //   level    = how smart the leader is (see foeMove)
-//   bugLevel = how strong the leader's bugs are (yours go up to Lv 3, the Champion's are Lv 4)
+//   bugLevel = how strong the leader's bugs are (yours go up to Lv 10, by catching the same bug again and again)
 // For the cutscenes: `place` and `story` (where you are), `intro` (the leader says hello),
 // `tip` (a real-world tip the leader gives you after you win).
 const GYMS = [
@@ -268,12 +268,13 @@ const GYMS = [
     tip: "Emerald ash borers leave D-shaped holes in ash trees. Spotting them early can save a whole forest!",
     say: { hi: "You made it to the top! My Legendary bugs are the toughest in Oregon.", next: "A Legendary bug never gives up!", lose: "Amazing! You've earned the Mount Hood Badge!", win: "The mountain wins this time. Keep training!" } },
   { id: "champion", emoji: "🏆", name: "Oregon Champion", place: "the Champion's Hall", badge: "Champion Trophy", leader: "Champion Juniper", face: "🦸", champion: true,
-    level: 3, bugLevel: 4, unlock: 6, reward: 250,
-    team: ["agrilus_planipennis", "anoplophora_glabripennis", "lycorma_delicatula", "vespa_mandarinia", "lymantria_dispar", "popillia_japonica"],
+    level: 3, bugLevel: 10, unlock: 6, reward: 250,
+    // Every bug in the game, all at Level 10 (the list comes from the model, so it's read when you battle)
+    get team() { return gameSpecies(); },
     story: "This is the Champion's Hall. Only Bug Rangers with every forest badge are allowed inside.",
     intro: "I'm Juniper, the Oregon Champion. I've protected every forest in this state, from the coast to the mountains.",
     tip: "A real champion never stops learning. Keep watching for invasive bugs everywhere you go!",
-    say: { hi: "You beat every forest. Now face me, with my Level 4 bugs! This is the final battle!", next: "A Champion never gives up!", lose: "Incredible! You are the new Oregon Champion!", win: "Not yet! Train hard and come back, Bug Ranger." } },
+    say: { hi: "You beat every forest. Now face me, with every bug in Oregon at Level 10! This is the final battle!", next: "A Champion never gives up!", lose: "Incredible! You are the new Oregon Champion!", win: "Not yet! Train hard and come back, Bug Ranger." } },
 ];
 // One badge per gym
 BADGES.push(...GYMS.map(gym => ({ id: `gym-${gym.id}`, emoji: gym.emoji, name: gym.badge, desc: "Win at {gym}.", gym: gym.name, earned: g => g.gyms.includes(gym.id) })));
@@ -287,9 +288,7 @@ function gymIntroScenes(gym) {
     gym.champion
       ? { scene: gym.id, ...HAZEL, text: "This is it, {name}. The Champion's Hall. Everything you've learned comes down to this." }
       : { scene: gym.id, ...HAZEL, text: "Here we are, {name}: {place}! {story}", vars: { place: t(gym.place), story: t(gym.story) } },
-    { scene: gym.id, who: gym.face, name: gym.leader, text: gym.intro },
-    { scene: gym.id, who: f.emoji, name: commonName(bug), text: "Watch out for my {bug}! {harm}", vars: { bug: commonName(bug), harm: t(f.harm) } },
-    { scene: gym.id, ...PIP, text: "Bzz… if you ever see a real {bug}: {todo}", vars: { bug: commonName(bug), todo: t(f.todo) } },
+    { scene: gym.id, who: `art:${bug}`, name: commonName(bug), text: "Watch out for my {bug}! {harm}", vars: { bug: commonName(bug), harm: t(f.harm) } },
     { scene: gym.id, who: gym.face, name: gym.leader, text: gym.say.hi },
   ];
 }
@@ -298,7 +297,8 @@ const signatureBug = gym => [...gym.team].sort((a, b) => Object.keys(RARITY).ind
 // ---------- version 3: evolution, ranks, sounds ----------
 
 // Catch the same kind of bug 3 times and it levels up. Each level makes it stronger in battles.
-const CATCHES_PER_LEVEL = 3, MAX_LEVEL = 3, LEVEL_BONUS = { hp: 6, atk: 2 };
+// Every 3 catches of the same bug is one more level, all the way to Level 10 (as strong as the Champion's)
+const CATCHES_PER_LEVEL = 3, MAX_LEVEL = 10, LEVEL_BONUS = { hp: 6, atk: 2 };
 const bugLevel = n => Math.min(MAX_LEVEL, 1 + Math.floor(n / CATCHES_PER_LEVEL));
 
 // Ranks go up with your points
@@ -338,27 +338,23 @@ const SCENES = {
 };
 
 const HAZEL = { who: "👩‍🏫", name: "Professor Hazel" };
-const PIP = { who: "🐝", name: "Pip" };   // Professor Hazel's helper, a native western bumble bee
+const PIP = { who: "art:Western bumble bee", name: "Pip" };   // Professor Hazel's helper, a native western bumble bee
 const INTRO = [
   { scene: "lab",    ...HAZEL, text: "Hi there! I'm Professor Hazel, and I study insects here in Oregon." },
   { scene: "lab",    ...PIP,   text: "Bzz! And I'm Pip, a western bumble bee. I'm native here. My family has lived in Oregon for a very, very long time!" },
-  { scene: "forest", ...HAZEL, text: "Oregon's forests, farms, and backyards are full of plants and animals that depend on each other." },
-  { scene: "forest", ...PIP,   text: "I help flowers make seeds. Birds eat the seeds and the bugs. Everything is connected!" },
   { scene: "danger", who: "🪲", name: "Uh oh!", text: "But some bugs came from far away. They're called invasive species. Here, they have no natural enemies to keep them in check." },
   { scene: "danger", who: "🚚", name: "How do they get here?", text: "They hitchhike! They hide in firewood, shipping crates, plants, and even on cars." },
-  { scene: "danger", who: "🌳", name: "What happens next?", text: "They munch on trees, crops, and gardens, and push out the native bugs that birds and other animals need." },
-  { scene: "danger", ...PIP,   text: "Some of them even push out native bugs like me. Bzz… that's scary!" },
   { scene: "lab",    ...HAZEL, text: "That's where you come in, {name}! Here's your very own Innvadex." },
   { scene: "lab",    ...HAZEL, text: "Snap photos of bugs. If one is invasive, catch it! If it isn't, leave it be." },
-  { scene: "forest", ...HAZEL, text: "Every invasive bug you find is reported, so experts know where to set traps. Real photos help real forests!" },
-  { scene: "mthood", ...HAZEL, text: "Battle trainers, beat the {n} forests, and face the Oregon Champion.", vars: { n: GYMS.length - 1 } },
+  { scene: "forest", ...PIP,   text: "Quick quiz, {name}! You find a bug that isn't invasive. What do you do?",
+    ask: [{ text: "Leave it be", right: true }, { text: "Catch it" }],
+    yes: "That's right! Native bugs help nature, so we leave them be.", no: "Not quite! We only catch invasive bugs. Native bugs help nature." },
   { scene: "forest", ...PIP,   text: "I'll be cheering for you the whole way. Let's go, {name}!" },
 ];
 // The first visit uses a short version of the intro. The whole story is in Settings → Watch intro.
-const INTRO_SHORT = [INTRO[0], INTRO[1], INTRO[4], INTRO[8], INTRO[9], INTRO[12]];
+const INTRO_SHORT = [INTRO[0], INTRO[2], INTRO[5], INTRO[6], INTRO[7]];
 const FIRST_CATCH = [
   { scene: "victory", ...HAZEL, text: "You caught your first invasive bug, {name}! It's in your Innvadex now." },
-  { scene: "victory", ...PIP,   text: "Bzz bzz! That's one less bug bothering the trees. Great job!" },
   { scene: "lab",     ...HAZEL, text: "Tap it in your Innvadex to read its fact card. Knowing your bugs makes you a better Bug Ranger!" },
 ];
 const FIRST_LEGENDARY = [
@@ -381,12 +377,8 @@ const RANK_TALK = {
   "Guardian of Oregon": "Guardian of Oregon! Like the beaver, our state animal, you work hard to protect our land. Thank you, {name}!",
 };
 const FINALE = [
-  { scene: "champion", who: "🦸", name: "Champion Juniper", text: "Incredible! You beat me, {name}." },
   { scene: "champion", who: "🦸", name: "Champion Juniper", text: "From the coast to the mountains, you proved you can protect Oregon. You are the new Oregon Champion!" },
   { scene: "victory",  ...HAZEL, text: "{name}, I'm so proud of you. You've learned so much about invasive species." },
-  { scene: "victory",  ...PIP,   text: "Bzz bzz bzz! My whole hive is buzzing about you!" },
-  { scene: "forest",   who: "🌲", name: "Oregon's forests", text: "From Forest Park to Mount Hood, the forests are safer because of Bug Rangers like you." },
-  { scene: "lab",      ...HAZEL, text: "But this isn't really the end. Invasive bugs are still out there in the real world." },
   { scene: "lab",      ...HAZEL, text: "Keep finding them. Every real report helps experts protect nature. Thank you, Champion!" },
   { scene: "victory",  ...HAZEL, text: "Open the Badges tab to print your Forest Protector certificate!" },
   { scene: "forest",   ...PIP,   text: "See you on the next adventure, {name}! Bzz!" },
@@ -465,15 +457,12 @@ const SQUAWK = { who: "🐦", name: "Squawk" };   // their pet European starling
 const BURDOCK = { who: "🕴️", name: "Boss Burdock" };
 const TANGLE_MOTTO = [
   { scene: "tangle", ...BRAMBLE, text: "Bugs in the firewood, bugs on the truck!" },
-  { scene: "tangle", ...THISTLE, text: "Spreading them everywhere, wishing you luck!" },
-  { scene: "tangle", ...BRAMBLE, text: "From the coast to the mountains, big bugs and small!" },
   { scene: "tangle", ...THISTLE, text: "We're Team Tangle! We'll tangle them all!" },
   { scene: "tangle", ...SQUAWK, text: "Squawk! That's right! I'm an invasive starling, too!", sound: "tangle" },
 ];
 // When they lose, they fly away in their firewood truck
 const TANGLE_BLAST_OFF = [
   { scene: "tangle", ...BRAMBLE, text: "No fair! Our perfect plan!" },
-  { scene: "tangle", ...THISTLE, text: "Quick, back to the firewood truck!" },
   { scene: "sky", who: "🚚", name: "Team Tangle", text: "Team Tangle is tangled up agaaain! ✨", fly: true, sound: "fly" },
 ];
 const TANGLE_SAY = { next: "Go, bug! Spread out!", lose: "No fair! We'll be back!", win: "Ha ha! Team Tangle wins this time!" };
@@ -483,53 +472,43 @@ const TANGLE = [
     team: ["anisandrus_dispar", "xyleborus_monographus", "agrilus_planipennis"],
     plan: [
       { scene: "forest", ...HAZEL, text: "{name}, come quick! Someone is loading a big truck with firewood near the campground." },
-      { scene: "tangle", ...BRAMBLE, text: "Ha ha ha! Who's this little Bug Ranger?" },
       "motto",
       { scene: "tangle", ...THISTLE, text: "Our plan: drive this firewood all over Oregon! The beetles hiding inside will move into every forest!" },
-      { scene: "tangle", ...PIP, text: "Bzz! Moving firewood is one of the main ways tree-killing beetles spread! Stop them, {name}!" },
-      { scene: "tangle", ...BRAMBLE, text: "You want our firewood? You'll have to battle us for it!" },
+      { scene: "tangle", ...PIP, text: "Quick, {name}! What's the rule for firewood?",
+        ask: [{ text: "Buy it where you burn it", right: true }, { text: "Take it with you on trips" }],
+        yes: "Yes! Moving firewood spreads tree-killing bugs, so buy it where you burn it.", no: "Nope! That's exactly how bugs spread. Try again!" },
     ],
     lesson: "Remember: buy firewood where you burn it, and never carry it to a new place." },
   { id: "cars", emoji: "🚗", name: "The Road Trip Scheme", gyms: 2, level: 2, bugLevel: 2, reward: 80,
     team: ["halyomorpha_halys", "lymantria_dispar", "lycorma_delicatula"],
     plan: [
       { scene: "road", ...HAZEL, text: "Team Tangle is back! They're at a rest stop on the highway." },
-      { scene: "road", ...THISTLE, text: "Look, Bramble! It's that pesky Bug Ranger again!" },
-      "motto",
       { scene: "road", ...BRAMBLE, text: "This time we're sticking spotted lanternfly eggs on every car and camper! The bugs will ride along to new places!" },
-      { scene: "road", ...SQUAWK, text: "Squawk! A free ride for every bug!" },
       { scene: "road", ...PIP, text: "Bzz… those egg patches look like dried mud. People don't even notice them!" },
-      { scene: "road", ...THISTLE, text: "Let's see you stop a whole parking lot of bugs!" },
+      { scene: "road", ...HAZEL, text: "Before a road trip, where should you check for egg patches?",
+        ask: [{ text: "On cars and camping gear", right: true }, { text: "Only inside the fridge" }],
+        yes: "Exactly! Egg patches hide on cars, trailers, and camping gear.", no: "Hmm, not there. Think about what goes on the trip!" },
     ],
     lesson: "Before a trip, check cars, trailers, and camping gear for egg patches. Spongy moths lay eggs on them too!" },
   { id: "crates", emoji: "📦", name: "The Shipping Crate Scheme", gyms: 5, level: 3, bugLevel: 2, reward: 100,
     team: ["coptotermes_formosanus", "solenopsis_invicta", "popillia_japonica", "anoplophora_glabripennis"],
     plan: [
       { scene: "port", ...HAZEL, text: "{name}! Team Tangle snuck into the shipping port with a pile of wooden crates!" },
-      { scene: "port", ...BRAMBLE, text: "Welcome to our biggest plan yet!" },
-      "motto",
       { scene: "port", ...THISTLE, text: "We'll hide bugs in these crates and ship them across the ocean. Bugs everywhere, all over the world!" },
       { scene: "port", ...HAZEL, text: "That's how the Asian longhorned beetle got to North America: inside wooden packing crates." },
-      { scene: "port", ...SQUAWK, text: "Squawk! My family came here on a ship long ago, too!" },
-      { scene: "port", ...BRAMBLE, text: "Our crates are packed with our strongest bugs. Ready to lose?" },
     ],
     lesson: "Wooden crates from other countries must be heated to kill hidden bugs. They get a special stamp to show it was done!" },
   { id: "boss", emoji: "🏰", name: "Tangle Tower", boss: true, gyms: 9, level: 3, bugLevel: 3, reward: 150,
     team: ["lymantria_dispar", "agrilus_planipennis", "lycorma_delicatula", "anoplophora_glabripennis", "vespa_mandarinia"],
     plan: [
       { scene: "tower", ...HAZEL, text: "This is it, {name}. Tangle Tower, Team Tangle's secret hideout." },
-      { scene: "tower", ...BRAMBLE, text: "Boss! Boss! That Bug Ranger found our hideout!" },
       { scene: "tower", ...BURDOCK, text: "So, you're the one who keeps ruining my plans. I'm Boss Burdock." },
       { scene: "tower", ...BURDOCK, text: "I'm named after the burdock plant. Its prickly burrs stick to fur and socks, so it hitchhikes everywhere. Just like me!" },
-      { scene: "tower", ...THISTLE, text: "The boss has the toughest bugs of all!" },
       { scene: "tower", ...PIP, text: "Bzz! You stopped every plan so far. You can do this, {name}!" },
-      { scene: "tower", ...BURDOCK, text: "Let's see you stop my Legendary team!" },
     ],
     ending: [
       { scene: "tower", ...BURDOCK, text: "Impossible! Beaten by a Bug Ranger!" },
-      { scene: "tower", ...BURDOCK, text: "Hmm. Maybe spreading bugs everywhere isn't such a great plan after all…" },
       { scene: "tower", ...BRAMBLE, text: "Wait, Boss… are we the bad guys?" },
-      { scene: "tower", ...THISTLE, text: "Maybe we could help protect forests instead?" },
       { scene: "tower", ...SQUAWK, text: "Squawk! I'd like that!" },
     ],
     lesson: "Burdock is a real plant that came from far away. Its burrs hitchhike on socks and pets, so check them after a hike!",
@@ -556,7 +535,6 @@ const BUDDIES = {
 // What happens after you beat Boss Burdock for the first time
 const SQUAWK_JOINS = [
   { scene: "forest", ...SQUAWK, text: "Squawk! Wait, {name}! Can I come with you? I want to help protect forests now!" },
-  { scene: "forest", ...PIP, text: "Bzz! A starling and a bumble bee on the same team? Sure, why not!" },
   { scene: "victory", ...SQUAWK, text: "Squawk joined you as your Bug Buddy! Squawk cheers for your bugs in battles.", sound: "badge" },
 ];
 const BUDDY_STAGES = [[0, "Egg"], [40, "Baby"], [150, "Grown-up"], [400, "Super"]];
@@ -624,7 +602,6 @@ const PLACES = [
   ["Cannon Beach", 45.89, -123.96], ["Tillamook", 45.46, -123.84], ["Lincoln City", 44.96, -124.02], ["Newport", 44.64, -124.05],
   ["Florence", 43.98, -124.10], ["Coos Bay", 43.37, -124.22], ["Brookings", 42.05, -124.28],
 ];
-const HIDE_DECOYS = ["🐌", "🕷️", "🪱", "🐸", "🐿️", "🐦"];
 // Native bugs for "Invasive or Native?" and Bug Pop. They belong in Oregon, so we leave them be.
 const NATIVE_BUGS = [
   { emoji: "🐝", name: "Western bumble bee", fact: "Pip's family! It helps flowers make seeds." },
@@ -709,6 +686,72 @@ const SHAPES = [
 const SHAPE_BUGS = ["🐞", "🦋", "🪲", "🐝", "🦗", "🐜", "🐛", "🪰", "🐌"];
 const LIVE_EVERY = 1500;   // the camera guesses the species this often (milliseconds)
 
+// ---------- limited-time badges: 5 new ones every 3 months ----------
+// Each season (3 months, starting November 2026) has 5 badges. Only what you do during those 3
+// months counts, like limited-time awards. New seasons keep coming by themselves.
+const SEASON_BADGE_START = [2026, 11];
+const SEASON_NAMES = ["Winter", "Spring", "Summer", "Fall"];   // Nov–Jan, Feb–Apr, May–Jul, Aug–Oct
+const SEASON_GOALS = [
+  { key: "catch",   n: 5, desc: "Catch {n} invasive bugs between {start} and {end}." },
+  { key: "natives", n: 3, desc: "Find {n} bugs that aren't invasive between {start} and {end}." },
+  { key: "wins",    n: 5, desc: "Win {n} battles between {start} and {end}." },
+  { key: "games",   n: 3, desc: "Win {n} minigames between {start} and {end}." },
+  { key: "kinds",   n: 3, desc: "Catch {n} different kinds of invasive bugs between {start} and {end}." },
+];
+const SEASON_BADGE_NAMES = {
+  Winter: ["Snowflake Seeker", "Winter Friend", "Frosty Fighter", "Cozy Gamer", "Icy Investigator"],
+  Spring: ["Blossom Bug Hunter", "Spring Helper", "Spring Battler", "Rainy Day Gamer", "Sprout Spotter"],
+  Summer: ["Sunshine Seeker", "Summer Protector", "Summer Champion", "Beach Day Gamer", "Sunny Scout"],
+  Fall:   ["Falling Leaf Finder", "Harvest Helper", "Autumn Ace", "Spooky Season Gamer", "Acorn Explorer"],
+};
+// Which 3-month season a date is in, like { id: "2026-11", index: 0, season: "Winter", start, end }
+function seasonBlock(date = new Date()) {
+  const months = (date.getFullYear() - SEASON_BADGE_START[0]) * 12 + date.getMonth() + 1 - SEASON_BADGE_START[1];
+  if (months < 0) return null;
+  const index = Math.floor(months / 3), first = new Date(SEASON_BADGE_START[0], SEASON_BADGE_START[1] - 1 + index * 3, 1);
+  const end = new Date(first.getFullYear(), first.getMonth() + 3, 0);   // the last day of the third month
+  const id = `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, "0")}`;
+  return { id, index, season: SEASON_NAMES[index % 4], start: first, end, year: first.getFullYear() };
+}
+// Every season's 5 badges, from November 2026 to now
+function seasonBadges() {
+  const list = [], now = seasonBlock();
+  for (let k = 0; now && k <= now.index; k++) {
+    const block = seasonBlock(new Date(SEASON_BADGE_START[0], SEASON_BADGE_START[1] - 1 + k * 3, 1));
+    SEASON_GOALS.forEach((goal, j) => list.push({
+      id: `s${block.id}-${goal.key}`, block, goal, limited: true, emoji: ["❄️", "🌸", "☀️", "🍂"][k % 4],
+      name: SEASON_BADGE_NAMES[block.season][j], desc: goal.desc,
+      earned: g => (goal.key === "kinds" ? (g.seasonCounts?.[block.id]?.kinds || []).length : g.seasonCounts?.[block.id]?.[goal.key] || 0) >= goal.n,
+    }));
+  }
+  return list;
+}
+BADGES.push(...seasonBadges());
+// Counts things you do toward this season's badges. Called by progress().
+// Badges from seasons that are over stay open: what you do now counts toward the ones you missed,
+// so you can still catch up and earn them.
+function seasonProgress(g, ev) {
+  const now = seasonBlock();
+  if (!now) return;
+  const blocks = new Map(BADGES.filter(b => b.limited).map(b => [b.block.id, b.block]));
+  for (const block of blocks.values()) {
+    const open = block.id === now.id || BADGES.some(b => b.limited && b.block.id === block.id && !g.badges.includes(b.id));
+    if (!open) continue;
+    const c = g.seasonCounts[block.id] ??= { catch: 0, natives: 0, wins: 0, games: 0, kinds: [] };
+    if (ev.type === "catch") { c.catch++; if (!c.kinds.includes(ev.species)) c.kinds.push(ev.species); }
+    if (ev.type === "native") c.natives++;
+    if (ev.type === "win") c.wins++;
+    if (ev.type === "minigame") c.games++;
+  }
+}
+// A badge's "why you got it" words (season badges say their dates)
+function badgeDesc(b) {
+  if (b.monthly) return `${t(b.monthly.kind.text, { n: b.monthly.kind.n })} ${t("Made in {month}", { month: monthName(b.monthly.month) })}`;
+  const day = d => d.toLocaleDateString(langTag(), { month: "long", day: "numeric", year: "numeric" });
+  const words = t(b.desc, { gym: b.gym && t(b.gym), ...(b.limited ? { n: b.goal.n, start: day(b.block.start), end: day(b.block.end) } : {}) });
+  return b.limited && b.block.id !== seasonBlock()?.id ? `${words} ${t("This season is over, but you can still catch up and earn it!")}` : words;
+}
+
 // ---------- saving ----------
 function loadGame() {
   let g = null;
@@ -716,7 +759,9 @@ function loadGame() {
   g = { points: 0, caught: {}, badges: [], protector: 0, wins: 0, gyms: [], daily: null, dailyDone: 0,
     spots: [], muted: false, trainer: { name: "", avatar: AVATARS[0] }, unlockSeen: null,
     protectorDex: {}, bigText: false, tangle: [], trapWins: 0, hideWins: 0, bossWins: 0, boss: null,
-    buddy: null, readAloud: false, games: {}, miniWins: {}, ambushDay: null, monthly: {}, monthlyView: "icons", ...(g || {}) };
+    buddy: null, readAloud: true, games: {}, miniWins: {}, ambushDay: null, monthly: {}, monthlyView: "icons", badgeDates: {}, seasonCounts: {}, ...(g || {}) };
+  // Read aloud is on for everyone (once). After that, turning it off in Settings keeps it off.
+  if (!g.readAloudOnce) { g.readAloud = true; g.readAloudOnce = true; }
   // Things from older versions that the game doesn't use anymore
   for (const old of ["items", "coins", "quiz", "streak", "missions", "outfits", "useMap"]) delete g[old];
   // Gyms that were already open before gym cutscenes existed don't need one
@@ -750,9 +795,11 @@ function progress(g, ev) {
     lines.push(t("📅 Daily challenge done! +{pts} points", { pts: DAILY_REWARD }));
   }
   lines.push(...monthlyProgress(g, ev));
+  seasonProgress(g, ev);
   const had = new Set(g.badges);
   const fresh = BADGES.filter(b => !had.has(b.id) && b.earned(g));
   g.badges.push(...fresh.map(b => b.id));
+  for (const b of fresh) g.badgeDates[b.id] = new Date().toISOString();   // shown on the back of the badge
   lines.push(...fresh.map(b => `${b.emoji} ${t("New badge: {badge}", { badge: t(b.name) })}`));
   const rank = rankOf(g.points);
   if (rank[2] !== rankBefore) {
@@ -768,6 +815,234 @@ function progress(g, ev) {
   return lines;
 }
 
+// ---------- cartoon bugs ----------
+// Each bug gets its own cartoon, drawn to look like the real bug (colors, spots, stripes, wings,
+// long antennae...), instead of one emoji for every beetle. They're simple SVG drawings, seen from
+// above with the head at the top, built from a few parts: a body shape plus its pattern.
+const BUG_ART = {
+  // Invasive bugs
+  agrilus_planipennis:       { kind: "beetle", w: 13, l: 25, color: "#1fa64b", head: "#178a3c", shine: true },   // slim, shiny green
+  anoplophora_glabripennis:  { kind: "beetle", w: 17, l: 24, color: "#1b1d22", head: "#1b1d22", spots: "#f4f4f4", antenna: "long-banded", legs: "#4a6c9e", shine: true },
+  lycorma_delicatula:        { kind: "lanternfly" },
+  vespa_mandarinia:          { kind: "wasp", big: true, head: "#f08c1a", thorax: "#3b2a1a", bands: ["#f2b51b", "#3b2a1a"] },
+  adelges_piceae:            { kind: "woolly" },
+  coptotermes_formosanus:    { kind: "termite", head: "#e0902f", body: "#f3dfaa" },
+  lymantria_dispar:          { kind: "caterpillar", color: "#6b5a49", dots: ["#3b6fd6", "#3b6fd6", "#d23b3b", "#d23b3b", "#d23b3b"] },
+  popillia_japonica:         { kind: "beetle", w: 17, l: 20, color: "#c8742a", pronotum: "#21a35c", head: "#21a35c", tufts: true, shine: true },
+  solenopsis_invicta:        { kind: "ant", color: "#b2401f", gaster: "#5a2516" },
+  xyleborus_monographus:     { kind: "beetle", w: 11, l: 16, color: "#7b4a25", head: "#5d3519", round: true },
+  anisandrus_dispar:         { kind: "beetle", w: 11, l: 15, color: "#2c1f19", head: "#2c1f19", round: true },
+  exomala_orientalis:        { kind: "beetle", w: 17, l: 19, color: "#c9a56a", head: "#6b4a2b", blotches: "#5b3d22" },
+  halyomorpha_halys:         { kind: "shield", color: "#8a6a4c", mottle: "#5e4532", edge: "#f1e7d2" },
+  harmonia_axyridis:         { kind: "ladybug", color: "#f07d1d", spots: 9, mark: true },
+  linepithema_humile:        { kind: "ant", color: "#8a5a35", gaster: "#6b4428", small: true },
+  macrodactylus_subspinosus: { kind: "beetle", w: 12, l: 21, color: "#cdb37a", head: "#9c8350", legs: "#e0782a", longLegs: true },
+  pieris_rapae:              { kind: "moth", wing: "#fbfbf5", body: "#3a3a3a", wingSpots: "#1d1d1d", tips: "#2a2a2a" },
+  polistes_dominula:         { kind: "wasp", head: "#f2c81b", thorax: "#1e1e1e", bands: ["#f2c81b", "#1e1e1e"], antenna: "#e0782a" },
+  ips_typographus:           { kind: "beetle", w: 12, l: 18, color: "#5b3a22", head: "#3f2716", round: true, hairy: true },
+  lymantria_monacha:         { kind: "moth", wing: "#f4f1ea", body: "#2a2a2a", zigzag: "#1f1f1f" },
+  cydalima_perspectalis:     { kind: "moth", wing: "#fbfbf8", body: "#6b4a2b", border: "#7a4f28" },
+  operophtera_brumata:       { kind: "moth", wing: "#b49a76", body: "#7b6347", lines: "#8d7655", small: true },
+  scolytus_multistriatus:    { kind: "beetle", w: 10, l: 15, color: "#8f3b1f", head: "#6b2a15", round: true, shine: true },
+  drosophila_melanogaster_suzukii: { kind: "fly", color: "#c8a36a", eyes: "#d22a2a", wingSpot: true },
+  // Native bugs (for the minigames, Bug Buddy, and Pip)
+  "Western bumble bee":        { kind: "bee", bands: ["#f2c51b", "#1e1e1e", "#1e1e1e", "#f4f1e6"] },
+  "Oregon swallowtail":        { kind: "moth", wing: "#f6d23b", body: "#1e1e1e", stripes: "#1e1e1e", tails: true },
+  "Convergent lady beetle":    { kind: "ladybug", color: "#d8321f", spots: 12, lines: true },
+  "Blue orchard mason bee":    { kind: "bee", bands: ["#2b4f8f", "#2b4f8f", "#1f3a6e"], small: true },
+  "Western tiger swallowtail": { kind: "moth", wing: "#f8de3a", body: "#1e1e1e", stripes: "#1e1e1e", tails: true },
+  "Ten-lined June beetle":     { kind: "beetle", w: 18, l: 24, color: "#6b4a2b", head: "#4d331c", stripes: "#f6f2e6" },
+  "Pacific dampwood termite":  { kind: "termite", head: "#8f3b1f", body: "#c98a5a", big: true },
+  "Ground beetle":             { kind: "beetle", w: 15, l: 23, color: "#1c1c22", head: "#1c1c22", shine: true, grooves: true },
+  // Bug Buddy stages: an egg, then a baby bug (larva) that looks like the real one
+  egg:                              { kind: "egg" },
+  "Oregon swallowtail caterpillar": { kind: "caterpillar", color: "#7cc243", headColor: "#5f9e2f", smooth: true, band: "#1e1e1e", dots: ["#f08c1a", "#f08c1a", "#f08c1a", "#f08c1a", "#f08c1a", "#f08c1a"] },
+  "Convergent lady beetle larva":   { kind: "caterpillar", color: "#2b2b33", headColor: "#1b1b20", dots: [null, "#f07d1d", null, "#f07d1d", null, null], spiky: true },
+  "Ground beetle larva":            { kind: "caterpillar", color: "#6b5236", headColor: "#3a2a1a", smooth: true, dots: [], band: "#4a3826" },
+  Squawk:                           { kind: "bird" },   // Team Tangle's old starling
+};
+const svgArt = {};   // drawings are made once, then reused
+
+// Cute cartoon eyes: white with a dark pupil and a shine
+const eyes = (x, y, r, gap, iris = "#1b1b1b") => [-1, 1].map(s =>
+  `<circle cx="${x + s * gap}" cy="${y}" r="${r}" fill="#fff" stroke="#1b1b1b" stroke-width="1"/><circle cx="${x + s * gap + s * .3}" cy="${y + .6}" r="${r * .55}" fill="${iris}"/><circle cx="${x + s * gap + s * .3 - .8}" cy="${y - .4}" r="${r * .2}" fill="#fff"/>`).join("");
+// Six legs, three on each side
+const legs = (ys, reach, color, width = 2.2) => ys.map((y, i) => [-1, 1].map(s =>
+  `<path d="M${s * 4} ${y} q ${s * reach * .55} ${-3 + i * 3} ${s * reach} ${-6 + i * 8}" stroke="${color}" stroke-width="${width}" fill="none" stroke-linecap="round"/>`).join("")).join("");
+// Two antennae from the head (banded = black and white stripes, like the Asian longhorned beetle)
+function antennae(y, len, color, banded) {
+  return [-1, 1].map(s => {
+    const d = `M${s * 3} ${y} q ${s * len * .35} ${-len * .55} ${s * len * .6} ${-len}`;
+    return `<path d="${d}" stroke="${color}" stroke-width="2" fill="none" stroke-linecap="round"/>` +
+      (banded ? `<path d="${d}" stroke="#f4f4f4" stroke-width="2.2" fill="none" stroke-dasharray="3 3"/>` : "");
+  }).join("");
+}
+
+function drawBug(a, id) {
+  const k = a.kind;
+  if (k === "beetle" || k === "ladybug") {
+    const w = k === "ladybug" ? 21 : a.w, l = k === "ladybug" ? 20 : a.l, cy = 10;
+    const head = a.head || "#222", pro = a.pronotum || (k === "ladybug" ? "#f6f1e6" : head);
+    let s = legs([cy - 6, cy + 2, cy + 10], a.longLegs ? 22 : 15, a.legs || "#2b2b2b", a.longLegs ? 2.6 : 2.2);
+    s += antennae(cy - l - 10, a.antenna === "long-banded" ? 44 : 12, a.antenna === "long-banded" ? "#1b1d22" : head, a.antenna === "long-banded");
+    s += `<ellipse cx="0" cy="${cy}" rx="${w}" ry="${l}" fill="${a.color}" stroke="#1b1b1b" stroke-width="1.5"/>`;
+    if (k !== "ladybug") s += `<line x1="0" y1="${cy - l + 3}" x2="0" y2="${cy + l - 1}" stroke="#1b1b1b" stroke-width="1" opacity=".55"/>`;
+    if (a.grooves) for (const x of [-9, -5, 5, 9]) s += `<line x1="${x}" y1="${cy - l + 6}" x2="${x * .8}" y2="${cy + l - 5}" stroke="#55555f" stroke-width=".8"/>`;
+    if (a.stripes) for (const x of [-11, -6, 6, 11]) s += `<path d="M${x} ${cy - l + 6} q ${x * .1} ${l} ${x * .5} ${l * 1.75}" stroke="${a.stripes}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
+    if (a.spots && typeof a.spots === "string") for (const [x, y, r] of [[-8, 0, 2.6], [7, -4, 2.2], [-5, 14, 2.4], [9, 10, 2.8], [-10, 22, 2], [4, 24, 2.3], [0, 4, 1.8]]) s += `<circle cx="${x}" cy="${cy + y - 6}" r="${r}" fill="${a.spots}"/>`;
+    if (k === "ladybug") {
+      const spots = [[-9, 2], [9, 2], [-12, 13], [12, 13], [-5, 20], [5, 20], [-6, 8], [6, 8], [0, 26], [-13, 22], [13, 22], [0, 14]].slice(0, a.spots);
+      for (const [x, y] of spots) s += `<circle cx="${x}" cy="${cy + y - 8}" r="2.6" fill="#1b1b1b"/>`;
+      s += `<line x1="0" y1="${cy - l + 2}" x2="0" y2="${cy + l}" stroke="#1b1b1b" stroke-width="1.2"/>`;
+    }
+    if (a.blotches) for (const [x, y, rx] of [[-8, -2, 4], [8, 4, 3.5], [-6, 12, 3], [7, 16, 4], [0, 22, 3]]) s += `<ellipse cx="${x}" cy="${cy + y - 6}" rx="${rx}" ry="${rx * .7}" fill="${a.blotches}" opacity=".85"/>`;
+    if (a.tufts) for (const y of [0, 7, 14, 21]) for (const x of [-1, 1]) s += `<circle cx="${x * (w - 1)}" cy="${cy + y - 8}" r="2" fill="#fff"/>`;
+    if (a.hairy) for (let i = 0; i < 14; i++) s += `<line x1="${(i % 7 - 3) * 3}" y1="${cy - l + 4 + Math.floor(i / 7) * l}" x2="${(i % 7 - 3) * 3.4}" y2="${cy - l + 1 + Math.floor(i / 7) * l}" stroke="#c9a77a" stroke-width=".8"/>`;
+    if (a.shine) s += `<ellipse cx="${-w * .4}" cy="${cy - l * .35}" rx="${w * .22}" ry="${l * .32}" fill="#fff" opacity=".35"/>`;
+    s += `<ellipse cx="0" cy="${cy - l - 2}" rx="${w * .78}" ry="7" fill="${pro}" stroke="#1b1b1b" stroke-width="1.4"/>`;
+    if (a.mark) s += `<path d="M-5 ${cy - l - 1} l2 -4 l3 3 l3 -3 l2 4" stroke="#1b1b1b" stroke-width="1.6" fill="none" stroke-linejoin="round"/>`;
+    if (a.lines) s += `<path d="M-6 ${cy - l + 1} l3 -4 M6 ${cy - l + 1} l-3 -4" stroke="#fff" stroke-width="1.6"/>`;
+    s += `<circle cx="0" cy="${cy - l - 10}" r="6.5" fill="${head}" stroke="#1b1b1b" stroke-width="1.4"/>` + eyes(0, cy - l - 11, 2.4, 3.2);
+    return s;
+  }
+  if (k === "shield") {   // stink bugs: a shield shape with banded antennae and a speckled back
+    let s = legs([-2, 8, 18], 16, "#5a4232") + antennae(-26, 14, "#5a4232", true);
+    s += `<path d="M0 -24 L22 -10 L20 6 L0 34 L-20 6 L-22 -10 Z" fill="${a.color}" stroke="#1b1b1b" stroke-width="1.5" stroke-linejoin="round"/>`;
+    s += `<path d="M-10 -4 L10 -4 L0 18 Z" fill="${a.mottle}" opacity=".6"/>`;
+    for (const [x, y] of [[-12, -8], [12, -6], [-8, 10], [9, 12], [-3, 2], [4, -12], [-14, 2], [14, 3], [0, 24]]) s += `<circle cx="${x}" cy="${y}" r="1.4" fill="${a.mottle}"/>`;
+    for (const y of [-6, 2]) for (const x of [-1, 1]) s += `<rect x="${x * 21 - 1.5}" y="${y}" width="3" height="3" fill="${a.edge}"/>`;
+    s += `<circle cx="0" cy="-26" r="5.5" fill="${a.mottle}" stroke="#1b1b1b" stroke-width="1.4"/>` + eyes(0, -27, 2.1, 2.8);
+    return s;
+  }
+  if (k === "lanternfly") {   // gray front wings with black spots, and red back wings peeking out
+    let s = legs([2, 8, 14], 12, "#2a2a2a") + antennae(-24, 8, "#2a2a2a");
+    s += `<path d="M0 -10 Q -30 10 -24 36 Q -10 30 0 22 Q 10 30 24 36 Q 30 10 0 -10 Z" fill="#d6372b" stroke="#1b1b1b" stroke-width="1.2"/>`;
+    s += `<path d="M0 -16 Q -26 4 -16 34 Q -6 26 0 18 Q 6 26 16 34 Q 26 4 0 -16 Z" fill="#c9c1b4" stroke="#1b1b1b" stroke-width="1.4"/>`;
+    for (const [x, y] of [[-8, -2], [8, -2], [-12, 8], [12, 8], [-6, 12], [6, 12], [-10, 20], [10, 20], [-3, 4], [3, 4]]) s += `<circle cx="${x}" cy="${y}" r="1.9" fill="#1b1b1b"/>`;
+    s += `<path d="M-14 26 l5 6 l4 -5 l4 5 l3 -5 l4 5 l4 -6" stroke="#1b1b1b" stroke-width="1" fill="none" opacity=".6"/>`;
+    s += `<circle cx="0" cy="-20" r="6" fill="#2a2a2a" stroke="#1b1b1b" stroke-width="1.2"/>` + eyes(0, -21, 2.3, 3, "#c22");
+    return s;
+  }
+  if (k === "wasp" || k === "bee") {
+    const big = a.big ? 1.2 : a.small ? .85 : 1;
+    let s = `<g transform="scale(${big})">`;
+    s += `<ellipse cx="-13" cy="-4" rx="12" ry="6" transform="rotate(-25 -13 -4)" fill="#dceefb" opacity=".75" stroke="#7a8a99" stroke-width=".8"/>`;
+    s += `<ellipse cx="13" cy="-4" rx="12" ry="6" transform="rotate(25 13 -4)" fill="#dceefb" opacity=".75" stroke="#7a8a99" stroke-width=".8"/>`;
+    s += legs([-4, 2, 8], 13, "#2a2a2a", 1.8) + antennae(-20, 12, a.antenna || "#1e1e1e");
+    const bands = a.bands, bee = k === "bee";
+    const ab = bee ? `<ellipse cx="0" cy="12" rx="13" ry="15"/>` : `<ellipse cx="0" cy="14" rx="9" ry="17"/>`;
+    s += `<clipPath id="bug-${id}">${ab}</clipPath><g clip-path="url(#bug-${id})">`;
+    bands.forEach((c, i) => { s += `<rect x="-16" y="${-4 + i * (34 / bands.length)}" width="32" height="${34 / bands.length + .5}" fill="${c}"/>`; });
+    s += `</g>` + ab.replace("/>", ` fill="none" stroke="#1b1b1b" stroke-width="1.4"/>`);
+    if (bee) s += `<ellipse cx="0" cy="12" rx="13" ry="15" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="1 2" opacity=".6"/>`;
+    s += `<ellipse cx="0" cy="-8" rx="${bee ? 11 : 8}" ry="7" fill="${a.thorax || bands[0]}" stroke="#1b1b1b" stroke-width="1.4"/>`;
+    s += `<circle cx="0" cy="-19" r="${a.big ? 8 : 6.5}" fill="${a.head || "#1e1e1e"}" stroke="#1b1b1b" stroke-width="1.4"/>` + eyes(0, -20, 2.4, 3.3);
+    return s + "</g>";
+  }
+  if (k === "ant") {
+    const sc = a.small ? .85 : 1;
+    let s = `<g transform="scale(${sc})">` + legs([-6, -1, 4], 14, a.color, 1.8);
+    s += [-1, 1].map(x => `<path d="M${x * 3} -20 l${x * 6} -8 l${x * 6} -2" stroke="${a.color}" stroke-width="2" fill="none" stroke-linecap="round"/>`).join("");
+    s += `<ellipse cx="0" cy="20" rx="10" ry="13" fill="${a.gaster}" stroke="#1b1b1b" stroke-width="1.4"/>`;
+    s += `<circle cx="0" cy="5" r="2.8" fill="${a.color}" stroke="#1b1b1b" stroke-width="1"/>`;
+    s += `<ellipse cx="0" cy="-4" rx="5" ry="7" fill="${a.color}" stroke="#1b1b1b" stroke-width="1.4"/>`;
+    s += `<circle cx="0" cy="-17" r="7" fill="${a.color}" stroke="#1b1b1b" stroke-width="1.4"/>` + eyes(0, -18, 2.3, 3);
+    return s + "</g>";
+  }
+  if (k === "termite") {
+    const sc = a.big ? 1.1 : 1;
+    let s = `<g transform="scale(${sc})">` + legs([-8, -3, 2], 13, "#b88a5a", 1.8) + antennae(-24, 10, a.head);
+    s += `<ellipse cx="0" cy="14" rx="10" ry="18" fill="${a.body}" stroke="#1b1b1b" stroke-width="1.4"/>`;
+    for (let y = 2; y < 30; y += 5) s += `<line x1="-8" y1="${y}" x2="8" y2="${y}" stroke="#b88a5a" stroke-width=".8"/>`;
+    s += `<ellipse cx="0" cy="-6" rx="6" ry="5" fill="${a.body}" stroke="#1b1b1b" stroke-width="1.2"/>`;
+    s += `<ellipse cx="0" cy="-17" rx="8" ry="8" fill="${a.head}" stroke="#1b1b1b" stroke-width="1.4"/>` + eyes(0, -18, 2.2, 3);
+    return s + "</g>";
+  }
+  if (k === "moth") {   // moths and butterflies, wings open
+    const sc = a.small ? .85 : 1;
+    let s = `<g transform="scale(${sc})">`;
+    const wing = (side, front) => {
+      const x = side, d = front ? `M0 -8 Q ${x * 30} -34 ${x * 40} -10 Q ${x * 34} 8 0 4 Z` : `M0 2 Q ${x * 34} 6 ${x * 26} 26 Q ${x * 10} 32 0 12 Z`;
+      return d;
+    };
+    for (const side of [-1, 1]) for (const front of [false, true]) {
+      s += `<path d="${wing(side, front)}" fill="${a.wing}" stroke="${a.border || "#1b1b1b"}" stroke-width="${a.border ? 3 : 1.3}" stroke-linejoin="round"/>`;
+      if (a.border) s += `<path d="${wing(side, front)}" fill="none" stroke="#1b1b1b" stroke-width=".8"/>`;
+    }
+    if (a.tails) for (const x of [-1, 1]) s += `<path d="M${x * 18} 26 l${x * 3} 10" stroke="${a.wing}" stroke-width="3.5" stroke-linecap="round"/><path d="M${x * 18} 26 l${x * 3} 10" stroke="#1b1b1b" stroke-width="1" fill="none"/>`;
+    if (a.stripes) for (const x of [-1, 1]) for (const t of [10, 18, 27]) s += `<path d="M${x * 4} -6 L${x * t} ${-20 + t * .25}" stroke="${a.stripes}" stroke-width="2.4"/>`;
+    if (a.wingSpots) for (const x of [-1, 1]) { s += `<circle cx="${x * 22}" cy="-10" r="2.8" fill="${a.wingSpots}"/><circle cx="${x * 16}" cy="14" r="2.2" fill="${a.wingSpots}"/>`; }
+    if (a.tips) for (const x of [-1, 1]) s += `<path d="M${x * 30} -24 Q ${x * 40} -18 ${x * 40} -10 Q ${x * 34} -16 ${x * 30} -24 Z" fill="${a.tips}"/>`;
+    if (a.zigzag) for (const x of [-1, 1]) for (const y of [-14, -4, 12]) s += `<path d="M${x * 6} ${y} l${x * 5} -4 l${x * 5} 4 l${x * 5} -4 l${x * 5} 4 l${x * 5} -4" stroke="${a.zigzag}" stroke-width="1.6" fill="none"/>`;
+    if (a.lines) for (const x of [-1, 1]) for (const y of [-12, -2]) s += `<path d="M${x * 6} ${y} q ${x * 14} -6 ${x * 28} 2" stroke="${a.lines}" stroke-width="1.2" fill="none"/>`;
+    s += antennae(-18, 12, a.body);
+    s += `<ellipse cx="0" cy="6" rx="4.5" ry="20" fill="${a.body}" stroke="#1b1b1b" stroke-width="1.2"/>`;
+    s += `<circle cx="0" cy="-16" r="5.5" fill="${a.body}" stroke="#1b1b1b" stroke-width="1.2"/>` + eyes(0, -17, 2, 2.6);
+    return s + "</g>";
+  }
+  if (k === "caterpillar") {   // a hairy caterpillar with pairs of colored dots
+    let s = "";
+    const segs = 7;
+    for (let i = segs - 1; i >= 0; i--) {
+      const y = 30 - i * 9, x = Math.sin(i * .9) * 5;
+      if (!a.smooth) for (let h = -3; h <= 3; h++) s += `<line x1="${x + h * 2}" y1="${y - 6}" x2="${x + h * 3.2}" y2="${y - (a.spiky ? 11 : 13)}" stroke="${a.spiky ? "#1b1b20" : "#a89884"}" stroke-width="${a.spiky ? 1.6 : 1}"/>`;
+      s += `<circle cx="${x}" cy="${y}" r="8" fill="${a.color}" stroke="#1b1b1b" stroke-width="1.2"/>`;
+      if (a.band) s += `<path d="M${x - 7} ${y - 3} q 7 -3 14 0" stroke="${a.band}" stroke-width="2.4" fill="none"/>`;
+      if (i > 0 && a.dots[i - 1]) for (const d of [-1, 1]) s += `<circle cx="${x + d * 3.5}" cy="${y - 1}" r="2" fill="${a.dots[i - 1]}"/>`;
+    }
+    const hx = Math.sin(6 * .9) * 5;
+    s += `<circle cx="${hx}" cy="-28" r="8.5" fill="${a.headColor || "#3b2e24"}" stroke="#1b1b1b" stroke-width="1.2"/>` + eyes(hx, -29, 2.4, 3.2);
+    return s;
+  }
+  if (k === "fly") {   // a little fruit fly with big red eyes and spots on its wings
+    let s = legs([0, 5, 10], 12, "#4a3a2a", 1.6);
+    for (const x of [-1, 1]) {
+      s += `<ellipse cx="${x * 13}" cy="6" rx="14" ry="6" transform="rotate(${x * 30} ${x * 13} 6)" fill="#e8f2fa" opacity=".85" stroke="#7a8a99" stroke-width=".8"/>`;
+      if (a.wingSpot) s += `<circle cx="${x * 23}" cy="12" r="2.6" fill="#2a2a2a"/>`;
+    }
+    s += `<ellipse cx="0" cy="12" rx="8" ry="12" fill="${a.color}" stroke="#1b1b1b" stroke-width="1.3"/>`;
+    for (const y of [10, 15, 20]) s += `<line x1="-6" y1="${y}" x2="6" y2="${y}" stroke="#5a4532" stroke-width="1.4"/>`;
+    s += `<ellipse cx="0" cy="-4" rx="7" ry="6" fill="${a.color}" stroke="#1b1b1b" stroke-width="1.3"/>`;
+    s += `<circle cx="0" cy="-14" r="6.5" fill="${a.color}" stroke="#1b1b1b" stroke-width="1.3"/>`;
+    for (const x of [-1, 1]) s += `<circle cx="${x * 4.5}" cy="-15" r="4" fill="${a.eyes}" stroke="#1b1b1b" stroke-width="1"/><circle cx="${x * 4.5 - .8}" cy="-16" r="1.1" fill="#fff"/>`;
+    return s;
+  }
+  if (k === "egg") {   // a sleepy egg, before the buddy hatches
+    let s = `<ellipse cx="0" cy="4" rx="22" ry="29" fill="#fbf3dc" stroke="#1b1b1b" stroke-width="1.6"/>`;
+    for (const [x, y, r] of [[-8, -12, 3], [9, -4, 2.4], [-4, 14, 2.8], [10, 16, 2], [-12, 4, 1.8]]) s += `<circle cx="${x}" cy="${y}" r="${r}" fill="#e8c98a"/>`;
+    s += `<ellipse cx="-9" cy="-12" rx="5" ry="9" fill="#fff" opacity=".6"/>`;
+    s += [-1, 1].map(x => `<path d="M${x * 7 - 3} 6 q 3 3 6 0" stroke="#1b1b1b" stroke-width="1.6" fill="none" stroke-linecap="round"/>`).join("");
+    return s + `<path d="M-3 13 q 3 2 6 0" stroke="#1b1b1b" stroke-width="1.4" fill="none" stroke-linecap="round"/>`;
+  }
+  if (k === "bird") {   // Squawk: a European starling, dark and shiny with white speckles
+    let s = `<path d="M-6 30 l-6 12 l6 -3 l6 3 l-6 -12 Z" fill="#2b2a3f" stroke="#1b1b1b" stroke-width="1.2"/>`;
+    s += [-1, 1].map(x => `<path d="M${x * 4} 30 l${x * 2} 9 m${-x * 3} 0 l${x * 6} 0" stroke="#e0782a" stroke-width="2" stroke-linecap="round"/>`).join("");
+    s += `<ellipse cx="0" cy="10" rx="20" ry="24" fill="#2b2a3f" stroke="#1b1b1b" stroke-width="1.6"/>`;
+    s += [-1, 1].map(x => `<path d="M${x * 16} 0 q ${x * 14} 12 ${x * 4} 28 q ${-x * 8} -10 ${-x * 4} -26 Z" fill="#3c3a5c" stroke="#1b1b1b" stroke-width="1.2"/>`).join("");
+    s += `<ellipse cx="-6" cy="4" rx="7" ry="12" fill="#5b4f8f" opacity=".35"/><ellipse cx="6" cy="16" rx="6" ry="9" fill="#3f8f6a" opacity=".3"/>`;
+    for (const [x, y] of [[-8, 14], [6, 6], [-3, 22], [9, 20], [0, 10], [-11, 4], [4, 28]]) s += `<path d="M${x} ${y} l1.5 -2 l1.5 2 l-1.5 2 Z" fill="#fff"/>`;
+    s += `<circle cx="0" cy="-16" r="13" fill="#2b2a3f" stroke="#1b1b1b" stroke-width="1.6"/>` + eyes(0, -18, 3.2, 5);
+    return s + `<path d="M-4 -10 L4 -10 L0 0 Z" fill="#f2c81b" stroke="#1b1b1b" stroke-width="1.2" stroke-linejoin="round"/>`;
+  }
+  if (k === "woolly") {   // a tiny bug hiding under a fluffy white coat
+    let s = "";
+    for (const [x, y, r] of [[-12, 4, 11], [12, 4, 11], [0, -6, 13], [0, 14, 12], [-16, -8, 8], [16, -8, 8], [-8, 22, 8], [8, 22, 8]]) s += `<circle cx="${x}" cy="${y}" r="${r}" fill="#fbfbfb" stroke="#a9a9a9" stroke-width="1.4"/>`;
+    s += `<ellipse cx="0" cy="-18" rx="8" ry="6" fill="#3a2e28" stroke="#1b1b1b" stroke-width="1.2"/>` + eyes(0, -19, 2.2, 3);
+    return s;
+  }
+  return "";
+}
+
+// The cartoon for a bug (a species name, or a native bug's English name), as an element.
+// Bugs without a cartoon get their emoji instead.
+function bugArt(key, cls = "") {
+  const a = BUG_ART[key], span = el("span", `bug-art ${cls}`.trim());
+  span.setAttribute("aria-hidden", "true");
+  if (!a) { span.textContent = SPECIES_FACTS[key]?.emoji || "🐞"; span.classList.add("emoji"); return span; }
+  span.innerHTML = svgArt[key] ??= `<svg viewBox="-50 -50 100 100" xmlns="http://www.w3.org/2000/svg">${drawBug(a, key.replace(/\W/g, ""))}</svg>`;
+  return span;
+}
+
 // ---------- building blocks ----------
 function rarityTag(species) {
   const r = SPECIES_FACTS[species].rarity;
@@ -778,7 +1053,7 @@ function factCard(species, caughtCount) {
   const f = SPECIES_FACTS[species];
   const card = el("article", "factcard");
   const head = el("div", "factcard-head");
-  head.append(el("span", "bug-emoji", f.emoji), el("div", null));
+  head.append(bugArt(species, "bug-emoji"), el("div", null));
   head.lastChild.append(el("strong", null, commonName(species)), el("span", "sci", sciName(species)));
   const tags = el("div", "tags");
   const strong = STRONG_AGAINST[f.group].map(ty => t(TYPES[ty])).join(", ");
@@ -825,7 +1100,7 @@ function renderGame() {
     const slot = el("button", "dex-slot" + (n ? " caught" : "") + (s === justCaught ? " pop" : ""));
     slot.type = "button";
     if (n) {
-      slot.append(el("span", "bug-emoji", SPECIES_FACTS[s].emoji), el("strong", null, commonName(s)), rarityTag(s),
+      slot.append(bugArt(s, "bug-emoji"), el("strong", null, commonName(s)), rarityTag(s),
         el("span", "count", t("Lv {lv} · ×{n}", { lv: bugLevel(n), n })));
       slot.onclick = () => showFact(s, n, g.spots.filter(sp => sp.species === s));
     } else {
@@ -838,15 +1113,20 @@ function renderGame() {
   }
 
   const badges = $("badgeList"); badges.innerHTML = "";
-  for (const b of BADGES) {
+  renderSeasonBadges(g);
+  renderMonthlyBadges(g);
+  for (const b of BADGES.filter(x => !x.limited)) {
     const has = g.badges.includes(b.id);
-    const item = el("div", "badge" + (has ? " earned" : ""));
-    const desc = t(b.desc, { gym: b.gym && t(b.gym) });
-    item.title = desc;
-    item.append(el("span", "badge-emoji", has ? b.emoji : "🔒"), el("strong", null, t(b.name)), el("span", null, desc));
+    const item = el("button", "medal-item" + (has ? " earned" : ""));
+    item.type = "button";
+    item.setAttribute("aria-label", `${t(b.name)}: ${has ? t("Badge earned") : t("Badge not earned yet")}`);
+    item.append(medalFace(b, has), el("strong", null, t(b.name)));
+    item.onclick = () => showMedal(b);
     badges.append(item);
   }
 
+  $("learnSub").textContent = t("Fact cards for all {n} invasive bugs", { n: all.length });
+  $("learnIntro").textContent = t("What each invasive bug looks like, why it's a problem, and what to do if you see one.");
   const learn = $("learnList"); learn.innerHTML = "";
   for (const s of all) learn.append(factCard(s, g.caught[s] || 0));
 
@@ -890,7 +1170,7 @@ function renderBattles(g) {
     who.append(el("strong", null, name), el("span", "muted", about));
     const b = el("button", "btn" + (locked ? "" : " primary"), label);
     b.type = "button"; b.disabled = locked; b.onclick = onClick;
-    item.append(el("span", "bug-emoji", emoji), who, b);
+    item.append(typeof emoji === "string" ? el("span", "bug-emoji", emoji) : emoji, who, b);
     list.append(item);
   };
   list.append(el("h3", null, `🦹 ${t("Team Tangle's schemes")}`));
@@ -907,7 +1187,7 @@ function renderBattles(g) {
   // The weekly Swarm Boss
   list.append(el("h3", null, `👾 ${t("Weekly Swarm Boss")}`));
   const sw = swarm({ ...g });
-  simpleRow(SPECIES_FACTS[sw.species].emoji, t("Mega Swarm: {bug}", { bug: commonName(sw.species) }),
+  simpleRow(bugArt(sw.species, "bug-emoji"), t("Mega Swarm: {bug}", { bug: commonName(sw.species) }),
     sw.beaten ? t("Beaten this week! A new swarm comes on Monday.") : t("{hp} of {max} HP left. Your damage is saved all week!", { hp: sw.hp, max: BOSS_HP }),
     sw.beaten ? `✅ ${t("Beaten")}` : kinds < BOSS_UNLOCK ? `🔒 ${t("Catch {n} kinds", { n: BOSS_UNLOCK })}` : t("Battle!"),
     sw.beaten || kinds < BOSS_UNLOCK, sw.beaten, () => battle(swarmFoe(loadGame()), false));
@@ -951,18 +1231,254 @@ function showFact(species, n, spots = []) {
 const HOW_TO_PLAY = [
   { scene: "lab",     ...HAZEL, text: "Here's how to play, {name}!" },
   { scene: "lab",     ...HAZEL, text: "Tap the camera at the top of the Game screen, and point it at a bug. Its name shows at the top." },
-  { scene: "forest",  ...PIP,   text: "Take a photo. If the bug is invasive, a wild bug appears! Tap it 3 times to catch it." },
+  { scene: "forest",  ...PIP,   text: "Let's practice! Tap the beetle 3 times to catch it.", tap: "popillia_japonica", got: "Gotcha! That's how you catch a bug in the game." },
   { scene: "forest",  ...PIP,   text: "If it isn't invasive, leave it be. You still get protector points!" },
   { scene: "lab",     ...HAZEL, text: "Do the daily challenge and today's minigame for bonus points." },
   { scene: "victory", ...HAZEL, text: "Start a monthly challenge by connecting the bugs in the shape shown. Finish it to give its badge color!" },
+  { scene: "forest",  ...PIP,   text: "Catch the same bug again and again to level it up. Every 3 catches is one more level, all the way to Level 10!" },
   { scene: "mthood",  ...HAZEL, text: "Battle trainers and the {n} forests with the bugs you caught, then face the Oregon Champion!", vars: { n: GYMS.length - 1 } },
   { scene: "danger",  ...PIP,   text: "Don't touch bugs with bare hands. Some sting or bite." },
-  { scene: "danger",  ...PIP,   text: "Never carry an invasive bug (or firewood) to a new place." },
-  { scene: "forest",  ...PIP,   text: "Bring a grown-up, and watch where you walk." },
-  { scene: "lab",     ...HAZEL, text: "Every invasive bug you find is also reported to the Pyinsect team, so experts can learn where invasive bugs are and where to put traps." },
   { scene: "forest",  ...PIP,   text: "I'll be cheering for you the whole way. Let's go, {name}!" },
 ];
 const showInstructions = () => cutscene(HOW_TO_PLAY);
+
+// ---------- badge shapes and cartoons ----------
+// Every badge has its own shape (no two are the same) and its own cartoon. They're drawn as SVG.
+// After the list runs out, new badges get new shapes made from a pattern, so no two ever match
+const badgeShape = i => i < BADGE_SHAPES.length ? BADGE_SHAPES[i]
+  : [{ kind: "star", n: 13 + Math.floor((i - BADGE_SHAPES.length) / 3), inner: .86 }, { kind: "flower", n: 13 + Math.floor((i - BADGE_SHAPES.length) / 3) },
+    { kind: "gear", n: 13 + Math.floor((i - BADGE_SHAPES.length) / 3) }][(i - BADGE_SHAPES.length) % 3];
+const BADGE_SHAPES = [
+  { kind: "circle" }, { kind: "poly", n: 6 }, { kind: "shield" }, { kind: "poly", n: 8 }, { kind: "star", n: 5, inner: .62 },
+  { kind: "flower", n: 8 }, { kind: "heart" }, { kind: "poly", n: 4, rot: 0 }, { kind: "star", n: 6, inner: .7 }, { kind: "flower", n: 6 },
+  { kind: "poly", n: 5 }, { kind: "poly", n: 7 }, { kind: "gear", n: 10 }, { kind: "star", n: 8, inner: .75 }, { kind: "flower", n: 10 },
+  { kind: "poly", n: 3 }, { kind: "star", n: 4, inner: .55 }, { kind: "flower", n: 12 }, { kind: "star", n: 7, inner: .68 }, { kind: "poly", n: 9 },
+  { kind: "poly", n: 12 }, { kind: "star", n: 10, inner: .8 }, { kind: "squircle" }, { kind: "leaf" }, { kind: "flower", n: 5 },
+  { kind: "star", n: 12, inner: .84 }, { kind: "oval" }, { kind: "gear", n: 8 }, { kind: "cross" }, { kind: "flower", n: 7 },
+  { kind: "star", n: 9, inner: .78 }, { kind: "poly", n: 10 }, { kind: "gear", n: 12 }, { kind: "flower", n: 9 }, { kind: "star", n: 6, inner: .55 },
+  { kind: "poly", n: 11 }, { kind: "gear", n: 6 }, { kind: "flower", n: 4 },
+];
+// The outline of a shape, as an SVG path, about 46 wide from the middle
+function shapePath(sh, r = 46) {
+  const pts = [], P = (a, rr) => [Math.sin(a) * rr, -Math.cos(a) * rr];
+  if (sh.kind === "circle") for (let i = 0; i < 48; i++) pts.push(P(i / 48 * Math.PI * 2, r));
+  if (sh.kind === "oval") for (let i = 0; i < 48; i++) { const a = i / 48 * Math.PI * 2; pts.push([Math.sin(a) * r * .8, -Math.cos(a) * r]); }
+  if (sh.kind === "poly") for (let i = 0; i < sh.n; i++) pts.push(P((i + (sh.rot ?? .5)) / sh.n * Math.PI * 2 + (sh.n % 2 ? Math.PI / sh.n : 0) - (sh.rot === 0 ? 0 : Math.PI / sh.n), r));
+  if (sh.kind === "star") for (let i = 0; i < sh.n * 2; i++) pts.push(P(i / (sh.n * 2) * Math.PI * 2, i % 2 ? r * sh.inner : r));
+  if (sh.kind === "flower") for (let i = 0; i < 96; i++) { const a = i / 96 * Math.PI * 2; pts.push(P(a, r * (.84 + .16 * Math.abs(Math.cos(a * sh.n / 2))))); }
+  if (sh.kind === "gear") for (let i = 0; i < sh.n * 4; i++) pts.push(P((i + .5) / (sh.n * 4) * Math.PI * 2, i % 4 < 2 ? r : r * .82));
+  if (sh.kind === "squircle") for (let i = 0; i < 64; i++) { const a = i / 64 * Math.PI * 2, c = Math.cos(a), s = Math.sin(a); pts.push([Math.sign(s) * Math.abs(s) ** .45 * r * .92, -Math.sign(c) * Math.abs(c) ** .45 * r * .92]); }
+  if (sh.kind === "seal") for (let i = 0; i < 160; i++) { const a = i / 160 * Math.PI * 2; pts.push(P(a, r * (.93 + .07 * Math.cos(a * sh.n)))); }
+  if (sh.kind === "shield") return `M0 ${-r} L${r * .9} ${-r * .72} L${r * .82} ${r * .2} Q${r * .5} ${r * .78} 0 ${r} Q${-r * .5} ${r * .78} ${-r * .82} ${r * .2} L${-r * .9} ${-r * .72} Z`;
+  if (sh.kind === "heart") return `M0 ${r * .95} C${-r * 1.3} ${r * .1} ${-r * .9} ${-r * 1.05} 0 ${-r * .45} C${r * .9} ${-r * 1.05} ${r * 1.3} ${r * .1} 0 ${r * .95} Z`;
+  if (sh.kind === "leaf") return `M0 ${-r} C${r * .95} ${-r * .55} ${r * .95} ${r * .55} 0 ${r} C${-r * .95} ${r * .55} ${-r * .95} ${-r * .55} 0 ${-r} Z`;
+  if (sh.kind === "cross") { const a = r * .38; return `M${-a} ${-r} H${a} V${-a} H${r} V${a} H${a} V${r} H${-a} V${a} H${-r} V${-a} H${-a} Z`; }
+  return "M" + pts.map(p => p.map(v => v.toFixed(1)).join(" ")).join(" L") + " Z";
+}
+
+// Little drawing pieces for the badge cartoons
+const ink = 'stroke="#1b1b1b" stroke-width="1.5" stroke-linejoin="round"';
+const bugG = (key, x, y, s) => `<g transform="translate(${x} ${y}) scale(${s})">${drawBug(BUG_ART[key], `b${key.replace(/\W/g, "")}${x}${y}`.replace(/[-.]/g, "m"))}</g>`;
+const starAt = (x, y, r, c = "#ffd23f") => `<path d="${shapePath({ kind: "star", n: 5, inner: .45 }, r)}" transform="translate(${x} ${y})" fill="${c}" ${ink}/>`;
+const pine = (x, y, s, c = "#2f8a4c") => `<g transform="translate(${x} ${y}) scale(${s})"><rect x="-2" y="4" width="4" height="7" fill="#7a4a24"/><path d="M0 -16 L10 0 L5 0 L12 8 L-12 8 L-5 0 L-10 0 Z" fill="${c}" ${ink}/></g>`;
+const ground = (c = "#7cc06a") => `<path d="M-40 18 Q0 8 40 18 L40 40 L-40 40 Z" fill="${c}" ${ink}/>`;
+const sky = c => `<rect x="-40" y="-40" width="80" height="80" fill="${c}"/>`;
+const landscape = parts => parts;   // (the medal's shape clips the picture)
+
+// The cartoon for each badge (gym badges get a little picture of their forest)
+const BADGE_ART = {
+  first: () => ORB_SVG.replace("<svg ", '<svg x="-34" y="-34" width="68" height="68" ').replace(/orbGlass/g, "ORBg").replace(/orbShade/g, "ORBs"),
+  five: () => `<g ${ink}><path d="M-14 26 Q-20 6 -16 -2 L-12 -2 L-10 8 L-9 -22 Q-5 -26 -2 -22 L-1 4 L1 -28 Q5 -31 8 -27 L8 4 L11 -22 Q15 -25 17 -21 L16 8 L20 -8 Q24 -10 25 -6 L20 18 Q14 30 -14 26 Z" fill="#f6c99c"/></g>${starAt(-26, -22, 7)}${starAt(28, -26, 6)}`,
+  kinds3: () => bugG("popillia_japonica", -6, 6, .55) + `<circle cx="10" cy="-6" r="16" fill="#bfe6ff" fill-opacity=".45" stroke="#3b3b3b" stroke-width="4"/><line x1="21" y1="5" x2="34" y2="20" stroke="#7a4a24" stroke-width="7" stroke-linecap="round"/>`,
+  rare: () => `<g ${ink}><path d="M-22 -10 L-12 -24 L12 -24 L22 -10 L0 26 Z" fill="#5fd3f3"/><path d="M-22 -10 L22 -10 M-12 -24 L-6 -10 L0 26 L6 -10 L12 -24" fill="none"/></g><path d="M-14 -20 L-8 -12" stroke="#fff" stroke-width="3" stroke-linecap="round"/>`,
+  legendary: () => bugG("agrilus_planipennis", 0, 14, .55) + `<path d="M-20 -14 L-14 -32 L-6 -20 L0 -36 L6 -20 L14 -32 L20 -14 Z" fill="#ffd23f" ${ink}/>`,
+  points100: () => `<text x="0" y="12" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-weight="800" font-size="32" fill="#fff" stroke="#1b1b1b" stroke-width="1.5">100</text>${starAt(-24, -20, 8)}${starAt(0, -26, 8)}${starAt(24, -20, 8)}`,
+  half: () => `<g ${ink}><path d="M-26 -18 L0 -12 L26 -18 L26 22 L0 28 L-26 22 Z" fill="#fffaf0"/><path d="M0 -12 L0 28" fill="none"/><path d="M-26 -18 L0 -12 L0 28 L-26 22 Z" fill="#7cc06a"/></g>${bugG("harmonia_axyridis", -13, 6, .3)}`,
+  all: () => `<g ${ink}><path d="M-18 -24 H18 V-6 Q18 12 0 14 Q-18 12 -18 -6 Z" fill="#ffd23f"/><path d="M-18 -18 Q-30 -18 -26 -6 Q-22 2 -16 0 M18 -18 Q30 -18 26 -6 Q22 2 16 0" fill="none" stroke-width="3"/><rect x="-5" y="14" width="10" height="8" fill="#e0a800"/><rect x="-14" y="22" width="28" height="8" rx="2" fill="#8a5a32"/></g>${starAt(0, -9, 7, "#fff")}`,
+  protector: () => `<path d="${shapePath({ kind: "shield" }, 28)}" fill="#5aa9e6" ${ink}/><path d="M0 -14 C14 -8 12 10 0 16 C-12 10 -14 -8 0 -14 Z M0 -14 L0 16" fill="#7cc06a" ${ink}/>`,
+  trainer: () => `<g ${ink}><path d="M-24 -24 L14 14 L10 18 L-28 -20 Z" fill="#d9dee5"/><path d="M24 -24 L-14 14 L-10 18 L28 -20 Z" fill="#d9dee5"/><rect x="4" y="12" width="14" height="5" transform="rotate(45 11 14)" fill="#8a5a32"/><rect x="-18" y="12" width="14" height="5" transform="rotate(-45 -11 14)" fill="#8a5a32"/></g>`,
+  daily: () => `<g ${ink}><rect x="-24" y="-20" width="48" height="44" rx="5" fill="#fff"/><path d="M-24 -20 h48 v12 h-48 Z" fill="#e84a4a"/><line x1="-12" y1="-26" x2="-12" y2="-14" stroke-width="3"/><line x1="12" y1="-26" x2="12" y2="-14" stroke-width="3"/></g><path d="M-10 6 L-3 13 L12 -2" stroke="#2f8a4c" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+  natives10: () => `<g ${ink}>${[0, 72, 144, 216, 288].map(a => `<ellipse cx="0" cy="-14" rx="8" ry="13" fill="#ffffff" transform="rotate(${a})"/>`).join("")}<circle r="8" fill="#ffd23f"/></g>${bugG("Western bumble bee", 18, -18, .35)}`,
+  tangle: () => `<g ${ink}><rect x="-26" y="-6" width="34" height="20" rx="2" fill="#8e5bd0"/><rect x="8" y="0" width="16" height="14" rx="2" fill="#6b3fa8"/><circle cx="-16" cy="16" r="5" fill="#333"/><circle cx="14" cy="16" r="5" fill="#333"/>${[-20, -12, -4].map(x => `<rect x="${x}" y="-14" width="7" height="8" rx="2" fill="#a0683a"/>`).join("")}</g><path d="M-30 -24 L30 24" stroke="#e84a4a" stroke-width="6" stroke-linecap="round"/><circle r="30" fill="none" stroke="#e84a4a" stroke-width="6"/>`,
+  traps: () => `<g ${ink}><path d="M-14 -26 L14 -26 L18 26 L-18 26 Z" fill="#8e5bd0"/><path d="M0 -26 L0 26" stroke="#6b3fa8" stroke-width="3"/></g>${bugG("agrilus_planipennis", 0, 2, .4)}`,
+  hide: () => `<g ${ink}><path d="M-30 0 Q0 -28 30 0 Q0 28 -30 0 Z" fill="#fff"/><circle r="11" fill="#5aa9e6"/><circle r="5" fill="#1b1b1b"/></g><circle cx="-4" cy="-4" r="3" fill="#fff"/>`,
+  swarm: () => [[-16, -14, .3], [14, -18, .26], [0, 4, .34], [-18, 16, .24], [18, 14, .28]].map(([x, y, s]) => bugG("vespa_mandarinia", x, y, s)).join(""),
+  buddy: () => bugG("Oregon swallowtail", 0, 4, .62) + `<path d="M0 -20 C-8 -30 -20 -22 -12 -12 L0 -2 L12 -12 C20 -22 8 -30 0 -20 Z" transform="translate(20 -8) scale(.55)" fill="#e84a4a" ${ink}/>`,
+  match: () => `<g ${ink}><rect x="-26" y="-22" width="26" height="36" rx="4" fill="#8e5bd0" transform="rotate(-12)"/><rect x="0" y="-20" width="26" height="36" rx="4" fill="#fff" transform="rotate(10)"/></g>${bugG("harmonia_axyridis", 12, -1, .36)}`,
+  sort: () => `<g ${ink}><rect x="-30" y="-14" width="26" height="30" rx="5" fill="#ffd6d6"/><rect x="4" y="-14" width="26" height="30" rx="5" fill="#d8f5d8"/></g>${bugG("halyomorpha_halys", -17, 2, .3)}${bugG("Convergent lady beetle", 17, 2, .3)}`,
+  pop: () => `<ellipse cx="0" cy="20" rx="26" ry="9" fill="#3b2a1a" ${ink}/>${bugG("popillia_japonica", 0, -2, .5)}<path d="M-30 -24 l6 6 M30 -24 l-6 6 M0 -38 v8" stroke="#ffd23f" stroke-width="4" stroke-linecap="round"/>`,
+  games5: () => `<g ${ink}><path d="M-30 -6 Q-30 -16 -20 -16 H20 Q30 -16 30 -6 L32 12 Q32 22 22 20 L14 10 H-14 L-22 20 Q-32 22 -32 12 Z" fill="#5aa9e6"/><rect x="-21" y="-6" width="12" height="4" fill="#1b1b1b"/><rect x="-17" y="-10" width="4" height="12" fill="#1b1b1b"/><circle cx="14" cy="-6" r="3" fill="#e84a4a"/><circle cx="20" cy="0" r="3" fill="#ffd23f"/></g>`,
+};
+// A little picture of each forest for its badge
+const GYM_ART = {
+  forestpark: () => landscape(sky("#bfe6ff") + ground() + pine(-18, 4, 1.2) + pine(0, -2, 1.5) + pine(18, 4, 1.2)),
+  siuslaw: () => landscape(sky("#bfe6ff") + `<path d="M-40 6 Q-20 -6 0 6 T40 6 L40 40 L-40 40 Z" fill="#f2dc9a" ${ink}/><path d="M-40 16 q10 -6 20 0 t20 0 t20 0 t20 0 L40 40 L-40 40 Z" fill="#4aa3e0" ${ink}/>` + pine(26, -4, .9)),
+  tillamook: () => landscape(sky("#c9d6de") + ground("#5f9e6e") + pine(-16, 4, 1.3) + pine(14, 4, 1.3) + `<path d="M-20 -24 a10 10 0 0 1 18 -6 a9 9 0 0 1 16 6 z" fill="#fff" ${ink}/>` + [-14, -4, 6].map(x => `<line x1="${x}" y1="-18" x2="${x - 3}" y2="-10" stroke="#4aa3e0" stroke-width="2.5" stroke-linecap="round"/>`).join("")),
+  gorge: () => landscape(sky("#bfe6ff") + `<path d="M-40 -10 L-12 -10 L-12 40 L-40 40 Z M40 -10 L12 -10 L12 40 L40 40 Z" fill="#7a6a4f" ${ink}/><rect x="-12" y="-10" width="24" height="50" fill="#7fd0f5"/><path d="M-8 -10 v40 M0 -10 v40 M8 -10 v40" stroke="#fff" stroke-width="2" opacity=".8"/>` + pine(-26, -18, .8) + pine(26, -18, .8)),
+  umpqua: () => landscape(sky("#bfe6ff") + ground() + `<path d="M-40 26 Q-10 10 10 22 T40 18 L40 40 L-40 40 Z" fill="#4aa3e0" ${ink}/>` + `<path d="M-4 26 q6 -6 12 0 q-6 6 -12 0 l-4 -3 v6 z" fill="#f08c1a" ${ink}/>` + pine(-20, 2, 1) + pine(20, 0, 1)),
+  willamette: () => landscape(sky("#d8f0d8") + ground("#5f9e6e") + pine(-22, 0, 1.5) + pine(22, 0, 1.5) + `<path d="M-10 18 q0 -16 10 -16 q10 0 10 16 z" fill="#e84a4a" ${ink}/><rect x="-3" y="18" width="6" height="10" fill="#f6efe0" ${ink}/><circle cx="-4" cy="10" r="2" fill="#fff"/><circle cx="4" cy="8" r="2" fill="#fff"/>`),
+  rogue: () => landscape(sky("#bfe6ff") + ground("#a3c46a") + `<path d="M-30 18 L-18 -4 L-6 18 Z M2 18 L14 -12 L28 18 Z" fill="#9a8c7a" ${ink}/>` + [-20, 0, 22].map(x => `<circle cx="${x}" cy="26" r="4" fill="#ff7eb6" ${ink}/>`).join("")),
+  deschutes: () => landscape(sky("#ffd9b5") + `<path d="M-34 30 L-8 -14 L8 -14 L34 30 Z" fill="#7a5a4a" ${ink}/><path d="M-8 -14 Q0 -22 8 -14 L4 -4 L-4 -4 Z" fill="#f05a28" ${ink}/><path d="M-4 -22 q-4 -8 2 -14 M4 -22 q6 -8 0 -14" stroke="#888" stroke-width="3" fill="none"/>` + pine(-26, 22, .8) + pine(26, 22, .8)),
+  wallowa: () => landscape(sky("#ffe7c2") + `<path d="M-40 -6 L-10 -6 L-4 40 L-40 40 Z M40 -6 L10 -6 L4 40 L40 40 Z" fill="#c2643c" ${ink}/><path d="M-6 40 Q0 20 6 40 Z" fill="#4aa3e0"/>` + `<path d="M-20 -24 q4 -4 8 0 q4 -4 8 0" stroke="#1b1b1b" stroke-width="2" fill="none"/>`),
+  craterlake: () => landscape(sky("#bfe6ff") + `<path d="M-40 4 L-24 -10 L24 -10 L40 4 L40 40 L-40 40 Z" fill="#8c7a6a" ${ink}/><ellipse cx="0" cy="10" rx="28" ry="12" fill="#1f5fae" ${ink}/><ellipse cx="8" cy="8" rx="5" ry="3" fill="#6a8a5a" ${ink}/>`),
+  malheur: () => landscape(sky("#f5e6c8") + ground("#c9a55a") + `<path d="M-22 14 q0 -14 9 -14 q9 0 9 14 z" fill="#c98a3a" ${ink}/><rect x="-16" y="14" width="6" height="10" fill="#f6efe0" ${ink}/><path d="M4 18 q0 -20 12 -20 q12 0 12 20 z" fill="#a0683a" ${ink}/><rect x="13" y="18" width="7" height="12" fill="#f6efe0" ${ink}/>`),
+  mthood: () => landscape(sky("#bfe6ff") + `<path d="M-38 30 L0 -26 L38 30 Z" fill="#7a8aa0" ${ink}/><path d="M-12 -8 L0 -26 L12 -8 L6 -4 L0 -10 L-6 -4 Z" fill="#fff" ${ink}/>` + pine(-24, 24, .9) + pine(24, 24, .9)),
+  champion: () => BADGE_ART.all() + `<path d="M-14 -30 L-10 -40 L-4 -32 L0 -42 L4 -32 L10 -40 L14 -30 Z" fill="#ffd23f" ${ink}/>`,
+};
+
+// A season badge's cartoon: the season (snowflake, flower, sun, or leaf), what the goal is, and the year
+function seasonArt(b) {
+  const season = {
+    Winter: `<rect x="-40" y="-40" width="80" height="80" fill="#cfe9ff"/>` + [0, 60, 120].map(a => `<g transform="rotate(${a})"><line x1="0" y1="-30" x2="0" y2="30" stroke="#fff" stroke-width="5" stroke-linecap="round"/><path d="M-6 -24 L0 -18 L6 -24 M-6 24 L0 18 L6 24" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/></g>`).join(""),
+    Spring: `<rect x="-40" y="-40" width="80" height="80" fill="#e7f8de"/>` + [0, 72, 144, 216, 288].map(a => `<ellipse cx="0" cy="-17" rx="10" ry="15" fill="#ffc2dd" transform="rotate(${a})"/>`).join("") + `<circle r="8" fill="#ffd23f"/>`,
+    Summer: `<rect x="-40" y="-40" width="80" height="80" fill="#fff1c2"/>` + [...Array(12)].map((_, k) => `<line x1="0" y1="-20" x2="0" y2="-34" stroke="#ffb020" stroke-width="5" stroke-linecap="round" transform="rotate(${k * 30})"/>`).join("") + `<circle r="18" fill="#ffd23f"/>`,
+    Fall: `<rect x="-40" y="-40" width="80" height="80" fill="#ffe2c7"/><path d="M0 -32 L8 -14 L26 -18 L16 -2 L30 8 L10 10 L4 30 L0 18 L-4 30 L-10 10 L-30 8 L-16 -2 L-26 -18 L-8 -14 Z" fill="#f07d1d" opacity=".75"/>`,
+  }[b.block.season];
+  const goal = {
+    catch: bugG("popillia_japonica", 0, -2, .45), natives: bugG("Western bumble bee", 0, -2, .45), kinds: BADGE_ART.kinds3().replace(/scale\(\.55\)/, "scale(.4)"),
+    wins: `<g transform="scale(.7)">${BADGE_ART.trainer()}</g>`, games: `<g transform="scale(.7)">${BADGE_ART.games5()}</g>`,
+  }[b.goal.key];
+  const year = `<rect x="-22" y="22" width="44" height="14" rx="4" fill="#2f6b45" stroke="#1b1b1b" stroke-width="1.2"/><text x="0" y="33" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-weight="800" font-size="11" fill="#fff">${b.block.year}</text>`;
+  return season + goal + year;
+}
+
+// The whole medal: its shape filled with shiny metal, a rim, and the cartoon inside
+let medalCount = 0;
+function medalSVG(b, has, i) {
+  const sh = b.shape || badgeShape(i), id = `m${++medalCount}`, { colors } = medalStyle(b);
+  const d = shapePath(sh), inner = shapePath(sh, 36);
+  const art = has ? (b.art || (b.limited ? () => seasonArt(b) : null) || b.gym ? GYM_ART[b.id.slice(4)] : BADGE_ART[b.id])?.() || `<text y="12" text-anchor="middle" font-size="34">${b.emoji}</text>` : `<text y="12" text-anchor="middle" font-size="30">🔒</text>`;
+  return `<svg viewBox="-50 -50 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs><radialGradient id="${id}g" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#fff"/><stop offset=".25" stop-color="${colors[0]}"/><stop offset=".8" stop-color="${colors[1]}"/><stop offset="1" stop-color="${colors[1]}" stop-opacity=".9"/></radialGradient>
+    <clipPath id="${id}c"><path d="${inner}"/></clipPath></defs>
+    <path d="${d}" fill="url(#${id}g)" stroke="#1b1b1b" stroke-width="2"/>
+    <path d="${d}" fill="none" stroke="${colors[1]}" stroke-width="6" transform="scale(.9)" opacity=".9"/>
+    <path d="${inner}" fill="#fff" fill-opacity=".25"/>
+    <g clip-path="url(#${id}c)" transform="scale(.82)">${art.replace(/url\(#CLIP\)/g, `url(#${id}c)`).replace(/id="b/g, `id="${id}b`).replace(/url\(#b/g, `url(#${id}b`).replace(/ORB([gs])/g, `${id}orb$1`)}</g>
+  </svg>`;
+}
+
+// ---------- badges as medals (like Apple Watch awards) ----------
+// Each badge is a shiny medal with its own colors. Tap one to see why you got it, and drag it to
+// spin it around: the back is engraved with the date and time you earned it.
+const MEDAL_COLORS = [["#ffe17a", "#d39b12"], ["#f3f5f8", "#9aa3ad"], ["#f6b48a", "#b8652e"], ["#8ee3a8", "#2f8f55"],
+  ["#9fd0ff", "#2f6fb3"], ["#d6b5ff", "#7a4bc2"], ["#ff9e9e", "#c2403a"], ["#9ff0e6", "#25a08f"]];
+const medalStyle = b => ({ colors: MEDAL_COLORS[(b.colorIndex ?? BADGES.indexOf(b)) % MEDAL_COLORS.length] });
+// The front of a medal (small, for the badge list)
+function medalFace(b, has) {
+  const m = el("span", `medal${has ? "" : " locked"}`);
+  m.innerHTML = medalSVG(b, has, BADGES.indexOf(b));
+  return m;
+}
+// The big medal in its own pop-up. Drag it (or use the arrow keys or the button) to spin it.
+function showMedal(b) {
+  const g = loadGame(), has = b.isEarned ? b.isEarned(g) : g.badges.includes(b.id), when = b.when ? b.when(g) : g.badgeDates[b.id];
+  const { colors } = medalStyle(b), calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const sh = b.shape || badgeShape(BADGES.indexOf(b)), outline = shapePath(sh);
+  const stage = el("div", "medal3d"), spin = el("div", `medal-spin${has ? "" : " locked"}`);
+  stage.tabIndex = 0;
+  stage.setAttribute("role", "img");
+  stage.setAttribute("aria-label", `${t(b.name)}. ${t("Drag to spin the badge.")}`);
+  spin.style.setProperty("--m1", colors[0]); spin.style.setProperty("--m2", colors[1]);
+  // A medal is a stack of thin layers, so it looks thick when it turns
+  for (let k = 0; k < 10; k++) {
+    const layer = el("span", "medal-edge"); layer.style.transform = `translateZ(${k - 5}px)`;
+    layer.innerHTML = `<svg viewBox="-50 -50 100 100"><path d="${outline}" fill="${colors[1]}" stroke="#1b1b1b" stroke-width="1"/></svg>`;
+    spin.append(layer);
+  }
+  const front = el("span", "medal-side medal-front"), back = el("span", "medal-side medal-back");
+  front.innerHTML = medalSVG(b, has, BADGES.indexOf(b));
+  const backArt = el("span", "medal-back-art");
+  backArt.innerHTML = `<svg viewBox="-50 -50 100 100"><defs><radialGradient id="mbg" cx="65%" cy="30%" r="80%"><stop offset="0" stop-color="#fff"/><stop offset=".3" stop-color="${colors[0]}"/><stop offset="1" stop-color="${colors[1]}"/></radialGradient></defs>
+    <path d="${outline}" fill="url(#mbg)" stroke="#1b1b1b" stroke-width="2"/><path d="${outline}" fill="none" stroke="${colors[1]}" stroke-width="6" transform="scale(.9)"/></svg>`;
+  back.append(backArt);
+  const date = when ? new Date(when) : null;
+  back.append(el("span", "medal-engrave", has ? t("Earned by {name}", { name: g.trainer.name || t("Ranger") }) : t("Badge not earned yet")),
+    el("strong", "medal-date", !has ? "🔒" : date ? date.toLocaleDateString(langTag(), { year: "numeric", month: "long", day: "numeric" }) : t("Earned before the game saved dates")),
+    el("span", "medal-engrave", has && date ? date.toLocaleTimeString(langTag(), { hour: "numeric", minute: "2-digit" }) : ""));
+  spin.append(front, back);
+  stage.append(spin);
+  // Spinning: drag to turn it, it keeps going a little after you let go, then settles face up or face down
+  let angle = 0, speed = 0, dragging = false, lastX = 0, frame = null, faceUp = false, goal = null;
+  const draw = () => { spin.style.setProperty("--a", `${angle}deg`); spin.style.setProperty("--shine", `${50 + Math.sin(angle * Math.PI / 180) * 45}%`); };
+  const settle = () => {
+    cancelAnimationFrame(frame);
+    const step = () => {
+      if (dragging) return;
+      if (goal != null) { angle += (goal - angle) * .12; if (Math.abs(goal - angle) < .3) { angle = goal; goal = null; draw(); return; } }
+      else if (Math.abs(speed) > .3) { angle += speed; speed *= .95; }
+      else { const unit = faceUp ? 360 : 180, target = Math.round(angle / unit) * unit; angle += (target - angle) * .15; if (Math.abs(target - angle) < .3) { angle = target; draw(); return; } }
+      draw(); frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+  };
+  // The arrow keys and the Spin button turn it to an exact stop: half a turn shows the other side
+  const turn = by => { faceUp = false; speed = 0; goal = Math.round((angle + by) / 180) * 180; if (calm) { angle = goal; goal = null; draw(); return; } settle(); };
+  stage.addEventListener("pointerdown", e => { dragging = true; faceUp = false; goal = null; lastX = e.clientX; speed = 0; stage.setPointerCapture(e.pointerId); cancelAnimationFrame(frame); });
+  stage.addEventListener("pointermove", e => { if (!dragging) return; const dx = e.clientX - lastX; lastX = e.clientX; angle += dx * .9; speed = dx * .9; draw(); });
+  for (const ev of ["pointerup", "pointercancel"]) stage.addEventListener(ev, () => { if (!dragging) return; dragging = false; sound("tick"); settle(); });
+  stage.addEventListener("keydown", e => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); turn(e.key === "ArrowLeft" ? -180 : 180); }
+    else if (e.key === "Enter" || e.key === " ") { e.preventDefault(); turn(180); }
+  });
+  const spinBtn = el("button", "btn", `🔄 ${t("Spin")}`);
+  spinBtn.type = "button"; spinBtn.onclick = () => turn(360 + 180);
+  const why = el("div", "medal-why");
+  why.append(el("strong", null, t("Why you got it")), el("p", null, badgeDesc(b)));
+  openPopup([stage, el("h2", null, t(b.name)), why, el("p", "muted medal-hint", t("Drag to spin the badge. The back shows when you got it.")), spinBtn],
+    [["Close", true], ...(b.monthly ? [["Open challenge", false, () => goGame(`challenge/${b.monthly.id}`)]] : [])]);
+  draw();
+  if (!calm) { angle = -360; speed = 0; faceUp = true; draw(); requestAnimationFrame(() => { speed = 14; settle(); }); }   // it spins in when it opens
+  sound(has ? "badge" : "tick");
+}
+
+// Every monthly challenge as a medal for the Badges page (its own seal shape, and a cartoon of its goal)
+const MONTHLY_ART = { truebugs: () => bugG("halyomorpha_halys", 0, -4, .5), beetles: () => bugG("agrilus_planipennis", 0, -4, .5),
+  natives: () => bugG("Western bumble bee", 0, -4, .5), moths: () => bugG("pieris_rapae", 0, -4, .5), rare: () => BADGE_ART.rare(),
+  kinds: () => BADGE_ART.kinds3(), wasps: () => bugG("polistes_dominula", 0, -4, .5), any: () => BADGE_ART.first() };
+function monthlyMedals() {
+  return monthlyChallenges().slice().reverse().map((ch, k) => ({
+    id: `mc-${ch.id}`, name: ch.kind.name, emoji: ch.kind.emoji, monthly: ch, colorIndex: k + 3, shape: { kind: "seal", n: 9 + k },
+    isEarned: g => challengeStatus(g, ch) === "done", when: g => challengeState(g, ch)?.doneAt,
+    art: () => `<rect x="-40" y="-40" width="80" height="80" fill="#f4f8ef"/>` + MONTHLY_ART[ch.kind.id]() +
+      `<rect x="-24" y="22" width="48" height="14" rx="4" fill="#2f6fb3" stroke="#1b1b1b" stroke-width="1.2"/><text x="0" y="32.5" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-weight="800" font-size="9" fill="#fff">${new Date(...ch.month.split("-").map((v, i) => i ? v - 1 : +v), 15).toLocaleDateString(langTag(), { month: "short", year: "numeric" })}</text>`,
+  })).reverse();
+}
+function renderMonthlyBadges(g) {
+  const grid = $("monthlyBadges"); grid.innerHTML = "";
+  for (const b of monthlyMedals()) {
+    const has = b.isEarned(g), st = challengeState(g, b.monthly), item = el("button", "medal-item" + (has ? " earned" : ""));
+    item.type = "button";
+    item.setAttribute("aria-label", `${t(b.name)}: ${has ? t("Badge earned") : t("Badge not earned yet")}`);
+    item.append(medalFace(b, has), el("strong", null, t(b.name)), el("span", "muted medal-month", monthName(b.monthly.month)),
+      el("span", "medal-progress", has ? "✅" : `${st?.count || 0}/${b.monthly.kind.n}`));
+    item.onclick = () => showMedal(b);
+    grid.append(item);
+  }
+}
+
+// The limited-time badges, newest season first, with their dates. Missed ones stay grey.
+function renderSeasonBadges(g) {
+  const box = $("seasonBadges"); box.innerHTML = "";
+  const now = seasonBlock(), blocks = [...new Map(BADGES.filter(b => b.limited).map(b => [b.block.id, b.block])).values()].reverse();
+  const day = d => d.toLocaleDateString(langTag(), { month: "long", day: "numeric" });
+  for (const block of blocks) {
+    const current = block.id === now?.id;
+    box.append(el("h3", "season-badges-title", `${["❄️", "🌸", "☀️", "🍂"][block.index % 4]} ${t("{season} {year}", { season: t(block.season), year: block.year })} · ${current
+      ? t("Ends {date}", { date: day(block.end) }) : `${t("Ended {date}", { date: day(block.end) })} · ${t("You can still catch up!")}`}`));
+    const grid = el("div", "badge-list");
+    for (const b of BADGES.filter(x => x.limited && x.block.id === block.id)) {
+      const has = g.badges.includes(b.id), item = el("button", "medal-item" + (has ? " earned" : current ? "" : " late"));
+      item.type = "button";
+      item.setAttribute("aria-label", `${t(b.name)}: ${has ? t("Badge earned") : t("Badge not earned yet")}`);
+      const c = g.seasonCounts?.[block.id], count = b.goal.key === "kinds" ? (c?.kinds || []).length : c?.[b.goal.key] || 0;
+      item.append(medalFace(b, has), el("strong", null, t(b.name)), el("span", "medal-progress", has ? "✅" : `${Math.min(count, b.goal.n)}/${b.goal.n}${current ? "" : ` · ${t("Catch up")}`}`));
+      item.onclick = () => showMedal(b);
+      grid.append(item);
+    }
+    box.append(grid);
+  }
+}
 
 // ---------- the Innva-Orb ----------
 // Our catching orb: a glowing crystal ball where green and purple swirl together, with a glowing leaf inside.
@@ -1017,7 +1533,7 @@ function minigame(species, photo) {
     arena.append(bug);
     // Items from the shop are used up here, if you have them
     const g = loadGame();
-    if (g.buddy) arena.append(el("span", "arena-buddy", buddyFace(g)));   // your Bug Buddy cheers you on
+    if (g.buddy) { const cheer = el("span", "arena-buddy"); cheer.append(buddyArt(g)); arena.append(cheer); }   // your Bug Buddy cheers you on
     const needTaps = MINIGAME_TAPS, seconds = MINIGAME_SECONDS;
     const info = el("p", "arena-info", t("Tap it {taps} times! {s} seconds left", { taps: needTaps, s: seconds }));
     const bar = el("div", "track"), fill = el("div", "fill");
@@ -1223,7 +1739,7 @@ function battle(foe, gym) {
     const hp = el("div", "track"), fill = el("div", "fill" + (f.hp / f.max < 0.3 ? " low" : ""));
     fill.style.width = `${f.hp / f.max * 100}%`; hp.append(fill);
     const left = team.filter(tm => tm.hp > 0).length;
-    box.append(el("span", "muted", label), el("span", "bug-emoji", SPECIES_FACTS[f.species].emoji),
+    box.append(el("span", "muted", label), bugArt(f.species, "bug-emoji"),
       el("strong", null, `${commonName(f.species)}${f.level > 1 ? ` · ${t("Lv {lv}", { lv: f.level })}` : ""}`),
       el("span", "type-tag", t(TYPES[SPECIES_FACTS[f.species].group])),
       hp, el("span", "hp", `HP ${f.hp}/${f.max} · ${t(team.length === 1 ? "{n} of {total} bug left" : "{n} of {total} bugs left", { n: left, total: team.length })}`));
@@ -1253,8 +1769,9 @@ function battle(foe, gym) {
     buddyTip.hidden = !g.buddy;
     if (g.buddy) {
       const boost = typeBoost(mine[me].species, theirs[them].species), vars = { bug: commonName(mine[me].species), foe: commonName(theirs[them].species) };
-      buddyTip.textContent = `${buddyFace(g)} ${buddyName(g)}: ${boost > 1 ? t("Your {bug} is strong against {foe}. Attack!", vars)
+      buddyTip.textContent = `${buddyName(g)}: ${boost > 1 ? t("Your {bug} is strong against {foe}. Attack!", vars)
         : typeBoost(theirs[them].species, mine[me].species) > 1 ? t("Uh oh, {foe} is strong against your {bug}. Try switching!", vars) : t("You can do it!")}`;
+      buddyTip.prepend(buddyArt(g, "tip-art"));
     }
   };
 
@@ -1349,12 +1866,9 @@ function battle(foe, gym) {
     if (foe.champion) return cutscene(FINALE).then(result);
     const next = GYMS[GYMS.indexOf(foe) + 1];
     cutscene([
-      { scene: foe.id, who: foe.face, name: foe.leader, text: foe.say.lose },
-      { scene: foe.id, who: foe.face, name: foe.leader, text: "Here, {name}. You've earned this." },
       { scene: "victory", who: foe.emoji, name: foe.badge, text: "You got the {badge}! That's {n} of {total} forest badges.",
         vars: { badge: t(foe.badge), n: loadGame().gyms.filter(id => GYMS.some(gy => gy.id === id && !gy.champion)).length, total: GYMS.length - 1 } },
       { scene: foe.id, who: foe.face, name: foe.leader, text: "One more thing, a real-world tip: {tip}", vars: { tip: t(foe.tip) } },
-      { scene: next.id, ...PIP, text: "Bzz! You did it! I knew you could!" },
       next.champion
         ? { scene: next.id, ...HAZEL, text: "You have all {n} forest badges! There's only one battle left: the Oregon Champion.", vars: { n: GYMS.length - 1 } }
         : { scene: next.id, ...HAZEL, text: "Next stop: {place}. {leader} is waiting for you there!", vars: { place: t(next.place), leader: next.leader } },
@@ -1452,60 +1966,140 @@ function cutscene(slides) {
     const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const wrap = el("div", "cutscene");
     wrap.setAttribute("role", "dialog"); wrap.setAttribute("aria-modal", "true"); wrap.setAttribute("aria-label", t("Story"));
-    wrap.lang = gameLang;
-    const stage = el("div", "cs-stage"), decor = el("div", "cs-decor"), actor = el("div", "cs-actor"), face = el("span", "cs-face");
+    wrap.lang = langTag();
+    // The 3D room: a classroom at Pyinsect University. The place in the story shows on the big screen.
+    const stage = el("div", "cs-stage"), room = el("div", "cs-room"), cam = el("div", "cs-cam");
+    const face3d = name => el("div", `cs-3d cs-${name}`);
+    const back = face3d("back"), left = face3d("left"), right = face3d("right");
+    const screen = el("div", "cs-screen"), screenDecor = el("div", "cs-decor"), screenPlace = el("div", "cs-screen-label");
+    screen.append(screenDecor, screenPlace);
+    const poster = el("div", "cs-poster");
+    for (const k of ["agrilus_planipennis", "lycorma_delicatula", "harmonia_axyridis", "vespa_mandarinia"]) poster.append(bugArt(k));
+    back.append(el("div", "cs-sign", t("Pyinsect University · Insect Lab")), screen, poster, el("div", "cs-clock"));
+    for (let k = 0; k < 3; k++) left.append(el("div", "cs-window"));
+    right.append(el("div", "cs-door"), el("div", "cs-shelf"));
+    cam.append(face3d("floor"), face3d("ceiling"), left, right, back);
+    room.append(cam);
+    const actor = el("div", "cs-actor"), face = el("span", "cs-face"), play = el("div", "cs-play");
     actor.append(face);
-    const box = el("div", "cs-box"), who = el("strong"), text = el("p"), next = el("button", "btn primary");
+    stage.append(room, play, actor);
+    const box = el("div", "cs-box"), who = el("strong"), text = el("p"), choices = el("div", "cs-choices"), next = el("button", "btn primary");
     const skip = el("button", "btn cs-skip", `${t("Skip")} ⏭`);
+    const logo = el("span", "logo-chip cs-logo"), logoImg = el("img");
+    logoImg.src = "assets/favicon.svg"; logoImg.alt = ""; logoImg.width = logoImg.height = 22;
+    logo.append(logoImg, "Pyinsect"); logo.setAttribute("aria-hidden", "true");
     next.type = skip.type = "button";
     text.setAttribute("aria-live", "polite");
-    box.append(who, text, next);
-    stage.append(decor, actor);
-    wrap.append(stage, box, skip);
+    box.append(who, text, choices, next);
+    wrap.append(stage, box, skip, logo);
+    // The room is as big as the stage, and as deep as it is wide
+    const fit = () => {
+      const r = stage.getBoundingClientRect();
+      cam.style.setProperty("--W", `${r.width}px`); cam.style.setProperty("--H", `${r.height}px`);
+      cam.style.setProperty("--D", `${Math.max(r.width, r.height) * 1.2}px`);
+    };
+    addEventListener("resize", fit);
+    // Camera shots, like a movie: the camera turns a little toward whoever is talking
+    const SHOTS = [{ ry: -7, x: 30, z: 40 }, { ry: 6, x: -30, z: 60 }, { ry: 0, x: 0, z: 120 }, { ry: -3, x: 10, z: 0 }];
+    let shot = 0;
+    const aim = n => { const sh = SHOTS[n % SHOTS.length]; cam.style.setProperty("--ry", `${sh.ry}deg`); cam.style.setProperty("--x", `${sh.x}px`); cam.style.setProperty("--z", `${sh.z}px`); };
 
-    let i = -1, typing = null, full = "";
+    let i = -1, typing = null, full = "", waiting = false;
     const finishTyping = () => { clearInterval(typing); typing = null; text.textContent = full; face.classList.remove("talking"); };
-    let fromLeft = true;
-    function show(n) {
-      i = n;
-      if (i >= slides.length) return done();
-      const s = slides[i], sc = SCENES[s.scene] || SCENES.forest;
-      stage.style.background = sc.bg;
-      decor.textContent = sc.decor;
-      who.textContent = t(s.name);
-      full = t(s.text, s.vars).replaceAll("{name}", nick);
-      // How the character moves: a new speaker walks in from one side (then the other side next time).
-      // The same speaker reacts to what they say: jump for "!", tilt for "?", spin for a win, or sway.
-      const newSpeaker = i === 0 || slides[i - 1].who !== s.who;
-      const move = s.fly ? "fly-away" : newSpeaker ? (fromLeft ? "enter-left" : "enter-right")
-        : s.scene === "victory" ? "spin" : /[!！]$/.test(full) ? "jump" : /[?？]$/.test(full) ? "tilt" : "sway";
-      if (newSpeaker) fromLeft = !fromLeft;
-      face.textContent = s.who;
-      actor.className = "cs-actor"; void actor.offsetWidth; actor.classList.add(move);
+    const say = (words, speaker) => {
+      full = words;
       face.classList.add("talking");
-      if (s.sound) sound(s.sound);
-      speak(full, s.name);
-      next.textContent = i === slides.length - 1 ? `${t("Done")} ✔` : `${t("Next")} ▶`;
+      speak(full, speaker);
       if (calm) return finishTyping();
       text.textContent = "";
       let c = 0;
       clearInterval(typing);
       typing = setInterval(() => { text.textContent = full.slice(0, ++c); if (c >= full.length) finishTyping(); }, 22);
+    };
+    const react = move => { actor.className = "cs-actor"; void actor.offsetWidth; actor.classList.add(move); };
+    const done2 = () => { waiting = false; choices.innerHTML = ""; play.innerHTML = ""; next.hidden = false; next.focus(); };
+    let fromLeft = true;
+    function show(n) {
+      i = n;
+      if (i >= slides.length) return done();
+      const s = slides[i], sc = SCENES[s.scene] || SCENES.forest;
+      screen.style.background = sc.bg;
+      screenDecor.textContent = sc.decor;
+      // The place's name stays on the big screen until the scene changes
+      if (s.vars?.place) screenPlace.textContent = s.vars.place.charAt(0).toUpperCase() + s.vars.place.slice(1);
+      else if (i === 0 || slides[i - 1].scene !== s.scene) screenPlace.textContent = "";
+      who.textContent = t(s.name);
+      // How the character moves: a new speaker walks in from one side (then the other side next time).
+      // The same speaker reacts to what they say: jump for "!", tilt for "?", spin for a win, or sway.
+      const newSpeaker = i === 0 || slides[i - 1].who !== s.who;
+      const words = t(s.text, s.vars).replaceAll("{name}", nick);
+      const move = s.fly ? "fly-away" : newSpeaker ? (fromLeft ? "enter-left" : "enter-right")
+        : s.scene === "victory" ? "spin" : /[!！]$/.test(words) ? "jump" : /[?？]$/.test(words) ? "tilt" : "sway";
+      if (newSpeaker) { fromLeft = !fromLeft; aim(++shot); }
+      // A bug that talks is its cartoon (who: "art:<species>"), everyone else is an emoji
+      face.innerHTML = "";
+      if (s.who.startsWith("art:")) face.append(bugArt(s.who.slice(4), "cs-art")); else face.textContent = s.who;
+      react(move);
+      if (s.sound) sound(s.sound);
+      say(words, s.name);
+      next.textContent = i === slides.length - 1 ? `${t("Done")} ✔` : `${t("Next")} ▶`;
+      choices.innerHTML = ""; play.innerHTML = "";
+      next.hidden = false;
+      if (s.ask) askQuestion(s);
+      if (s.tap) tapTheBug(s);
     }
-    const advance = () => typing ? finishTyping() : show(i + 1);
+    // Interactive: a question with buttons. A wrong answer explains why, and you can try again.
+    function askQuestion(s) {
+      waiting = true; next.hidden = true;
+      for (const opt of shuffle(s.ask)) {
+        const b = el("button", "btn cs-choice", t(opt.text));
+        b.type = "button";
+        b.onclick = e => {
+          e.stopPropagation();
+          if (opt.right) { sound("right"); react("jump"); confetti(); say(t(s.yes).replaceAll("{name}", nick), s.name); done2(); }
+          else { sound("wrong"); b.disabled = true; react("tilt"); box.classList.remove("shake"); void box.offsetWidth; box.classList.add("shake"); say(t(s.no).replaceAll("{name}", nick), s.name); }
+        };
+        choices.append(b);
+      }
+      choices.querySelector("button")?.focus();
+    }
+    // Interactive: a bug runs around the room. Tap it 3 times to catch it.
+    function tapTheBug(s) {
+      waiting = true; next.hidden = true;
+      const bug = el("button", "cs-bug"), need = 3;
+      let taps = 0;
+      bug.type = "button"; bug.setAttribute("aria-label", t("Catch the {bug}", { bug: commonName(s.tap) }));
+      bug.append(bugArt(s.tap));
+      const hop = () => { bug.style.left = `${10 + Math.random() * 70}%`; bug.style.top = `${15 + Math.random() * 45}%`; };
+      const mover = setInterval(() => { if (!bug.isConnected) clearInterval(mover); else hop(); }, calm ? 2000 : 1100);
+      bug.onclick = e => {
+        e.stopPropagation();
+        taps++; sound("hit");
+        bug.classList.remove("hit"); void bug.offsetWidth; bug.classList.add("hit");
+        if (taps < need) return hop();
+        clearInterval(mover); sound("catch"); confetti(); react("jump");
+        say(t(s.got).replaceAll("{name}", nick), s.name);
+        setTimeout(done2, calm ? 0 : 400);
+      };
+      hop(); play.append(bug); bug.focus();
+    }
+    const advance = () => waiting ? null : typing ? finishTyping() : show(i + 1);
     function done() {
       clearInterval(typing);
       hush();
+      removeEventListener("resize", fit);
       wrap.remove();
       resolve();
     }
-    wrap.onclick = e => { if (e.target !== skip) advance(); };
+    wrap.onclick = e => { if (e.target !== skip && !e.target.closest(".cs-choices, .cs-bug")) advance(); };
     skip.onclick = done;
     wrap.onkeydown = e => {
       if (e.key === "Escape") { e.stopPropagation(); done(); }
-      else if ((e.key === "Enter" || e.key === " ") && e.target !== skip) { e.preventDefault(); advance(); }
+      else if ((e.key === "Enter" || e.key === " ") && e.target === next) { e.preventDefault(); advance(); }
+      else if ((e.key === "Enter" || e.key === " ") && e.target === wrap) { e.preventDefault(); advance(); }
     };
     document.body.append(wrap);
+    fit();
     show(0);
     next.focus();
   });
@@ -1615,13 +2209,23 @@ function renderWorld(g) {
 // ---- Bug Buddy ----
 const buddyStage = g => !g.buddy ? -1 : BUDDIES[g.buddy.kind].grown ? BUDDY_STAGES.length - 1 : BUDDY_STAGES.filter(s => g.buddy.xp >= s[0]).length - 1;
 const buddyFace = g => BUDDIES[g.buddy.kind].stages[buddyStage(g)];
+// The buddy's cartoon at each stage (egg, baby, grown-up, Super). Super ones glow.
+const BUDDY_ART = { swallowtail: ["egg", "Oregon swallowtail caterpillar", "Oregon swallowtail"], ladybug: ["egg", "Convergent lady beetle larva", "Convergent lady beetle"],
+  groundbeetle: ["egg", "Ground beetle larva", "Ground beetle"], squawk: ["Squawk"] };
+function buddyArt(g, cls = "") {
+  const list = BUDDY_ART[g.buddy.kind] || [], st = buddyStage(g);
+  const art = bugArt(list[Math.min(st, list.length - 1)], cls);
+  if (st === BUDDY_STAGES.length - 1) art.classList.add("super-art");
+  return art;
+}
 const buddyName = g => t(BUDDIES[g.buddy.kind].name);
 const buddyBoost = g => Math.max(0, buddyStage(g) - 1);   // grown-up: +1 attack, super: +2
 
 function renderBuddy(g) {
   const b = $("buddyBtn");
   b.classList.toggle("super", buddyStage(g) === BUDDY_STAGES.length - 1);
-  b.textContent = g.buddy ? `${buddyFace(g)} ${buddyName(g)} · ${t(BUDDY_STAGES[buddyStage(g)][1])}` : `🥚 ${t("Pick a Bug Buddy")}`;
+  b.textContent = g.buddy ? `${buddyName(g)} · ${t(BUDDY_STAGES[buddyStage(g)][1])}` : t("Pick a Bug Buddy");
+  b.prepend(g.buddy ? buddyArt(g, "btn-art") : bugArt("egg", "btn-art"), " ");
 }
 // Pick a buddy, or switch to another one. Switching keeps the points your buddy has earned.
 function pickBuddy() {
@@ -1630,7 +2234,7 @@ function pickBuddy() {
     if (bd.unlock && !bd.unlock(now)) continue;
     const b = el("button", "buddy-pick");
     b.type = "button";
-    b.append(el("span", "bug-emoji", bd.stages[2]), el("strong", null, t(bd.name)), el("span", "muted", t(bd.fact)));
+    b.append(bugArt(BUDDY_ART[kind].at(-1), "bug-emoji"), el("strong", null, t(bd.name)), el("span", "muted", t(bd.fact)));
     b.onclick = () => {
       const g = loadGame(), had = g.buddy;
       g.buddy = { kind, xp: had?.xp || 0, seen: 0 };
@@ -1649,14 +2253,15 @@ function showBuddy() {
   const g = loadGame();
   if (!g.buddy) return pickBuddy();
   const st = buddyStage(g), next = BUDDY_STAGES[st + 1], from = BUDDY_STAGES[st][0];
-  const big = el("div", "buddy-big" + (next ? "" : " super"), buddyFace(g));
+  const big = el("div", "buddy-big" + (next ? "" : " super"));
+  big.append(buddyArt(g));
   const bar = el("div", "track"), fill = el("div", "fill");
   fill.style.width = next ? `${(g.buddy.xp - from) / (next[0] - from) * 100}%` : "100%";
   bar.append(fill);
   openPopup([big, el("h2", null, buddyName(g)),
     el("p", null, `${t(BUDDY_STAGES[st][1])} · ${next ? t("{n} more points to grow", { n: next[0] - g.buddy.xp }) : t("Fully grown!")}`), bar,
     el("p", "muted", t(BUDDIES[g.buddy.kind].fact)),
-    el("p", "speech", `${buddyFace(g)} “${t(pickOne(BUDDY_TIPS))}”`),
+    (() => { const tip = el("p", "speech", `“${t(pickOne(BUDDY_TIPS))}”`); tip.prepend(buddyArt(g, "tip-art"), " "); return tip; })(),
     el("p", "muted", st >= 2 ? t("In battles, your buddy cheers: your bugs get +{n} attack.", { n: buddyBoost(g) }) : t("When your buddy is grown up, it cheers for your bugs in battles."))],
     [["Close", true], ["Switch buddy", false, pickBuddy]]);
   sound("right");
@@ -1684,7 +2289,6 @@ function maybeAmbush(g, species) {
   queueScene(() => cutscene([
     { scene: "tangle", ...BRAMBLE, text: "Not so fast! That {bug} is coming with us!", vars: { bug }, sound: "tangle" },
     { scene: "tangle", ...THISTLE, text: "We'll set it free in a brand-new forest! Ha ha!" },
-    { scene: "tangle", ...SQUAWK, text: "Squawk! More bugs in more places!" },
     { scene: "forest", ...PIP, text: "Bzz! An invasive bug in a new forest? No way! Battle them, {name}!" },
   ]).then(() => battle({ id: "ambush", ambush: true, villain: true, bug: species, emoji: "🦹", name: "Team Tangle",
     level: 2, bugLevel: Math.min(3, 1 + Math.floor(gymCount(g) / 4)), reward: AMBUSH_REWARD,
@@ -1801,7 +2405,8 @@ function trapDefense() {
   };
   const spawn = s => {
     const hp = TRAP_HP[SPECIES_FACTS[s].rarity];
-    const b = { s, pos: 0, hp, max: hp, el: el("span", "trap-bug", SPECIES_FACTS[s].emoji) };
+    const b = { s, pos: 0, hp, max: hp, el: el("span", "trap-bug") };
+    b.el.append(bugArt(s));
     b.el.title = commonName(s);
     board.append(b.el); bugs.push(b); draw(b);
   };
@@ -1864,7 +2469,9 @@ function hideAndSeek() {
   info.setAttribute("aria-live", "polite");
   const startRound = () => {
     const [cols, rows] = HIDE_ROUNDS[round], n = cols * rows, target = pickOne(species), f = SPECIES_FACTS[target];
-    clue.textContent = t("Find the {bug} {emoji}! Clue: {fact}", { bug: commonName(target), emoji: f.emoji, fact: t(f.fact) });
+    clue.textContent = t("Find the {bug}! Clue: {fact}", { bug: commonName(target), fact: t(f.fact) });
+    clue.prepend(bugArt(target, "clue-art"));
+    const others = [...species.filter(sp => sp !== target && BUG_ART[sp]?.kind !== BUG_ART[target]?.kind), ...NATIVE_BUGS.map(nb => nb.name)];
     info.textContent = t("Round {n} of {total}", { n: round + 1, total: HIDE_ROUNDS.length });
     grid.innerHTML = ""; grid.style.setProperty("--cols", cols);
     const spot = Math.floor(Math.random() * n), decoys = new Set();
@@ -1872,7 +2479,7 @@ function hideAndSeek() {
     for (let i = 0; i < n; i++) {
       const cell = el("button", "hide-cell", pickOne(HIDE_PLANTS));
       cell.type = "button";
-      if (i === spot || decoys.has(i)) cell.append(el("span", "peek", i === spot ? f.emoji : pickOne(HIDE_DECOYS)));
+      if (i === spot || decoys.has(i)) { const peek = el("span", "peek"); peek.append(bugArt(i === spot ? target : pickOne(others))); cell.append(peek); }
       cell.onclick = i === spot ? () => found(cell) : () => miss(cell);
       grid.append(cell);
     }
@@ -1924,7 +2531,7 @@ function bugMatch() {
     card.type = "button";
     card.setAttribute("aria-label", t("Hidden card"));
     back.append(makeOrb());
-    front.append(el("span", "bug-emoji", SPECIES_FACTS[s].emoji), el("small", null, commonName(s)));
+    front.append(bugArt(s, "bug-emoji"), el("small", null, commonName(s)));
     card.append(back, front);
     card.onclick = async () => {
       if (busy || over || card.classList.contains("flipped")) return;
@@ -1960,9 +2567,9 @@ function bugMatch() {
 // Invasive or Native?: sort 10 bugs. Half are invasive, half belong in Oregon.
 function invasiveOrNative() {
   const inv = shuffle(gameSpecies()).slice(0, SORT_ROUNDS / 2)
-    .map(s => ({ emoji: SPECIES_FACTS[s].emoji, name: commonName(s), fact: t(SPECIES_FACTS[s].fact), invasive: true }));
+    .map(s => ({ art: s, name: commonName(s), fact: t(SPECIES_FACTS[s].fact), invasive: true }));
   if (!inv.length) return;
-  const nat = shuffle(NATIVE_BUGS).slice(0, SORT_ROUNDS - inv.length).map(b => ({ emoji: b.emoji, name: t(b.name), fact: t(b.fact), invasive: false }));
+  const nat = shuffle(NATIVE_BUGS).slice(0, SORT_ROUNDS - inv.length).map(b => ({ art: b.name, name: t(b.name), fact: t(b.fact), invasive: false }));
   const rounds = shuffle([...inv, ...nat]);
   let i = 0, right = 0, over = false;
   const card = el("div", "sort-card"), feedback = el("p", "quiz-result"), info = el("p", "arena-info"), buttons = el("div", "battle-moves");
@@ -1974,7 +2581,7 @@ function invasiveOrNative() {
   const showRound = () => {
     const r = rounds[i];
     card.innerHTML = "";
-    card.append(el("span", "bug-emoji", r.emoji), el("strong", null, r.name));
+    card.append(bugArt(r.art, "bug-emoji"), el("strong", null, r.name));
     feedback.textContent = ""; yes.disabled = no.disabled = false; next.hidden = true;
     status(); yes.focus();
   };
@@ -2025,10 +2632,10 @@ function bugPop() {
     if (!free.length) return;
     const k = pickOne(free), c = cells[k];
     const nb = Math.random() < POP_NATIVE_CHANCE ? pickOne(NATIVE_BUGS) : null, s = pickOne(species);
-    const bug = nb ? { native: true, emoji: nb.emoji, name: t(nb.name) } : { native: false, emoji: SPECIES_FACTS[s].emoji, name: commonName(s) };
+    const bug = nb ? { native: true, art: nb.name, name: t(nb.name) } : { native: false, art: s, name: commonName(s) };
     c.bug = bug;
     c.h.className = "pop-hole up";
-    c.h.append(el("span", "bug-emoji", bug.emoji), el("small", null, bug.name));
+    c.h.append(bugArt(bug.art, "bug-emoji"), el("small", null, bug.name));
     c.h.setAttribute("aria-label", bug.name);
     // Bugs stay up a little shorter as the game goes on
     c.timer = setTimeout(() => { if (c.bug === bug) hide(k); }, Math.max(800, 1600 - tick * 3));
@@ -2067,7 +2674,7 @@ function bugPop() {
 // The browser reads the cutscenes out loud, in the game's language (if the device has that voice).
 // Devices often have several voices. The good ones sound like real people ("Natural", "Neural",
 // Google, Siri, and so on), and the old ones sound like robots, so we pick the best one we can.
-const VOICE_LANG = { en: "en-US", es: "es-ES", fr: "fr-FR", hi: "hi-IN" };
+const VOICE_LANG = GAME_LANG_TAGS;   // en-US, es-ES, ... (see assets/game-i18n.js)
 // Small changes only. Pitch that's very high or very low is what makes a voice sound robotic.
 const VOICE_STYLE = { Pip: { pitch: 1.2, rate: 1.05 }, Squawk: { pitch: 1.3, rate: 1.1 }, Bramble: { pitch: 1.1 }, Thistle: { pitch: .92 }, "Boss Burdock": { pitch: .85, rate: .92 } };
 // Characters who get a different voice than Professor Hazel, when the device has more than one good voice
@@ -2116,7 +2723,7 @@ function showCertificate() {
   const g = loadGame();
   const cert = el("div", "certificate");
   const sign = el("div", "cert-sign");
-  sign.append(el("span", null, "👩‍🏫 Professor Hazel"), el("span", null, new Date().toLocaleDateString(gameLang)), el("span", null, "🦸 Champion Juniper"));
+  sign.append(el("span", null, "👩‍🏫 Professor Hazel"), el("span", null, new Date().toLocaleDateString(langTag())), el("span", null, "🦸 Champion Juniper"));
   cert.append(el("p", "cert-top", "🌲 🦫 🌲"), el("h2", null, t("Forest Protector Certificate")), el("p", null, t("This certificate goes to")),
     el("p", "cert-name", `${trainerLook(g)} ${g.trainer.name || t("Ranger")}`),
     el("p", null, t("for beating all {n} forests, becoming the Oregon Champion, and helping protect Oregon from invasive bugs.", { n: GYMS.length - 1 })),
@@ -2146,7 +2753,7 @@ function route(sub) {
   const [page, id] = sub || [];
   if (page !== "camera") stopGameCamera();
   if (!sub) return;   // another screen is open
-  const pages = { challenge: "gameChallenge", battles: "gameBattles", badges: "gameBadges" };
+  const pages = { challenge: "gameChallenge", battles: "gameBattles", badges: "gameBadges", learn: "gameLearn" };
   // The camera opens over the page you were on, so the page under it doesn't change
   if (page !== "camera") {
     gamePage = pages[page] ? page : null;
@@ -2160,12 +2767,13 @@ function route(sub) {
 
 // ---- monthly challenges ----
 const monthId = (y, m) => `${y}-${String(m).padStart(2, "0")}`;
-const monthName = id => { const [y, m] = id.split("-").map(Number); return new Date(y, m - 1, 15).toLocaleDateString(gameLang, { month: "long", year: "numeric" }); };
-// Every month's challenges, from the first month to this one (newest first)
-function monthlyChallenges() {
-  const list = [], now = new Date();
+const monthName = id => { const [y, m] = id.split("-").map(Number); return new Date(y, m - 1, 15).toLocaleDateString(langTag(), { month: "long", year: "numeric" }); };
+// Every month's challenges, from the first month to this one (newest first).
+// ahead = 1 also makes next month's, for the preview (they can't be started yet).
+function monthlyChallenges(ahead = 0) {
+  const list = [], now = new Date(), last = new Date(now.getFullYear(), now.getMonth() + ahead, 1);
   let [y, m] = MONTHLY_START, i = 0;
-  while (y < now.getFullYear() || (y === now.getFullYear() && m <= now.getMonth() + 1)) {
+  while (y < last.getFullYear() || (y === last.getFullYear() && m <= last.getMonth() + 1)) {
     for (let k = 0; k < MONTHLY_PER_MONTH; k++) {
       const n = i * MONTHLY_PER_MONTH + k, kind = MONTHLY_KINDS[n % MONTHLY_KINDS.length];
       list.push({ id: `${monthId(y, m)}-${kind.id}`, month: monthId(y, m), kind, shape: SHAPES[n % SHAPES.length] });
@@ -2175,6 +2783,9 @@ function monthlyChallenges() {
   }
   return list.reverse();
 }
+// Next month's challenges, and the day they start
+const comingChallenges = () => { const now = new Date(), next = monthId(now.getFullYear() + (now.getMonth() === 11), (now.getMonth() + 1) % 12 + 1); return monthlyChallenges(1).filter(ch => ch.month === next); };
+const startDay = ch => { const [y, m] = ch.month.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleDateString(langTag(), { month: "long", day: "numeric" }); };
 const challengeState = (g, ch) => g.monthly[ch.id] || null;
 const challengeStatus = (g, ch) => { const st = challengeState(g, ch); return !st ? "new" : st.done ? "done" : "going"; };
 const STATUS_NAMES = { done: "Completed", going: "In progress", new: "Not started" };
@@ -2188,7 +2799,7 @@ function monthlyProgress(g, ev) {
     if (ch.kind.distinct) { st.kinds = st.kinds || []; if (st.kinds.includes(ev.species)) continue; st.kinds.push(ev.species); }
     st.count++;
     if (st.count >= ch.kind.n) {
-      st.done = new Date().toLocaleDateString(gameLang);
+      st.done = new Date().toLocaleDateString(langTag()); st.doneAt = new Date().toISOString();
       lines.push(`${ch.kind.emoji} ${t("Monthly challenge done: {name}! Its badge has its color now.", { name: t(ch.kind.name) })}`);
     }
   }
@@ -2208,12 +2819,13 @@ function renderMonthly(g) {
   list.innerHTML = "";
   $("monthlyView").textContent = icons ? `☰ ${t("List view")}` : `▦ ${t("Icon view")}`;
   $("monthlyView").setAttribute("aria-label", icons ? t("Show as a list") : t("Show as icons"));
-  const all = monthlyChallenges();
-  for (const status of ["done", "going", "new"]) {
-    const group = all.filter(ch => challengeStatus(g, ch) === status);
+  const all = monthlyChallenges(), coming = comingChallenges();
+  for (const status of ["done", "coming", "going", "new"]) {
+    const group = status === "coming" ? coming : all.filter(ch => challengeStatus(g, ch) === status);
     if (!group.length) continue;
-    list.append(el("h3", "monthly-group", `${t(STATUS_NAMES[status])} (${group.length})`));
-    const box = el("div", icons ? "monthly-icons" : "monthly-rows");
+    list.append(el("h3", "monthly-group", status === "coming"
+      ? `🔜 ${t("Coming next month")}` : `${t(STATUS_NAMES[status])} (${group.length})`));
+    const box = el("div", (icons ? "monthly-icons" : "monthly-rows") + (status === "coming" ? " coming" : ""));
     for (const ch of group) {
       const st = challengeState(g, ch), item = el("button", "monthly-item");
       item.type = "button";
@@ -2224,7 +2836,7 @@ function renderMonthly(g) {
         const info = el("span", "monthly-info"), bar = el("div", "track"), fill = el("div", "fill");
         fill.style.width = `${Math.min(1, (st?.count || 0) / ch.kind.n) * 100}%`; bar.append(fill);
         info.append(name, el("span", "muted", `${t(ch.kind.text, { n: ch.kind.n })} · ${monthName(ch.month)}`), bar);
-        item.append(badgeSlot(ch, status === "done"), info, el("span", "monthly-count", `${st?.count || 0}/${ch.kind.n}`));
+        item.append(badgeSlot(ch, status === "done"), info, el("span", "monthly-count", status === "coming" ? "🔒" : `${st?.count || 0}/${ch.kind.n}`));
       }
       box.append(item);
     }
@@ -2234,7 +2846,8 @@ function renderMonthly(g) {
 
 // ---- the challenge page ----
 function renderChallenge(id) {
-  const page = $("gameChallenge"), ch = monthlyChallenges().find(c => c.id === id);
+  const page = $("gameChallenge"), ch = monthlyChallenges(1).find(c => c.id === id);
+  const soon = comingChallenges().some(c => c.id === id);   // next month's: a preview only
   page.innerHTML = "";
   if (!ch) { goGame(); return; }
   const g = loadGame(), st = challengeState(g, ch), status = challengeStatus(g, ch);
@@ -2246,18 +2859,19 @@ function renderChallenge(id) {
   top.append(back, brand, gear);
   // The heading, when it was made, and the badge (no color until it's done)
   const head = el("div", "challenge-head"), words = el("div");
-  words.append(el("h1", null, t(ch.kind.name)), el("p", "muted", t("Made in {month}", { month: monthName(ch.month) })));
+  words.append(el("h1", null, t(ch.kind.name)), el("p", "muted", soon ? t("Coming next month") : t("Made in {month}", { month: monthName(ch.month) })));
   head.append(words, badgeSlot(ch, status === "done", true));
   // Connect the bugs to start (or keep going)
   const pad = el("section", "connect");
-  const said = status === "done" ? `✅ ${t("You finished this challenge on {date}!", { date: st.done })}`
+  const said = soon ? `🔒 ${t("This challenge starts on {date}. Come back then!", { date: startDay(ch) })}`
+    : status === "done" ? `✅ ${t("You finished this challenge on {date}!", { date: st.done })}`
     : status === "going" ? t("{count} of {n} done. Connect the bugs to open the camera.", { count: st.count, n: ch.kind.n })
     : t("Connect the bugs in the shape to start the challenge!");
   pad.append(el("p", "connect-say", said));
   if (status === "going") { const bar = el("div", "track"), fill = el("div", "fill"); fill.style.width = `${st.count / ch.kind.n * 100}%`; bar.append(fill); pad.append(bar); }
-  if (status !== "done") pad.append(connectPad(ch.shape, () => {
+  if (status !== "done" && !soon) pad.append(connectPad(ch.shape, () => {
     const g = loadGame();
-    if (!g.monthly[ch.id]) { g.monthly[ch.id] = { started: new Date().toLocaleDateString(gameLang), count: 0 }; saveGame(g); renderGame(); }
+    if (!g.monthly[ch.id]) { g.monthly[ch.id] = { started: new Date().toLocaleDateString(langTag()), count: 0 }; saveGame(g); renderGame(); }
     sound("badge");
     goGame(`camera/${ch.id}`);
   }));
@@ -2321,7 +2935,7 @@ function connectPad(shape, done) {
 let camStream = null, camFacing = "environment", camTimer = null, camGuessing = false, camChallenge = null, camTorch = false;
 let camQuietUntil = 0;   // the live guess waits, so a photo's result stays on screen
 async function openGameCamera(challengeId) {
-  camChallenge = monthlyChallenges().find(c => c.id === challengeId) || null;
+  camChallenge = monthlyChallenges().find(c => c.id === challengeId) || null;   // (next month's previews aren't in this list)
   $("gameCamera").hidden = false;
   document.body.classList.add("camera-open");
   renderCameraChallenge();
@@ -2501,6 +3115,7 @@ document.addEventListener("click", e => { if (e.target.closest("[data-settings]"
 $("gameCameraBtn").onclick = () => goGame("camera");
 $("battlesTile").onclick = () => goGame("battles");
 $("badgesTile").onclick = () => goGame("badges");
+$("learnTile").onclick = () => goGame("learn");
 $("monthlyView").onclick = () => { const g = loadGame(); g.monthlyView = g.monthlyView === "list" ? "icons" : "list"; saveGame(g); renderGame(); };
 $("gcClose").onclick = closeGameCamera;
 $("gcShoot").onclick = () => {

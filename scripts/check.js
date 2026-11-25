@@ -110,6 +110,22 @@ const listIn = (text, start) => {
     "make snapToGrid, AREA_DEG and SPOT_DEG in assets/app.js and relay/worker.js exactly the same. A grown-up then redeploys the relay.");
 }
 
+// 2d. The game server accepts every avatar the game offers (plus 🙂 for "no avatar yet"), and nothing else
+if (fs.existsSync("server/index.js") && fs.existsSync("assets/game.js")) {
+  const problems = [];
+  const game = listIn(fs.readFileSync("assets/game.js", "utf8"), "const AVATARS = [");
+  const server = listIn(fs.readFileSync("server/index.js", "utf8"), "const PLAYER_AVATARS = [");
+  if (!game) problems.push("couldn't find AVATARS in assets/game.js");
+  if (!server) problems.push("couldn't find PLAYER_AVATARS in server/index.js");
+  if (game && server) {
+    const want = [...game, "🙂"];
+    for (const a of want) if (!server.includes(a)) problems.push(`${a} is an avatar in assets/game.js but not in PLAYER_AVATARS in server/index.js`);
+    for (const a of server) if (!want.includes(a)) problems.push(`${a} is in PLAYER_AVATARS in server/index.js but isn't an avatar in assets/game.js`);
+  }
+  report("Avatars match the game server", problems,
+    "make PLAYER_AVATARS in server/index.js the same as AVATARS in assets/game.js, plus 🙂. A grown-up then redeploys the game server.");
+}
+
 // 3. No secrets (this code is public)
 {
   const SECRET = new RegExp([
@@ -142,7 +158,7 @@ const listIn = (text, start) => {
     "remove the file from the project (ask a grown-up if it's a model file).");
 }
 
-// 5. Game translations: every sentence has Spanish, French, and Hindi, with the same {names}
+// 5. Game translations: every sentence has Spanish and French, with the same {names}
 if (fs.existsSync("assets/game-i18n.js")) {
   const problems = [];
   let dict = {};
@@ -150,19 +166,42 @@ if (fs.existsSync("assets/game-i18n.js")) {
   catch (e) { problems.push(`assets/game-i18n.js: ${e.message}`); }
   const holes = text => (text.match(/\{\w+\}/g) || []).sort().join(" ");
   for (const [en, list] of Object.entries(dict)) {
-    if (!Array.isArray(list) || list.length !== 3 || list.some(x => !x)) { problems.push(`"${en}" needs 3 translations: [Spanish, French, Hindi]`); continue; }
+    if (!Array.isArray(list) || list.length !== 2 || list.some(x => !x)) { problems.push(`"${en}" needs 2 translations: [Spanish, French]`); continue; }
     list.forEach((x, i) => {
-      if (holes(x) !== holes(en)) problems.push(`"${en}": the ${["Spanish", "French", "Hindi"][i]} needs the same {curly bracket} words as the English`);
+      if (holes(x) !== holes(en)) problems.push(`"${en}": the ${["Spanish", "French"][i]} needs the same {curly bracket} words as the English`);
     });
   }
-  // Sentences written straight into t("...") in the game must be in the dictionary
-  const game = fs.existsSync("assets/game.js") ? fs.readFileSync("assets/game.js", "utf8") : "";
+  // Sentences written straight into t("...") in the game (and its online part) must be in the dictionary
+  const game = ["assets/game.js", "assets/game-online.js"].filter(f => fs.existsSync(f)).map(f => fs.readFileSync(f, "utf8")).join("\n");
   for (const m of game.matchAll(/\bt\("((?:[^"\\]|\\.)*)"[,)]/g)) {
     const en = JSON.parse(`"${m[1]}"`);
     if (!dict[en]) problems.push(`"${en}" is in assets/game.js but has no translation in assets/game-i18n.js`);
   }
   report("Game translations are complete", problems,
-    "add the sentence to assets/game-i18n.js with [Spanish, French, Hindi], and keep {curly bracket} words the same.");
+    "add the sentence to assets/game-i18n.js with [Spanish, French] (and to assets/i18n/zh.js for Mandarin), and keep {curly bracket} words the same.");
+}
+
+// 6. Game languages with their own file in assets/i18n/ (Mandarin): the same {names}, and every t("...") sentence
+if (fs.existsSync("assets/i18n")) {
+  const problems = [];
+  const holes = text => (text.match(/\{\w+\}/g) || []).sort().join(" ");
+  const base = fs.readFileSync("assets/game-i18n.js", "utf8");
+  const game = ["assets/game.js", "assets/game-online.js"].filter(f => fs.existsSync(f)).map(f => fs.readFileSync(f, "utf8")).join("\n");
+  const literals = [...game.matchAll(/\bt\("((?:[^"\\]|\\.)*)"[,)]/g)].map(m => JSON.parse(`"${m[1]}"`));
+  for (const f of fs.readdirSync("assets/i18n").filter(f => f.endsWith(".js"))) {
+    let extra = {};
+    try { extra = new Function(base + "\n" + fs.readFileSync(`assets/i18n/${f}`, "utf8") + "; return GAME_EXTRA;")(); }
+    catch (e) { problems.push(`assets/i18n/${f}: ${e.message}`); continue; }
+    for (const [lang, dict] of Object.entries(extra)) {
+      for (const [en, x] of Object.entries(dict)) {
+        if (!x) problems.push(`assets/i18n/${f}: "${en}" is empty`);
+        else if (holes(x) !== holes(en)) problems.push(`assets/i18n/${f}: "${en}" needs the same {curly bracket} words as the English`);
+      }
+      for (const en of new Set(literals)) if (!dict[en]) problems.push(`assets/i18n/${f} (${lang}): "${en}" has no translation`);
+    }
+  }
+  report("Other game languages are complete", problems,
+    "add the sentence to the language's file in assets/i18n/, and keep {curly bracket} words the same.");
 }
 
 console.log(failed ? `\n${failed} check(s) need fixing.` : "\nAll checks passed!");

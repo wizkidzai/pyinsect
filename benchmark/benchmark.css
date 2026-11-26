@@ -16,7 +16,9 @@ tbody th { font-weight: 500; color: var(--muted); }
 .answer-row input { flex: 1 1 220px; min-height: 44px; padding: 8px 12px; font: 16px var(--body); color: var(--ink); background: var(--glass-strong); border: 1px solid var(--glass-edge); border-radius: 12px; }
 summary { cursor: pointer; min-height: 28px; font-family: var(--display); font-size: 19px; }
 details[open] > summary { margin-bottom: 12px; }
-.home-hero { min-height: 220px; }
+/* A bigger beetle photo than before, shaped like the photo itself, so the whole beetle shows. */
+.home-hero { min-height: 0; aspect-ratio: 960 / 670; }
+.home-hero .parallax { top: 0; height: 100%; transform: none; background-position: center; }
 .panel > .btn.big { width: 100%; }
 /* Graph: one color for each AI, checked to be safe for color blindness. The names and numbers say it too. */
 :root { --pyinsect: #1e7a45; --clip: #3b7dd8; }

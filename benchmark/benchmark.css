@@ -17,6 +17,7 @@
 #app .one + .one { margin-top: 0; }
 #start .btn.big { width: 100%; justify-content: center; }
 #back, #forget { align-self: center; }
+#settings { margin-top: 16px; }
 .remember { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
 .remember input { width: 22px; height: 22px; flex: none; margin: 0; }
 /* The big result boxes, like the drawing */

@@ -176,8 +176,19 @@ function check(file) {
 }
 
 /* ---------- start screen: pick the other AI ---------- */
+// Which AI was picked is saved in this browser, so the start screen only shows the first time.
+const CHOICE_NAME = "pyinsect-benchmark-ai";
+const savedChoice = () => { try { return localStorage.getItem(CHOICE_NAME); } catch { return null; } };
+function saveChoice(choice) {
+  try {
+    if (choice) localStorage.setItem(CHOICE_NAME, choice);
+    else localStorage.removeItem(CHOICE_NAME);
+  } catch (e) { console.warn("couldn't save the choice:", e); }
+}
+
 function startWith(ai) {
   other = ai;
+  saveChoice(ai.name);
   for (const e of document.querySelectorAll(".otherName")) e.textContent = ai.name;
   for (const e of document.querySelectorAll(".otherKind")) e.textContent = ai.kind;
   $("start").hidden = true;
@@ -248,6 +259,9 @@ $("keyForm").onsubmit = async (event) => {
     $("go").disabled = $("back").disabled = false;
   }
 };
+
+// Settings: go back to the start screen to pick again.
+$("changeAi").onclick = () => { saveChoice(null); location.reload(); };
 
 /* ---------- tabs ---------- */
 function openTab(bench) {
@@ -423,3 +437,7 @@ for (const [button, input] of [["pickFolder", "folder"], ["pickMany", "many"]]) 
   };
 }
 $("stop").onclick = () => { stopped = true; };
+
+// Next visit: use the AI picked last time. OpenRouter without a saved key has to ask for the key.
+if (savedChoice() === "CLIP") $("useClip").click();
+else if (savedChoice() === "OpenRouter") $("useRouter").click();

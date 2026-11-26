@@ -978,6 +978,8 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   drawing) instead of line graphs. The faster AI gets 100% for speed.
 - **Change, 2026-11-26:** A grown-up can tick **Remember my key on this browser**, so it isn't typed again next
   visit. **Forget saved key** deletes it. Without the tick, it is not saved.
+- **Change, 2026-11-26:** The start screen only shows until an AI is picked. **⚙️ Settings → Change AI**
+  brings it back.
 - **User flow:**
   1. The judge sees the start screen and picks CLIP or OpenRouter.
   2. OpenRouter: a grown-up types the key and taps **Start**, or taps **Back**.

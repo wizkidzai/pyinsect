@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="../assets/site.css?v=20261120a">
-<link rel="stylesheet" href="benchmark.css?v=12">
+<link rel="stylesheet" href="benchmark.css?v=13">
 </head>
 <body>
 <main class="wrap">
@@ -27,26 +27,21 @@
     <button id="pick" class="btn primary big" type="button">Select photo</button>
     <input id="file" type="file" accept="image/*">
     <button id="remove" class="btn" type="button" hidden>✕ Remove photo</button>
-    <p id="status" class="muted center" role="status">The first time downloads about 300 MB, so use Wi-Fi.</p>
+    <p id="status" class="muted center" role="status">The first time downloads about 60 MB, so use Wi-Fi.</p>
 
     <h2 class="center">Top 3 insect predictions</h2>
-    <div class="two">
-      <div class="panel">
-        <h3>Pyinsect <small>(specialist)</small></h3>
-        <ol id="guessPyinsect" class="guesses"></ol>
-        <p>Speed <strong id="speedPyinsect">–</strong></p>
-        <p>Cost <strong>$0</strong></p>
-      </div>
-      <div class="panel">
-        <h3>CLIP <small>(generalist)</small></h3>
-        <ol id="guessClip" class="guesses"></ol>
-        <p>Speed <strong id="speedClip">–</strong></p>
-        <p>Cost <strong>$0</strong></p>
-      </div>
+    <div class="panel one">
+      <h3>Pyinsect <small>(specialist)</small></h3>
+      <ol id="guessPyinsect" class="guesses"></ol>
+      <p>Speed <strong id="speedPyinsect">–</strong></p>
+      <p>Cost <strong>$0</strong></p>
     </div>
   </section>
 
   <section id="pageBench" class="page" role="tabpanel" aria-labelledby="tabBench" hidden>
+    <button id="pickResults" class="btn" type="button">Load LLM results (from a grown-up)</button>
+    <input id="results" type="file" accept=".json,application/json">
+    <p id="resultsStatus" class="muted center" role="status">Without it, only Pyinsect is tested.</p>
     <div class="choose">
       <button id="pickFolder" class="btn primary big" type="button">Select folder</button>
       <button id="pickMany" class="btn primary big" type="button">or photos</button>
@@ -71,9 +66,9 @@
         <p id="sumPyinsect" class="sum">No photos yet.</p>
       </div>
       <div class="panel">
-        <h3>CLIP <small>(generalist)</small></h3>
-        <div id="graphClip" class="graph"></div>
-        <p id="sumClip" class="sum">No photos yet.</p>
+        <h3>LLM <small>(generalist) <span id="llmName"></span></small></h3>
+        <div id="graphLlm" class="graph"></div>
+        <p id="sumLlm" class="sum">No photos yet.</p>
       </div>
     </div>
     <details class="panel">
@@ -81,11 +76,12 @@
       <ul>
         <li><strong>Accuracy</strong>: how many photos the first guess got right, added up.</li>
         <li><strong>Speed</strong>: how many seconds were spent, added up. A lower line is faster.</li>
-        <li><strong>Cost</strong>: dollars spent, added up. Both AIs run on your device, so it stays at $0.</li>
+        <li><strong>Cost</strong>: dollars spent, added up. Pyinsect runs on your device, so it stays at $0.</li>
         <li>Each kind of line uses the same scale on both graphs, so you can compare them.</li>
-        <li>CLIP is a free general AI for pictures. It is not an LLM (a chatbot AI). We use a smaller copy.</li>
+        <li>The LLM is a chatbot AI reached through OpenRouter. A grown-up (18+) runs <code>openrouter_test.py</code> on their computer and gives you the results file. This page never contacts OpenRouter.</li>
+        <li>The LLM's speed includes the internet, and it saw the whole photo. Pyinsect cuts around the insect first.</li>
         <li>Pyinsect is our own model. Use photos it didn't learn from, and at least 30 of them.</li>
-        <li>Your photos stay on your device.</li>
+        <li>On this page your photos stay on your device. The grown-up's test sends them to OpenRouter and the model's company.</li>
       </ul>
     </details>
   </section>
@@ -96,6 +92,6 @@
 <script src="../assets/insect-finder.js?v=20261028a"></script>
 <script src="../assets/species.js?v=20261028a"></script>
 <script src="../assets/models/pyinsect-2.8-oregon.js?v=20261118a"></script>
-<script type="module" src="benchmark.js?v=12"></script>
+<script type="module" src="benchmark.js?v=13"></script>
 </body>
 </html>

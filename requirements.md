@@ -940,20 +940,21 @@ To add one, ask your AI helper to help you plan a new feature. It will use
 - **Who it's for:** FLL judges and visitors who see our project.
 - **Problem or need:** They need proof of how accurate Pyinsect is.
 - **Why they have it:** They can't tell just by using it, and they want to trust it.
-- **Our idea:** A separate web app in `benchmark/` with two tabs, from our drawing. The Pyinsect model the
-  website uses (specialist) and CLIP, a free general AI (generalist), both run on the device with the same list of
-  insects. **Try it** shows one photo, each AI's top 3 guesses, speed and cost. **Benchmark** takes a folder or many
-  photos and draws a graph for each AI: accuracy, speed and cost against the number of photos. The right answers
-  come from the file or folder names.
+- **Our idea:** A separate web app in `benchmark/` with two tabs, from our drawing. Pyinsect, the model the
+  website uses (specialist), runs on the device. It is compared with an LLM on OpenRouter (generalist). OpenRouter
+  is for adults 18+, so a grown-up runs `benchmark/openrouter_test.py` on their computer with their own key, and
+  it saves a results file. The page never contacts OpenRouter and the key is never saved. **Try it** shows one
+  photo with Pyinsect's top 3 guesses, speed and cost. **Benchmark** takes a folder or many photos plus the
+  results file, and graphs accuracy, speed and cost against the number of photos.
 - **Other ideas we talked about:**
   - Compare with Pyinsect 2.7: easy, but it isn't a different AI.
   - Compare with a chatbot AI: needs a secret key and a server.
   - A fixed set of test photos: photos can't be saved in this repo.
 - **User flow:**
-  1. **Try it:** tap **Select photo**. See the picture, both AIs' top 3 guesses, speed and cost. Remove it if you like.
-  2. **Benchmark:** tap **Select folder** (or photos) whose names say the insect, or pick the correct insect first.
-  3. Watch both graphs grow photo by photo, and read the totals under each.
+  1. A grown-up runs the OpenRouter test on a folder of photos named after their insects.
+  2. **Try it:** tap **Select photo** to see Pyinsect's guesses.
+  3. **Benchmark:** load the results file, then select the same photo folder, and watch both graphs.
 - **Done when:**
-  - [ ] Choosing a photo shows both AIs' top 3 guesses side by side.
-  - [ ] Choosing a folder named after an insect draws both graphs with the right count of right answers.
-  - [ ] There is no camera or "take photo" button.
+  - [ ] Choosing a photo shows Pyinsect's top 3 guesses.
+  - [ ] With a results file and its photos, both graphs show the right count of right answers.
+  - [ ] No key is in the project, and the page never contacts OpenRouter.

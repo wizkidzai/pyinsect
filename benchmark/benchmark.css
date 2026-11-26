@@ -9,9 +9,6 @@
 .picture img { display: block; max-width: 100%; max-height: 50vh; border-radius: 14px; }
 .page > .btn.big { width: 100%; }
 #remove { align-self: center; }
-/* Pyinsect and the other AI side by side, like the drawing, also on phones */
-.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.two .panel { padding: 12px; min-width: 0; }
 .one { padding: 12px; }
 .one h3 { margin: 0 0 8px; font-family: var(--display); font-size: 17px; }
 .one h3 small { font: 400 12px var(--body); color: var(--muted); }
@@ -19,10 +16,14 @@
 .otherKind { overflow-wrap: anywhere; }
 #app .one + .one { margin-top: 0; }
 #start .btn.big { width: 100%; justify-content: center; }
-#back { align-self: center; }
-.two h3 { margin: 0 0 8px; font-family: var(--display); font-size: 17px; }
-.two h3 small { display: block; font: 400 12px var(--body); color: var(--muted); }
-.two p { margin: 6px 0 0; }
+#back, #forget { align-self: center; }
+.remember { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+.remember input { width: 22px; height: 22px; flex: none; margin: 0; }
+/* The big result boxes, like the drawing */
+.boxes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.box { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 120px; padding: 8px 2px; border: 2px solid var(--accent); border-radius: 12px; text-align: center; }
+.box span { font-size: clamp(12px, 3.4vw, 16px); font-weight: 600; }
+.box b { font: 700 clamp(18px, 5.6vw, 30px) var(--display); }
 .guesses { list-style: none; margin: 0 0 12px; padding: 0; font-size: 14px; }
 .guesses li { display: flex; justify-content: space-between; gap: 6px; padding: 5px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 .choose { display: grid; grid-template-columns: 1.4fr 1fr; gap: 8px; }
@@ -30,21 +31,5 @@
 .truth { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .truth input { min-height: 44px; padding: 8px 12px; font: 16px var(--body); color: var(--ink); background: var(--glass-strong); border: 1px solid var(--glass-edge); border-radius: 12px; }
 #stop { align-self: center; }
-/* Graph colors, checked for color blindness. The line styles differ too. */
-:root { --accuracy: #1e7a45; --speed: #3b6fd8; --cost: #d9480f; }
-@media (prefers-color-scheme: dark) { :root { --accuracy: #3a9d63; --speed: #5a8fe8; --cost: #e8702a; } }
-.legend { list-style: none; margin: 0; padding: 0; display: flex; justify-content: center; gap: 16px; font-size: 13px; }
-.legend li { display: flex; align-items: center; gap: 6px; }
-.key { width: 18px; border-top: 3px solid var(--accuracy); }
-.key.speed { border-top: 3px dashed var(--speed); }
-.key.cost { border-top: 3px dotted var(--cost); }
-.graph svg { display: block; width: 100%; height: auto; }
-.graph text { font: 11px var(--body); fill: var(--muted); }
-.graph .axis { fill: none; stroke: var(--muted); stroke-width: 1; opacity: .6; }
-.graph .line { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
-.graph .accuracy { stroke: var(--accuracy); }
-.graph .speed { stroke: var(--speed); stroke-dasharray: 7 5; }
-.graph .cost { stroke: var(--cost); stroke-width: 4; stroke-dasharray: 1 7; }
-.two .sum { font-size: 13px; color: var(--muted); }
 summary { cursor: pointer; min-height: 28px; font-family: var(--display); font-size: 19px; }
 details[open] > summary { margin-bottom: 12px; }

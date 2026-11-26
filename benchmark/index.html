@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="../assets/site.css?v=20261120a">
-<link rel="stylesheet" href="benchmark.css?v=15">
+<link rel="stylesheet" href="benchmark.css?v=17">
 </head>
 <body>
 <main id="start" class="wrap page">
@@ -21,13 +21,16 @@
     <p class="muted center">Runs on this device. Free. Needs a big download the first time.</p>
     <button id="useRouter" class="btn primary big" type="button">OpenRouter</button>
     <p class="muted center">A chatbot AI on the internet. A grown-up types their key. It costs money.</p>
+    <p id="chooseStatus" class="muted center" role="status"></p>
+    <button id="forget" class="btn" type="button" hidden>Forget saved key</button>
   </div>
   <form id="keyForm" class="page" hidden>
     <p class="center"><strong>Ask a grown-up (18+) to type the key.</strong></p>
     <label class="truth">OpenRouter API key
       <input id="key" type="password" autocomplete="off" spellcheck="false">
     </label>
-    <p class="muted">Your photos will be sent to OpenRouter and the model's company, so don't use photos with people or private things. The key is not saved. Set a spending limit on it.</p>
+    <p class="muted">Your photos will be sent to OpenRouter and the model's company, so don't use photos with people or private things. Set a spending limit on your key.</p>
+    <label class="remember"><input id="remember" type="checkbox"> Remember my key on this browser. Anyone who uses this browser can then spend money with it.</label>
     <p id="keyStatus" class="muted center" role="status"></p>
     <button id="go" class="btn primary big" type="submit">Start</button>
     <button id="back" class="btn" type="button">Back</button>
@@ -77,30 +80,21 @@
     <p id="benchStatus" class="muted center" role="status">Name each folder or photo after its insect, so the app knows the right answer.</p>
     <button id="stop" class="btn" type="button" hidden>Stop</button>
 
-    <ul class="legend">
-      <li><span class="key accuracy"></span>Accuracy</li>
-      <li><span class="key speed"></span>Speed</li>
-      <li><span class="key cost"></span>Cost</li>
-    </ul>
-    <div class="two">
-      <div class="panel">
-        <h3>Pyinsect <small>(specialist)</small></h3>
-        <div id="graphPyinsect" class="graph"></div>
-        <p id="sumPyinsect" class="sum">No photos yet.</p>
-      </div>
-      <div class="panel">
-        <h3><span class="otherName">Other AI</span> <small class="otherKind"></small></h3>
-        <div id="graphOther" class="graph"></div>
-        <p id="sumOther" class="sum">No photos yet.</p>
-      </div>
+    <div class="panel one">
+      <h3>Pyinsect <small>(specialist)</small></h3>
+      <div id="boxesPyinsect" class="boxes"></div>
+    </div>
+    <div class="panel one">
+      <h3><span class="otherName">Other AI</span> <small class="otherKind"></small></h3>
+      <div id="boxesOther" class="boxes"></div>
     </div>
     <details class="panel">
       <summary>How to read this</summary>
       <ul>
-        <li><strong>Accuracy</strong>: how many photos the first guess got right, added up.</li>
-        <li><strong>Speed</strong>: how many seconds were spent, added up. A lower line is faster.</li>
-        <li><strong>Cost</strong>: dollars spent, added up. Pyinsect runs on your device, so it stays at $0.</li>
-        <li>Each kind of line uses the same scale on both graphs, so you can compare them.</li>
+        <li><strong>Accuracy</strong>: out of 100 photos, how many the first guess would get right.</li>
+        <li><strong>Speed</strong>: the faster AI gets 100%. An AI that takes twice as long gets 50%.</li>
+        <li><strong>Cost</strong>: dollars spent on all the photos. AIs that run on your device cost $0.</li>
+        <li><strong>Tokens</strong>: small pieces of words and pictures that a chatbot AI reads and writes. K means thousand. Only OpenRouter counts them here, so the others show 0.</li>
         <li>Pyinsect is our own model. Use photos it didn't learn from, and at least 30 of them.</li>
         <li>The other AI sees the whole photo. Pyinsect cuts around the insect first.</li>
         <li>With CLIP, your photos stay on your device. With OpenRouter, they are sent to OpenRouter and the model's company, and the speed includes the internet.</li>
@@ -114,7 +108,7 @@
 <script src="../assets/insect-finder.js?v=20261028a"></script>
 <script src="../assets/species.js?v=20261028a"></script>
 <script src="../assets/models/pyinsect-2.8-oregon.js?v=20261118a"></script>
-<script src="other-ai.js?v=15"></script>
-<script type="module" src="benchmark.js?v=15"></script>
+<script src="other-ai.js?v=17"></script>
+<script type="module" src="benchmark.js?v=17"></script>
 </body>
 </html>

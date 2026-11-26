@@ -1,5 +1,5 @@
 // The AI that Pyinsect is compared with. CLIP runs on this device. OpenRouter is a chatbot AI on the internet.
-// The OpenRouter key stays in this page's memory only. It is never saved.
+// The OpenRouter key is only saved (in this browser) if the grown-up ticks "Remember my key".
 
 window.OtherAI = (() => {
 const OPENROUTER = "https://openrouter.ai/api/v1";
@@ -53,7 +53,7 @@ function clip(species) {
       const most = Math.max(...logits), parts = logits.map((v) => Math.exp(v - most));
       const total = parts.reduce((a, b) => a + b, 0);
       const top3 = best3(species.map((s, i) => [s, (100 * parts[i]) / total]));
-      return { top3, ms: performance.now() - start, cost: 0 };
+      return { top3, ms: performance.now() - start, cost: 0, tokens: 0 };
     },
   };
 }
@@ -120,7 +120,7 @@ function openRouter(species, key) {
       const text = (reply.output || []).filter((item) => item.type === "message")
         .flatMap((item) => item.content || []).filter((part) => part.type === "output_text")
         .map((part) => part.text).join("");
-      return { top3: readAnswer(text, species), ms, cost };
+      return { top3: readAnswer(text, species), ms, cost, tokens: Number(reply.usage?.total_tokens) || 0 };
     },
     overLimit: () => spent >= MAX_DOLLARS,
   };

@@ -974,6 +974,10 @@ To add one, ask your AI helper to help you plan a new feature. It will use
 - **Other ideas we talked about:**
   - A switch button inside the app: we chose just the start screen.
   - Three graphs side by side: harder to build and to see on a phone.
+- **Change, 2026-11-26:** The **Benchmark** tab shows big boxes for accuracy, speed, cost and tokens (from our
+  drawing) instead of line graphs. The faster AI gets 100% for speed.
+- **Change, 2026-11-26:** A grown-up can tick **Remember my key on this browser**, so it isn't typed again next
+  visit. **Forget saved key** deletes it. Without the tick, it is not saved.
 - **User flow:**
   1. The judge sees the start screen and picks CLIP or OpenRouter.
   2. OpenRouter: a grown-up types the key and taps **Start**, or taps **Back**.

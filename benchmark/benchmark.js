@@ -183,16 +183,50 @@ function startWith(ai) {
   $("start").hidden = true;
   $("app").hidden = false;
   showGuesses(null);
-  drawGraphs();
+  drawBoxes();
 }
+// The key is saved in this browser only, and only if the grown-up asked. Storage can be blocked, so try.
+const KEY_NAME = "pyinsect-openrouter-key";
+const savedKey = () => { try { return localStorage.getItem(KEY_NAME); } catch { return null; } };
+function saveKey(key) {
+  try {
+    if (key) localStorage.setItem(KEY_NAME, key);
+    else localStorage.removeItem(KEY_NAME);
+  } catch (e) { console.warn("couldn't change the saved key:", e); }
+  $("forget").hidden = !savedKey();
+}
+$("forget").hidden = !savedKey();
+$("forget").onclick = () => { saveKey(null); $("chooseStatus").textContent = "Saved key forgotten."; };
+
 const showKeyForm = (show) => {
   $("choose").hidden = show;
   $("keyForm").hidden = !show;
   $("key").value = "";
   $("keyStatus").textContent = "";
+  $("chooseStatus").textContent = "";
+  $("remember").checked = false;
 };
 $("useClip").onclick = () => startWith(clip(SPECIES));
-$("useRouter").onclick = () => { showKeyForm(true); $("key").focus(); };
+$("useRouter").onclick = async () => {
+  const key = savedKey();
+  if (!key) { showKeyForm(true); $("key").focus(); return; }
+  const buttons = ["useClip", "useRouter", "forget"].map($);
+  for (const b of buttons) b.disabled = true;
+  $("chooseStatus").textContent = "Checking the saved key…";
+  try {
+    if (await keyWorks(key)) startWith(openRouter(SPECIES, key));
+    else {
+      saveKey(null);
+      showKeyForm(true);
+      $("keyStatus").textContent = "The saved key doesn't work anymore. Type a new one.";
+    }
+  } catch (e) {
+    console.error(e);
+    $("chooseStatus").textContent = "Couldn't reach OpenRouter. Check the internet and try again.";
+  } finally {
+    for (const b of buttons) b.disabled = false;
+  }
+};
 $("back").onclick = () => showKeyForm(false);
 $("keyForm").onsubmit = async (event) => {
   event.preventDefault();
@@ -203,6 +237,7 @@ $("keyForm").onsubmit = async (event) => {
   say("Checking the key…");
   try {
     if (await keyWorks(key)) {
+      if ($("remember").checked) saveKey(key);
       showKeyForm(false);
       startWith(openRouter(SPECIES, key));
     } else say("That key didn't work. Try again.");
@@ -296,39 +331,24 @@ function truthFor(file) {
 
 // One point per photo: totals so far. Pyinsect's cost stays 0, because it runs on this device.
 let totals = [];
-const svg = (tag, attrs, text) => {
-  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
-  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
-  if (text != null) e.textContent = text;
-  return e;
-};
 const money = (v) => (v === 0 ? "$0" : `$${v.toFixed(v < 0.1 ? 4 : 2)}`);
-function drawGraphs() {
+const short = (n) => (n < 1000 ? String(n) : `${Math.round(n / 1000)}K`);
+function drawBoxes() {
   const last = totals[totals.length - 1];
-  const W = 240, H = 210, left = 14, right = 8, top = 8, bottom = 38;
-  const most = Math.max(10, totals.length);
-  const x = (n) => left + (n / most) * (W - left - right);
-  // Each kind of line has one scale for both graphs.
-  const biggest = (key) => (last ? Math.max(last.pyinsect[key], last.other[key]) : 0) || 1;
-  const scale = { right: Math.max(1, totals.length), seconds: biggest("seconds"), cost: biggest("cost") };
-  const y = (share) => top + (1 - share) * (H - top - bottom);
+  const fastest = last ? Math.min(last.pyinsect.seconds, last.other.seconds) : 0;
   for (const [ai, id] of AIS) {
-    const has = Boolean(last);
-    const graph = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
-    graph.setAttribute("aria-label", `${ai === "other" ? other.name : "Pyinsect"}: accuracy, speed and cost as photos are added`);
-    graph.append(svg("path", { class: "axis", d: `M${left} ${top}V${y(0)}H${W - right}` }));
-    for (const n of [0, Math.round(most / 2), most]) graph.append(svg("text", { x: x(n), y: y(0) + 16, "text-anchor": "middle" }, n));
-    graph.append(svg("text", { x: (left + W - right) / 2, y: H - 4, "text-anchor": "middle" }, "Number of photos"));
-    {
-      for (const [kind, key] of [["accuracy", "right"], ["speed", "seconds"], ["cost", "cost"]]) {
-        const points = [[0, 0], ...totals.map((t, i) => [i + 1, t[ai][key] / scale[key]])];
-        graph.append(svg("polyline", { class: `line ${kind}`, points: points.map(([n, share]) => `${x(n)},${y(share)}`).join(" ") }));
-      }
-    }
-    $(`graph${id}`).replaceChildren(graph);
-    $(`sum${id}`).textContent = has
-      ? `Right: ${last[ai].right} of ${totals.length} (${Math.round((100 * last[ai].right) / totals.length)}%). Time: ${last[ai].seconds.toFixed(1)} s. Cost: ${money(last[ai].cost)}.`
-      : "No photos yet.";
+    const mine = last && last[ai];
+    const boxes = [
+      ["Accuracy", mine && `${Math.round((100 * mine.right) / totals.length)}%`],
+      ["Speed", mine && `${Math.round((100 * fastest) / mine.seconds) || 0}%`],
+      ["Cost", mine && money(mine.cost)],
+      ["Tokens", mine && short(mine.tokens)],
+    ];
+    $(`boxes${id}`).replaceChildren(...boxes.map(([name, value]) => {
+      const box = el("div", "box");
+      box.append(el("span", null, name), el("b", null, value || "–"));
+      return box;
+    }));
   }
 }
 
@@ -345,7 +365,7 @@ async function runBenchmark(files) {
   running = true;
   stopped = false;
   totals = [];
-  drawGraphs();
+  drawBoxes();
   for (const id of ["pickFolder", "pickMany"]) $(id).disabled = true;
   $("stop").hidden = false;
   let failed = 0;
@@ -365,17 +385,18 @@ async function runBenchmark(files) {
         const { mine, theirs } = await check(file);
         if (!theirs) { failed++; continue; }   // only count photos both AIs answered, so it's fair
         const before = totals[totals.length - 1];
-        const add = (was, right, seconds, cost) => ({
+        const add = (was, right, seconds, cost, tokens) => ({
           right: (was ? was.right : 0) + (right ? 1 : 0),
           seconds: (was ? was.seconds : 0) + seconds,
           cost: (was ? was.cost : 0) + cost,
+          tokens: (was ? was.tokens : 0) + tokens,
         });
         const point = {
-          pyinsect: add(before?.pyinsect, mine.top3[0].species === truth, mine.ms / 1000, 0),
-          other: add(before?.other, theirs.top3[0]?.species === truth, theirs.ms / 1000, theirs.cost),
+          pyinsect: add(before?.pyinsect, mine.top3[0].species === truth, mine.ms / 1000, 0, 0),
+          other: add(before?.other, theirs.top3[0]?.species === truth, theirs.ms / 1000, theirs.cost, theirs.tokens),
         };
         totals.push(point);
-        drawGraphs();
+        drawBoxes();
       } catch (e) { console.error(e); failed++; }
     }
     const skipped = pictures.length - known.length;

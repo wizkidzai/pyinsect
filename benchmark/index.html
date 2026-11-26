@@ -10,14 +10,22 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="../assets/site.css?v=20261120a">
-<link rel="stylesheet" href="benchmark.css?v=3">
+<link rel="stylesheet" href="benchmark.css?v=4">
 </head>
 <body>
-<main class="wrap">
-  <header>
-    <div class="brand"><img src="../assets/favicon.svg" alt="" width="56" height="56"><h1>Pyinsect Benchmark</h1></div>
-    <p>Which AI knows insects better? Add photos and see.</p>
-  </header>
+<header class="topbar">
+  <a class="brand small" href="../"><img src="../assets/favicon.svg" alt="" width="28" height="28"><span>Pyinsect</span></a>
+</header>
+
+<main id="screens">
+<div class="screen">
+  <div class="home-hero">
+    <div class="parallax" aria-hidden="true"></div>
+    <div class="hero-text">
+      <span class="kicker">Which AI knows insects better?</span>
+      <h1>Pyinsect Benchmark</h1>
+    </div>
+  </div>
 
   <section class="panel" aria-labelledby="scoreTitle">
     <h2 id="scoreTitle">Scores</h2>
@@ -28,41 +36,18 @@
       </table>
     </div>
     <p id="scored" class="muted" role="status"></p>
+    <button id="reset" class="btn" type="button">Reset scores</button>
   </section>
 
-  <section class="start">
+  <section class="panel" aria-labelledby="tryTitle">
+    <h2 id="tryTitle">Try photos</h2>
+    <p id="status" role="status">First time: about 300 MB, so use Wi-Fi.</p>
     <button id="load" class="btn primary big" type="button">Get the AIs ready</button>
-    <button id="pick" class="btn primary big" type="button" hidden>Choose photos</button>
+    <button id="pick" class="btn primary big" type="button" hidden>📷 Choose photos</button>
     <input id="files" type="file" accept="image/*" multiple>
-    <p id="status" class="muted" role="status">First time: about 300 MB, so use Wi-Fi.</p>
   </section>
 
   <div id="results" class="results"></div>
-
-  <details class="panel">
-    <summary>Cost</summary>
-    <p><label for="llm">Compare with a paid AI:</label> <select id="llm"></select></p>
-    <div class="table-box">
-      <table>
-        <thead><tr><th></th><th scope="col">Pyinsect</th><th scope="col" id="llmName">Gemini</th></tr></thead>
-        <tbody id="cost"></tbody>
-      </table>
-    </div>
-    <p class="muted">Estimates only. This page sends nothing to Google and charges nothing.</p>
-    <p class="muted" id="costHow"></p>
-    <p class="muted">Prices are from <a href="https://aistudio.google.com/docs/pricing" target="_blank" rel="noopener">Google's price list</a>, checked November 2026.</p>
-  </details>
-
-  <details class="panel">
-    <summary>More details</summary>
-    <div class="table-box">
-      <table>
-        <thead><tr><th></th><th scope="col">Pyinsect</th><th scope="col">CLIP</th></tr></thead>
-        <tbody id="facts"></tbody>
-      </table>
-    </div>
-    <button id="reset" class="btn" type="button">Reset scores</button>
-  </details>
 
   <details class="panel">
     <summary>How this works</summary>
@@ -78,12 +63,14 @@
   </details>
   <datalist id="names"></datalist>
   <datalist id="gemini-names"></datalist>
+  <p class="source">Beetle photo: Sam Droege, USGS, public domain.</p>
+</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
 <script src="../assets/insect-finder.js?v=20261028a"></script>
 <script src="../assets/species.js?v=20261028a"></script>
 <script src="../assets/models/pyinsect-2.8-oregon.js?v=20261118a"></script>
-<script type="module" src="benchmark.js?v=5"></script>
+<script type="module" src="benchmark.js?v=6"></script>
 </body>
 </html>

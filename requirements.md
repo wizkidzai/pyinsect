@@ -943,14 +943,10 @@ To add one, ask your AI helper to help you plan a new feature. It will use
 - **Our idea:** A separate web app in `benchmark/`. The visitor chooses insect photos from their phone (no
   camera). The Pyinsect model the website uses and CLIP (a free general AI) both guess, from the same list of
   insects, on the device. The visitor picks the right answer, and a scoreboard shows how often each AI was
-  right (first guess and top 3), how sure it was when right and wrong,
-  how long it took, and how many photos were scored. A cost and facts table shows the cost per photo, download
-  size, time to get ready, and whether photos leave the device.
-  An **AI cost calculator** estimates what a chosen Google Gemini model would cost for the photos scored, and
-  for 100 and 1,000 photos. It never contacts Google: Google's rules don't allow its AI in apps that people
-  under 18 are likely to use.
-  An optional box lets a grown-up type in the answer they got from Gemini in their own account. Gemini then
-  gets its own "right first time" score, with its own count of photos.
+  right (first guess and top 3), how long it took, and how many photos were scored. The page looks like the
+  website, with its top bar and photo header.
+  An optional box lets a grown-up (18+) type in the answer they got from Gemini in their own account. Gemini then
+  gets its own "right first time" score. The page never contacts Google.
 - **Other ideas we talked about:**
   - Compare with Pyinsect 2.7: easy, but it isn't a different AI.
   - Compare with a chatbot AI: needs a secret key and a server.

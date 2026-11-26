@@ -21,40 +21,8 @@ const label = (s) => (s === MODEL.otherClass ? commonName(s) : `${commonName(s)}
 const byLabel = new Map(SPECIES.map((s) => [label(s).toLowerCase(), s]));
 for (const s of SPECIES) $("names").append(new Option(label(s)));
 
-/* ---------- AI cost calculator: arithmetic only, nothing is sent to Google ---------- */
-// Dollars per 1 million tokens (in, out), from https://aistudio.google.com/docs/pricing (checked Nov 2026).
-// A price with `from` starts on that day.
-const LLMS = [
-  { name: "gemini-3.5-flash-lite", free: true, prices: [{ in: 0.30, out: 2.50 }] },
-  { name: "gemini-3.8-flash", free: true, prices: [{ in: 0.75, out: 3.75 }, { from: "2027-01-01", in: 1.50, out: 7.50 }] },
-  { name: "gemini-4-argon", free: false, prices: [{ in: 2, out: 10 }, { from: "2026-12-01", in: 4, out: 20 }] },
-];
-// Guesses for one photo. A photo is 1,120 tokens (https://aistudio.google.com/docs/media-resolution).
-// The question holds the same insect names the other AIs choose from (about 4 letters per token).
-const PHOTO_TOKENS = 1120;
-const ANSWER_TOKENS = 300;   // the answer, plus the model's thinking, which is billed too
-const QUESTION_TOKENS = Math.round(SPECIES.map(label).join(", ").length / 4);
-
-for (const m of LLMS) $("llm").append(new Option(m.name));
-const dollars = (v) => (v === 0 ? "$0" : v < 0.1 ? `$${v.toFixed(4)}` : `$${v.toFixed(2)}`);
-function showCost(n) {
-  const model = LLMS[$("llm").selectedIndex], today = new Date().toLocaleDateString("sv");   // sv: year-month-day
-  const price = model.prices.filter((p) => !p.from || p.from <= today).pop();
-  const each = ((PHOTO_TOKENS + QUESTION_TOKENS) * price.in + ANSWER_TOKENS * price.out) / 1e6;
-  $("llmName").textContent = model.name;
-  const rows = [["One photo", 1], [`Your total so far (${n} scored)`, n], ["100 photos", 100], ["1,000 photos", 1000]]
-    .map(([name, count]) => [name, (a) => (a === "pyinsect" ? "$0" : dollars(each * count))]);
-  rows.push(["Free allowance", (a) => (a === "pyinsect" ? "No limit" : model.free ? "Yes, with limits" : "No")]);
-  fill("cost", rows);   // the first column is Pyinsect, the second the chosen model
-  $("costHow").textContent = `Estimate for one photo: about ${(PHOTO_TOKENS + QUESTION_TOKENS).toLocaleString("en-US")} tokens in `
-    + `(the photo and the list of insect names) and ${ANSWER_TOKENS} out, at $${price.in} in and $${price.out} out per million. `
-    + "Tokens are small chunks of text or picture. A real bill could be higher or lower.";
-}
-$("llm").onchange = () => showCost(scores.n);
-
 /* ---------- scores (only counts are saved, never photos) ---------- */
-// sureRight / sureWrong add up how sure the first guess was.
-const blank = () => ({ top1: 0, top3: 0, ms: 0, sureRight: 0, sureWrong: 0 });
+const blank = () => ({ top1: 0, top3: 0, ms: 0 });
 // gemini: answers a grown-up typed in. It has its own count, because the box is optional.
 const empty = () => ({ n: 0, pyinsect: blank(), clip: blank(), gemini: { n: 0, top1: 0 } });
 let scores = empty();
@@ -63,37 +31,21 @@ const OTHER_ANSWER = "Something else (not on the list)";
 for (const s of [...SPECIES.map(label), OTHER_ANSWER]) $("gemini-names").append(new Option(s));
 const saveScores = () => { try { localStorage.setItem(SCORES_KEY, JSON.stringify(scores)); } catch { /* not saved */ } };
 
-// Pyinsect has two copies: the main one and one for small photos.
-const pyinsectBytes = MODEL.size + (MODEL.lowres?.size || 0);
-let clipBytes = null;
-const readyMs = { pyinsect: null, clip: null };   // how long getting ready took, this visit
 function showScores() {
   const { n } = scores;
   $("scored").textContent = n
     ? `${n} photo${n === 1 ? "" : "s"} scored.${n < 30 ? " Too few to prove much yet." : ""}`
     : "No photos scored yet.";
   const pct = (k, of = n) => (of ? `${Math.round((100 * k) / of)}% (${k} of ${of})` : "–");
-  const mb = (b) => (b ? `${Math.round(b / 1e6)} MB` : "–");
   const rows = [
     ["Right first time", (a) => pct(scores[a].top1, a === "gemini" ? scores.gemini.n : n)],
     ["Right in top 3", (a) => (a === "gemini" ? "–" : pct(scores[a].top3))],
     ["Time per photo", (a) => (a !== "gemini" && n ? `${(scores[a].ms / n / 1000).toFixed(1)} s` : "–")],
   ];
-  showCost(n);
   // The Gemini column only shows once a grown-up has typed in an answer.
   $("geminiHead").hidden = !scores.gemini.n;
   fill("board", rows, scores.gemini.n ? ["pyinsect", "clip", "gemini"] : undefined);
-  fill("facts", [
-    ["How sure when right", (a) => average(scores[a].sureRight, scores[a].top1)],
-    ["How sure when wrong", (a) => average(scores[a].sureWrong, n - scores[a].top1)],
-    ["Cost per photo", () => "$0"],
-    ["Download size", (a) => mb(a === "pyinsect" ? pyinsectBytes : clipBytes)],
-    ["Time to get ready (this visit)", (a) => (readyMs[a] == null ? "–" : `${Math.max(1, Math.round(readyMs[a] / 1000))} s`)],
-    ["Made for insects", (a) => (a === "pyinsect" ? "Yes" : "No, general pictures")],
-    ["Photos sent over the internet", () => "None"],
-  ]);
 }
-const average = (sum, count) => (count ? `${Math.round(sum / count)}%` : "–");
 function fill(id, rows, columns = ["pyinsect", "clip"]) {
   $(id).replaceChildren(...rows.map(([name, value]) => {
     const tr = el("tr"), th = el("th", null, name);
@@ -219,12 +171,10 @@ async function pyinsect(cut, whole) {
 let clip = null;
 async function loadClip(progress) {
   const T = await import(TRANSFORMERS);
-  const files = {};
   const opts = (dtype) => ({
     revision: CLIP_VERSION, dtype,
     progress_callback: (p) => {
       if (p.status !== "progress" || !p.total) return;
-      files[p.file] = p.total;
       progress(`Downloading CLIP… ${p.file.split("/").pop()} ${Math.round(p.progress)}%`);
     },
   });
@@ -241,7 +191,6 @@ async function loadClip(progress) {
     const { text_embeds } = await text(tokenizer(prompts, { padding: true, truncation: true }));
     embeds.push(...text_embeds.normalize(2, -1).tolist());
   }
-  clipBytes = Object.values(files).reduce((a, b) => a + b, 0);
   clip = { T, processor, vision, embeds };
 }
 
@@ -317,8 +266,6 @@ function answerRow(card, results) {
       scores[ai].top1 += top3[0].species === truth ? 1 : 0;
       scores[ai].top3 += top3.some((g) => g.species === truth) ? 1 : 0;
       scores[ai].ms += ms;
-      const right = top3[0].species === truth, sure = top3[0].confidence;
-      scores[ai][right ? "sureRight" : "sureWrong"] += sure;
     }
     saveScores();
     showScores();
@@ -361,13 +308,9 @@ $("load").onclick = async () => {
     ort.env.wasm.numThreads = 1;
     ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/";
     status("Downloading Pyinsect…");
-    let t = performance.now();
     await session(MODEL.url);
     if (MODEL.lowres) await session(MODEL.lowres.url);
-    readyMs.pyinsect = performance.now() - t;
-    t = performance.now();
     await loadClip(status);
-    readyMs.clip = performance.now() - t;
     showScores();
     status("Ready. Choose some insect photos.");
     $("load").hidden = true;

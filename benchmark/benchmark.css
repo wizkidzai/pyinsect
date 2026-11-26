@@ -16,7 +16,10 @@
 .one h3 { margin: 0 0 8px; font-family: var(--display); font-size: 17px; }
 .one h3 small { font: 400 12px var(--body); color: var(--muted); }
 .one p { margin: 6px 0 0; }
-#llmName { display: block; overflow-wrap: anywhere; }
+.otherKind { overflow-wrap: anywhere; }
+#app .one + .one { margin-top: 0; }
+#start .btn.big { width: 100%; justify-content: center; }
+#back { align-self: center; }
 .two h3 { margin: 0 0 8px; font-family: var(--display); font-size: 17px; }
 .two h3 small { display: block; font: 400 12px var(--body); color: var(--muted); }
 .two p { margin: 6px 0 0; }

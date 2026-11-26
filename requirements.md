@@ -946,6 +946,8 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   it saves a results file. The page never contacts OpenRouter and the key is never saved. **Try it** shows one
   photo with Pyinsect's top 3 guesses, speed and cost. **Benchmark** takes a folder or many photos plus the
   results file, and graphs accuracy, speed and cost against the number of photos.
+- **Change, 2026-11-26:** We took out **Load LLM results**. The other AI is now picked on a start screen
+  (see **Pick the AI to compare with**), so the results-file steps below are old.
 - **Other ideas we talked about:**
   - Compare with Pyinsect 2.7: easy, but it isn't a different AI.
   - Compare with a chatbot AI: needs a secret key and a server.
@@ -958,3 +960,26 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] Choosing a photo shows Pyinsect's top 3 guesses.
   - [ ] With a results file and its photos, both graphs show the right count of right answers.
   - [ ] No key is in the project, and the page never contacts OpenRouter.
+
+## Pick the AI to compare with
+
+- **Status:** Building
+- **Asked by:** Aariv, 2026-11-26
+- **Who it's for:** FLL judges and visitors, with a grown-up from our team to type the key.
+- **Problem or need:** They want to choose which AI Pyinsect is compared with.
+- **Why they have it:** Judges may not trust a test against just one AI.
+- **Our idea:** A start screen in `benchmark/`: pick **CLIP** (runs on the device) or **OpenRouter** (a grown-up
+  18+ types their API key). The key is kept in memory only. This replaces the results file, and the page now
+  contacts OpenRouter if it is picked.
+- **Other ideas we talked about:**
+  - A switch button inside the app: we chose just the start screen.
+  - Three graphs side by side: harder to build and to see on a phone.
+- **User flow:**
+  1. The judge sees the start screen and picks CLIP or OpenRouter.
+  2. OpenRouter: a grown-up types the key and taps **Start**, or taps **Back**.
+  3. A wrong or empty key shows a message to try again.
+  4. The app opens, and they pick photos to see Pyinsect next to the AI they picked.
+- **Done when:**
+  - [x] Picking CLIP and a photo shows guesses from Pyinsect and CLIP.
+  - [x] A wrong key shows "That key didn't work" and the app stays closed.
+  - [ ] With a good key, a photo shows guesses from Pyinsect and OpenRouter.

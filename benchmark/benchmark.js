@@ -1,6 +1,7 @@
-// Pyinsect Benchmark: Pyinsect (the website's model) runs on this device. An LLM's answers come from a results
-// file that a grown-up makes with openrouter_test.py. This page never contacts OpenRouter and holds no key.
+// Pyinsect Benchmark: Pyinsect (the website's model) runs on this device. The other AI is picked on the start screen.
 // Needs window.PYINSECT_MODEL (assets/models/), window.findInsect and the names in assets/species.js.
+
+const { clip, openRouter, keyWorks } = window.OtherAI;
 
 const MODEL = window.PYINSECT_MODEL;
 const $ = (id) => document.getElementById(id);
@@ -158,16 +159,60 @@ function getReady(status) {
 }
 const NOT_LOADED = "Pyinsect couldn't be loaded. Check the internet connection and try again.";
 
+let other = null;   // the AI picked on the start screen
+
 // Only one photo at a time.
 let queue = Promise.resolve();
 function check(file) {
   const job = queue.then(async () => {
     const cut = await cutOut(file);
-    return timed(() => pyinsect(cut, file));
+    const mine = await timed(() => pyinsect(cut, file));
+    let theirs = null;
+    try { theirs = await other.ask(file); } catch (e) { console.error(e); }
+    return { mine, theirs };
   });
   queue = job.catch(() => {});
   return job;
 }
+
+/* ---------- start screen: pick the other AI ---------- */
+function startWith(ai) {
+  other = ai;
+  for (const e of document.querySelectorAll(".otherName")) e.textContent = ai.name;
+  for (const e of document.querySelectorAll(".otherKind")) e.textContent = ai.kind;
+  $("start").hidden = true;
+  $("app").hidden = false;
+  showGuesses(null);
+  drawGraphs();
+}
+const showKeyForm = (show) => {
+  $("choose").hidden = show;
+  $("keyForm").hidden = !show;
+  $("key").value = "";
+  $("keyStatus").textContent = "";
+};
+$("useClip").onclick = () => startWith(clip(SPECIES));
+$("useRouter").onclick = () => { showKeyForm(true); $("key").focus(); };
+$("back").onclick = () => showKeyForm(false);
+$("keyForm").onsubmit = async (event) => {
+  event.preventDefault();
+  const key = $("key").value.trim();
+  const say = (t) => { $("keyStatus").textContent = t; };
+  if (!key) { say("Type the key first."); return; }
+  $("go").disabled = $("back").disabled = true;
+  say("Checking the key…");
+  try {
+    if (await keyWorks(key)) {
+      showKeyForm(false);
+      startWith(openRouter(SPECIES, key));
+    } else say("That key didn't work. Try again.");
+  } catch (e) {
+    console.error(e);
+    say("Couldn't reach OpenRouter. Check the internet and try again.");
+  } finally {
+    $("go").disabled = $("back").disabled = false;
+  }
+};
 
 /* ---------- tabs ---------- */
 function openTab(bench) {
@@ -180,17 +225,21 @@ $("tabTry").onclick = () => openTab(false);
 $("tabBench").onclick = () => openTab(true);
 
 /* ---------- Try it: one photo ---------- */
-const AIS = [["pyinsect", "Pyinsect"], ["llm", "Llm"]];
-function showGuesses(result) {
-  const guesses = result ? result.top3 : [null, null, null];
-  $("guessPyinsect").replaceChildren(...guesses.map((g) => {
-    const li = el("li");
-    li.append(el("span", null, g ? commonName(g.species) : "insect"), el("b", null, g ? `${g.confidence.toFixed(0)}%` : "__%"));
-    return li;
-  }));
-  $("speedPyinsect").textContent = result ? `${(result.ms / 1000).toFixed(1)} s` : "–";
+const AIS = [["pyinsect", "Pyinsect"], ["other", "Other"]];
+function showGuesses(results) {
+  for (const [ai, id] of AIS) {
+    const result = results && (ai === "pyinsect" ? results.mine : results.theirs);
+    const guesses = result ? result.top3 : [null, null, null];
+    $(`guess${id}`).replaceChildren(...guesses.map((g) => {
+      const li = el("li");
+      const name = !g ? "insect" : g.species ? commonName(g.species) : "not on the list";
+      li.append(el("span", null, name), el("b", null, g ? `${g.confidence.toFixed(0)}%` : "__%"));
+      return li;
+    }));
+    $(`speed${id}`).textContent = result ? `${(result.ms / 1000).toFixed(1)} s` : "–";
+  }
+  $("costOther").textContent = results?.theirs ? money(results.theirs.cost) : "–";
 }
-showGuesses(null);
 
 let current = null;   // the photo on screen
 function showPhoto(file) {
@@ -211,11 +260,14 @@ async function tryPhoto(file) {
     await getReady(status);
   } catch (e) { console.error(e); status(NOT_LOADED); return; }
   try {
-    status("Pyinsect is looking…");
+    await other.getReady(status);
+  } catch (e) { console.error(e); status(`${other.name} couldn't be loaded. Check the internet and try again.`); return; }
+  try {
+    status("Looking…");
     const results = await check(file);
     if (current !== file) return;   // removed, or another photo was picked
     showGuesses(results);
-    status("Done.");
+    status(results.theirs ? "Done." : `${other.name} couldn't answer. ${other.overLimit?.() ? "The spending limit is used up." : "Try again."}`);
   } catch (e) { console.error(e); status("Couldn't check this photo. Try a JPG or PNG picture."); }
 }
 $("pick").onclick = () => $("file").click();
@@ -242,8 +294,6 @@ function truthFor(file) {
   return null;
 }
 
-// The LLM's answers, loaded from the results file: file name -> { top3, seconds, cost }.
-let llm = null;
 // One point per photo: totals so far. Pyinsect's cost stays 0, because it runs on this device.
 let totals = [];
 const svg = (tag, attrs, text) => {
@@ -259,17 +309,17 @@ function drawGraphs() {
   const most = Math.max(10, totals.length);
   const x = (n) => left + (n / most) * (W - left - right);
   // Each kind of line has one scale for both graphs.
-  const biggest = (key) => (last ? Math.max(last.pyinsect[key], last.llm ? last.llm[key] : 0) : 0) || 1;
+  const biggest = (key) => (last ? Math.max(last.pyinsect[key], last.other[key]) : 0) || 1;
   const scale = { right: Math.max(1, totals.length), seconds: biggest("seconds"), cost: biggest("cost") };
   const y = (share) => top + (1 - share) * (H - top - bottom);
   for (const [ai, id] of AIS) {
-    const has = Boolean(last && last[ai]);
+    const has = Boolean(last);
     const graph = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
-    graph.setAttribute("aria-label", `${ai === "llm" ? "LLM" : "Pyinsect"}: accuracy, speed and cost as photos are added`);
+    graph.setAttribute("aria-label", `${ai === "other" ? other.name : "Pyinsect"}: accuracy, speed and cost as photos are added`);
     graph.append(svg("path", { class: "axis", d: `M${left} ${top}V${y(0)}H${W - right}` }));
     for (const n of [0, Math.round(most / 2), most]) graph.append(svg("text", { x: x(n), y: y(0) + 16, "text-anchor": "middle" }, n));
     graph.append(svg("text", { x: (left + W - right) / 2, y: H - 4, "text-anchor": "middle" }, "Number of photos"));
-    if (has || !totals.length) {
+    {
       for (const [kind, key] of [["accuracy", "right"], ["speed", "seconds"], ["cost", "cost"]]) {
         const points = [[0, 0], ...totals.map((t, i) => [i + 1, t[ai][key] / scale[key]])];
         graph.append(svg("polyline", { class: `line ${kind}`, points: points.map(([n, share]) => `${x(n)},${y(share)}`).join(" ") }));
@@ -278,31 +328,9 @@ function drawGraphs() {
     $(`graph${id}`).replaceChildren(graph);
     $(`sum${id}`).textContent = has
       ? `Right: ${last[ai].right} of ${totals.length} (${Math.round((100 * last[ai].right) / totals.length)}%). Time: ${last[ai].seconds.toFixed(1)} s. Cost: ${money(last[ai].cost)}.`
-      : ai === "llm" && !llm ? "Load the grown-up's results file." : "No photos yet.";
+      : "No photos yet.";
   }
 }
-drawGraphs();
-
-// The results file made by openrouter_test.py.
-$("pickResults").onclick = () => $("results").click();
-$("results").onchange = async () => {
-  const [file] = $("results").files;
-  $("results").value = "";
-  if (!file || running) return;
-  try {
-    const data = JSON.parse(await file.text());
-    const entries = Object.entries(data.photos);
-    if (!entries.length || !entries.every(([, p]) => Array.isArray(p.top3))) throw new Error("not a results file");
-    llm = { model: String(data.model), photos: new Map(entries) };
-    $("llmName").textContent = llm.model;
-    $("resultsStatus").textContent = `${entries.length} LLM answers loaded. Now select the same photos.`;
-    totals = [];
-    drawGraphs();
-  } catch (e) {
-    console.error(e);
-    $("resultsStatus").textContent = "That isn't a results file. Pick openrouter-results.json.";
-  }
-};
 
 let running = false, stopped = false;
 async function runBenchmark(files) {
@@ -314,44 +342,47 @@ async function runBenchmark(files) {
   const known = answers.filter(([, truth]) => truth);
   if (!pictures.length) { status("No photos found there."); return; }
   if (!known.length) { status("I can't tell the right answers. Name the folder after the insect, or pick the correct insect above."); return; }
-  // With LLM results loaded, only photos the LLM also answered are counted, so the test is fair.
-  const asked = llm ? known.filter(([file]) => llm.photos.has(file.name)) : known;
-  if (!asked.length) { status("None of these photos are in the LLM results file."); return; }
-
   running = true;
   stopped = false;
   totals = [];
   drawGraphs();
-  for (const id of ["pickFolder", "pickMany", "pickResults"]) $(id).disabled = true;
+  for (const id of ["pickFolder", "pickMany"]) $(id).disabled = true;
   $("stop").hidden = false;
   let failed = 0;
   try {
     await getReady(status);
-    for (const [i, [file, truth]] of asked.entries()) {
-      if (stopped) break;
-      status(`Photo ${i + 1} of ${asked.length}…`);
+    try {
+      await other.getReady(status);
+    } catch (e) {
+      console.error(e);
+      status(`${other.name} couldn't be loaded. Check the internet and try again.`);
+      return;
+    }
+    for (const [i, [file, truth]] of known.entries()) {
+      if (stopped || other.overLimit?.()) break;
+      status(`Photo ${i + 1} of ${known.length}…`);
       try {
-        const result = await check(file);
+        const { mine, theirs } = await check(file);
+        if (!theirs) { failed++; continue; }   // only count photos both AIs answered, so it's fair
         const before = totals[totals.length - 1];
         const add = (was, right, seconds, cost) => ({
           right: (was ? was.right : 0) + (right ? 1 : 0),
           seconds: (was ? was.seconds : 0) + seconds,
           cost: (was ? was.cost : 0) + cost,
         });
-        const point = { pyinsect: add(before?.pyinsect, result.top3[0].species === truth, result.ms / 1000, 0) };
-        if (llm) {
-          const answer = llm.photos.get(file.name);
-          point.llm = add(before?.llm, answer.top3[0]?.species === truth, Number(answer.seconds) || 0, Number(answer.cost) || 0);
-        }
+        const point = {
+          pyinsect: add(before?.pyinsect, mine.top3[0].species === truth, mine.ms / 1000, 0),
+          other: add(before?.other, theirs.top3[0]?.species === truth, theirs.ms / 1000, theirs.cost),
+        };
         totals.push(point);
         drawGraphs();
       } catch (e) { console.error(e); failed++; }
     }
-    const skipped = pictures.length - known.length, unasked = known.length - asked.length;
+    const skipped = pictures.length - known.length;
     status(`${stopped ? "Stopped" : "Done"}: ${totals.length} photo${totals.length === 1 ? "" : "s"}.`
       + (skipped ? ` ${skipped} skipped (no insect name).` : "")
-      + (unasked ? ` ${unasked} left out (no LLM answer).` : "")
-      + (failed ? ` ${failed} couldn't be opened.` : "")
+      + (failed ? ` ${failed} didn't work.` : "")
+      + (other.overLimit?.() ? " The spending limit is used up." : "")
       + (totals.length < 30 ? " Too few to prove much yet." : ""));
   } catch (e) {
     console.error(e);
@@ -359,7 +390,7 @@ async function runBenchmark(files) {
   } finally {
     running = false;
     $("stop").hidden = true;
-    for (const id of ["pickFolder", "pickMany", "pickResults"]) $(id).disabled = false;
+    for (const id of ["pickFolder", "pickMany"]) $(id).disabled = false;
   }
 }
 for (const [button, input] of [["pickFolder", "folder"], ["pickMany", "many"]]) {

@@ -24,7 +24,7 @@ Kids in elementary and middle school. Please:
 | File or folder | What it does |
 |---|---|
 | `index.html` | The main page: splash, permissions, Home, Detect, Game, and Map screens |
-| `benchmark/` | Pyinsect Benchmark, a separate page that compares Pyinsect with an LLM: a grown-up runs `openrouter_test.py`, and the page graphs the results |
+| `benchmark/` | Pyinsect Benchmark, a separate page that compares Pyinsect with CLIP or an OpenRouter AI (picked on its start screen) and graphs the results |
 | `privacy.html` | Our privacy policy. If a change collects or shares new information, update it too |
 | `assets/app.js` | The AI and report code: camera, photos, runs the model, sends reports |
 | `assets/flow.js` | The screens and menu bar: splash, permissions, home, the 3 Detect steps, and the results pop-up |

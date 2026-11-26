@@ -353,7 +353,8 @@ const svg = (tag, attrs, text) => {
 };
 function drawGraphs() {
   const last = totals[totals.length - 1];
-  const W = 240, H = 210, left = 14, right = 8, top = 8, bottom = 38;
+  // The graphs are shorter on phones.
+  const W = 240, H = matchMedia("(max-width: 600px)").matches ? 105 : 210, left = 14, right = 8, top = 8, bottom = 38;
   const most = Math.max(10, totals.length);
   const x = (n) => left + (n / most) * (W - left - right);
   // Each kind of line has one scale for both graphs.

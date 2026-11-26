@@ -49,3 +49,28 @@
 .graph { margin-top: 10px; }
 summary { cursor: pointer; min-height: 28px; font-family: var(--display); font-size: 19px; }
 details[open] > summary { margin-bottom: 12px; }
+.pair { display: flex; flex-direction: column; gap: 16px; }
+/* Phones: fit both AIs on one screen */
+@media (max-width: 600px) {
+  #app.wrap { padding-top: max(8px, env(safe-area-inset-top)); }
+  #app .page { gap: 8px; }
+  #app .btn.big { min-height: 44px; padding-top: 8px; padding-bottom: 8px; }
+  .tab-btn { min-height: 38px; }
+  .picture { min-height: 130px; padding: 8px; }
+  .picture img { max-height: 26vh; }
+  #pageTry h2 { font-size: 17px; margin: 0; }
+  .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .pair .one { padding: 10px; }
+  .pair h3 small { display: block; }
+  .pair .guesses { font-size: 13px; margin-bottom: 6px; }
+  .pair .guesses b { white-space: nowrap; }
+  #app .panel.one { padding: 8px 10px; }
+  #app .one h3 { margin-bottom: 4px; font-size: 15px; }
+  .truth { gap: 2px; font-size: 12px; }
+  .truth input { min-height: 38px; padding: 4px 12px; }
+  .legend { font-size: 12px; }
+  .box { min-height: 0; gap: 0; padding: 4px 2px; }
+  .box span { font-size: 12px; }
+  .box b { font-size: clamp(16px, 5.2vw, 22px); }
+  .graph { margin-top: 4px; }
+}

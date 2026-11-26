@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="../assets/site.css?v=20261120a">
-<link rel="stylesheet" href="benchmark.css?v=19">
+<link rel="stylesheet" href="benchmark.css?v=20">
 </head>
 <body>
 <main id="start" class="wrap page">
@@ -52,6 +52,7 @@
     <p id="status" class="muted center" role="status">The first time downloads a lot, so use Wi-Fi.</p>
 
     <h2 class="center">Top 3 insect predictions</h2>
+    <div class="pair">
     <div class="panel one">
       <h3>Pyinsect <small>(specialist)</small></h3>
       <ol id="guessPyinsect" class="guesses"></ol>
@@ -63,6 +64,7 @@
       <ol id="guessOther" class="guesses"></ol>
       <p>Speed <strong id="speedOther">–</strong></p>
       <p>Cost <strong id="costOther">–</strong></p>
+    </div>
     </div>
   </section>
 
@@ -121,6 +123,6 @@
 <script src="../assets/species.js?v=20261028a"></script>
 <script src="../assets/models/pyinsect-2.8-oregon.js?v=20261118a"></script>
 <script src="other-ai.js?v=17"></script>
-<script type="module" src="benchmark.js?v=19"></script>
+<script type="module" src="benchmark.js?v=20"></script>
 </body>
 </html>

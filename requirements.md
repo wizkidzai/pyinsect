@@ -982,6 +982,7 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   brings it back.
 - **Change, 2026-11-26:** The line graphs are back, under the big boxes. On **Try it**, **Remove photo** is gone
   and the green button says **Reselect photo** once a photo is showing.
+- **Change, 2026-11-26:** Smaller layout on phones, so both AIs fit on one screen.
 - **User flow:**
   1. The judge sees the start screen and picks CLIP or OpenRouter.
   2. OpenRouter: a grown-up types the key and taps **Start**, or taps **Back**.

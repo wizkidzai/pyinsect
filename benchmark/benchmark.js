@@ -21,96 +21,6 @@ const label = (s) => (s === MODEL.otherClass ? commonName(s) : `${commonName(s)}
 const byLabel = new Map(SPECIES.map((s) => [label(s).toLowerCase(), s]));
 for (const s of SPECIES) $("names").append(new Option(label(s)));
 
-/* ---------- scores (only counts are saved, never photos) ---------- */
-const blank = () => ({ top1: 0, top3: 0, ms: 0 });
-const empty = () => ({ n: 0, pyinsect: blank(), clip: blank(), history: [] });
-let scores = empty();
-try { scores = JSON.parse(localStorage.getItem(SCORES_KEY)) || empty(); } catch { /* private window */ }
-const saveScores = () => { try { localStorage.setItem(SCORES_KEY, JSON.stringify(scores)); } catch { /* not saved */ } };
-
-function showScores() {
-  const { n } = scores;
-  $("scored").textContent = n
-    ? `${n} photo${n === 1 ? "" : "s"} scored.${n < 30 ? " Too few to prove much yet." : ""}`
-    : "No photos scored yet.";
-  const pct = (k) => (n ? `${Math.round((100 * k) / n)}% (${k} of ${n})` : "–");
-  fill("board", [
-    ["Right first time", (a) => pct(scores[a].top1)],
-    ["Right in top 3", (a) => pct(scores[a].top3)],
-    ["Time per photo", (a) => (n ? `${(scores[a].ms / n / 1000).toFixed(1)} s` : "–")],
-  ]);
-  drawChart();
-}
-function fill(id, rows) {
-  $(id).replaceChildren(...rows.map(([name, value]) => {
-    const tr = el("tr"), th = el("th", null, name);
-    th.scope = "row";
-    tr.append(th, el("td", null, value("pyinsect")), el("td", null, value("clip")));
-    return tr;
-  }));
-}
-// Line graph: after each scored photo, what percent has each AI got right first time so far?
-// Each point in scores.history is [photos scored, Pyinsect right, CLIP right].
-const svg = (tag, attrs, text) => {
-  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
-  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
-  if (text != null) e.textContent = text;
-  return e;
-};
-function drawChart() {
-  const points = scores.history || [];
-  if (!points.length) { $("chart").replaceChildren(el("p", "muted", "Score a photo to see the graph.")); return; }
-  const W = 440, H = 340, left = 48, right = 16, top = 12, bottom = 44;
-  const total = points[points.length - 1][0];
-  // The bottom numbers go from 0 to at least 10 photos, so the line fills the graph as you score more.
-  const step = 2 * Math.max(1, Math.ceil(total / 10)), most = Math.max(10, step * Math.ceil(total / step));
-  const x = (n) => left + (n / most) * (W - left - right);
-  const y = (percent) => top + (1 - percent / 100) * (H - top - bottom);
-  const percent = (point, i) => Math.round((100 * point[i]) / point[0]);
-  const say = (point) => `After ${point[0]} photo${point[0] === 1 ? "" : "s"}: Pyinsect ${percent(point, 1)}%, CLIP ${percent(point, 2)}%`;
-  const end = points[points.length - 1];
-
-  const graph = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Right first time. ${say(end)}` });
-  // The two axis lines, with a small tick at each number
-  graph.append(svg("path", { class: "axis", d: `M${left} ${top}V${y(0)}H${W - right}` }));
-  for (let p = 0; p <= 100; p += 20) {
-    graph.append(svg("line", { class: "axis", x1: left - 6, x2: left, y1: y(p), y2: y(p) }));
-    graph.append(svg("text", { x: left - 12, y: y(p) + 4, "text-anchor": "end" }, `${p}%`));
-  }
-  for (let n = 0; n <= most; n += step) {
-    graph.append(svg("line", { class: "axis", x1: x(n), x2: x(n), y1: y(0), y2: y(0) + 6 }));
-    graph.append(svg("text", { x: x(n), y: y(0) + 22, "text-anchor": "middle" }, n));
-  }
-  graph.append(svg("text", { x: (left + W - right) / 2, y: H - 4, "text-anchor": "middle" }, "Photos scored"));
-  // Pyinsect is drawn thicker underneath, so it still shows when both lines are in the same place.
-  const many = total > 30;
-  for (const [ai, i, size] of [["pyinsect", 1, 4.5], ["clip", 2, 3]]) {
-    graph.append(svg("polyline", { class: `line ${ai}`, points: points.map((p) => `${x(p[0])},${y(percent(p, i))}`).join(" ") }));
-    for (const p of many ? [end] : points) {
-      graph.append(svg("circle", { class: `dot ${ai}`, cx: x(p[0]), cy: y(percent(p, i)), r: size }));
-    }
-  }
-
-  // Point at (or tap) the graph to read the numbers for one photo.
-  const readout = el("p", "readout muted", say(end));
-  const slot = (W - left - right) / most;
-  for (const p of points) {
-    const hit = svg("rect", { x: x(p[0]) - slot / 2, y: top, width: slot, height: H - top - bottom, fill: "transparent" });
-    hit.append(svg("title", {}, say(p)));
-    hit.addEventListener("pointerenter", () => { readout.textContent = say(p); });
-    hit.addEventListener("click", () => { readout.textContent = say(p); });
-    graph.append(hit);
-  }
-  $("chart").replaceChildren(el("p", "group-title", "Right first time, so far"), graph, readout);
-}
-$("reset").onclick = () => {
-  if (!confirm("Reset all the scores?")) return;
-  scores = empty();
-  saveScores();
-  showScores();
-};
-showScores();
-
 const softmax = (values) => {
   const m = Math.max(...values), e = values.map((v) => Math.exp(v - m)), sum = e.reduce((a, b) => a + b, 0);
   return e.map((v) => v / sum);
@@ -273,130 +183,204 @@ const timed = async (run) => {
   return { top3, ms: performance.now() - t };
 };
 
-function column(name, result) {
-  const box = el("div"), list = el("ol");
-  for (const g of result.top3) {
-    const li = el("li", null, `${commonName(g.species)} (${g.confidence.toFixed(0)}% sure)`);
-    li.dataset.species = g.species;
-    list.append(li);
-  }
-  box.append(el("h3", null, name), list, el("p", null, `Took ${(result.ms / 1000).toFixed(1)} s`));
-  return box;
-}
-
-// The visitor says what the insect really is. Each photo is scored once.
-function answerRow(card, results) {
-  const row = el("div", "answer-row"), input = el("input");
-  const ok = el("button", "btn primary", "Score it"), skip = el("button", "btn", "I don't know");
-  const note = el("p", "muted", "What is it really? Type a name and pick it from the list.");
-  input.setAttribute("list", "names");
-  input.setAttribute("aria-label", "The correct insect");
-  input.placeholder = "The correct insect";
-  ok.type = skip.type = "button";
-  ok.onclick = () => {
-    const truth = byLabel.get(input.value.trim().toLowerCase());
-    if (!truth) { note.textContent = "Pick a name from the list. If it isn't there, tap I don't know."; return; }
-    scores.n++;
-    for (const ai of ["pyinsect", "clip"]) {
-      const { top3, ms } = results[ai];
-      scores[ai].top1 += top3[0].species === truth ? 1 : 0;
-      scores[ai].top3 += top3.some((g) => g.species === truth) ? 1 : 0;
-      scores[ai].ms += ms;
-    }
-    const point = [scores.n, scores.pyinsect.top1, scores.clip.top1];
-    (scores.history ||= []).push(point);
-    card.scored = { point, truth, results };   // so Remove photo can take this score out again
-    saveScores();
-    showScores();
-    for (const li of card.querySelectorAll("li")) li.classList.toggle("right", li.dataset.species === truth);
-    row.remove();
-    note.textContent = `Scored. The answer was ${label(truth)}. Right guesses are shown in green.`;
-  };
-  skip.onclick = () => { row.remove(); note.textContent = "Not scored."; };
-  row.append(input, ok, skip);
-  card.append(note, row);
-}
-
-// Takes a scored photo back out of the totals and the graph.
-function unscore({ point, truth, results }) {
-  const at = (scores.history || []).indexOf(point);
-  if (at < 0) return;   // the scores were reset after this photo
-  const had = {};
-  scores.n--;
-  for (const ai of ["pyinsect", "clip"]) {
-    const { top3, ms } = results[ai];
-    had[ai] = top3[0].species === truth ? 1 : 0;
-    scores[ai].top1 -= had[ai];
-    scores[ai].top3 -= top3.some((g) => g.species === truth) ? 1 : 0;
-    scores[ai].ms -= ms;
-  }
-  for (const later of scores.history.slice(at + 1)) {
-    later[0]--;
-    later[1] -= had.pyinsect;
-    later[2] -= had.clip;
-  }
-  scores.history.splice(at, 1);
-  saveScores();
-  showScores();
-}
-
-function removeButton(card, img) {
-  const button = el("button", "btn remove", "✕ Remove photo");
-  button.type = "button";
-  button.onclick = () => {
-    if (card.scored) unscore(card.scored);
-    URL.revokeObjectURL(img.src);
-    card.remove();
-  };
-  return button;
-}
-
-let queue = Promise.resolve();
-function addPhoto(file) {
-  const card = el("section", "panel result"), img = el("img"), wait = el("p", "muted", "Waiting…");
-  img.src = URL.createObjectURL(file);
-  img.alt = file.name;
-  card.append(img, removeButton(card, img), wait);
-  $("results").prepend(card);
-  queue = queue.then(async () => {
-    if (!card.isConnected) return;   // removed while waiting
-    try {
-      wait.textContent = "Both AIs are looking…";
-      const cut = await cutOut(file);
-      const results = { pyinsect: await timed(() => pyinsect(cut, file)), clip: await timed(() => runClip(cut)) };
-      const versus = el("div", "versus");
-      versus.append(column("Pyinsect", results.pyinsect), column("CLIP", results.clip));
-      wait.replaceWith(versus);
-      answerRow(card, results);
-    } catch (e) {
-      console.error(e);
-      wait.textContent = "Couldn't check this photo. Try a JPG or PNG picture.";
-    }
-  });
-}
-
-$("load").onclick = async () => {
-  const status = (t) => { $("status").textContent = t; };
-  $("load").disabled = true;
-  try {
+/* ---------- getting the AIs ready (the first time a photo is picked) ---------- */
+let ready = null;
+function getReady(status) {
+  ready = ready || (async () => {
     ort.env.wasm.numThreads = 1;
     ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/";
     status("Downloading Pyinsect…");
     await session(MODEL.url);
     if (MODEL.lowres) await session(MODEL.lowres.url);
     await loadClip(status);
-    showScores();
-    status("Ready. Choose some insect photos.");
-    $("load").hidden = true;
-    $("pick").hidden = false;
+  })().catch((e) => { ready = null; throw e; });
+  return ready;
+}
+const NOT_LOADED = "The AIs couldn't be loaded. Check the internet connection and try again.";
+
+// Both AIs look at the same photo, one after the other. Only one photo at a time.
+let queue = Promise.resolve();
+function check(file) {
+  const job = queue.then(async () => {
+    const cut = await cutOut(file);
+    return { pyinsect: await timed(() => pyinsect(cut, file)), clip: await timed(() => runClip(cut)) };
+  });
+  queue = job.catch(() => {});
+  return job;
+}
+
+/* ---------- tabs ---------- */
+function openTab(bench) {
+  $("tabTry").setAttribute("aria-selected", String(!bench));
+  $("tabBench").setAttribute("aria-selected", String(bench));
+  $("pageTry").hidden = bench;
+  $("pageBench").hidden = !bench;
+}
+$("tabTry").onclick = () => openTab(false);
+$("tabBench").onclick = () => openTab(true);
+
+/* ---------- Try it: one photo ---------- */
+const AIS = [["pyinsect", "Pyinsect"], ["clip", "Clip"]];
+function showGuesses(results) {
+  for (const [ai, id] of AIS) {
+    const guesses = results ? results[ai].top3 : [null, null, null];
+    $(`guess${id}`).replaceChildren(...guesses.map((g) => {
+      const li = el("li");
+      li.append(el("span", null, g ? commonName(g.species) : "insect"), el("b", null, g ? `${g.confidence.toFixed(0)}%` : "__%"));
+      return li;
+    }));
+    $(`speed${id}`).textContent = results ? `${(results[ai].ms / 1000).toFixed(1)} s` : "–";
+  }
+}
+showGuesses(null);
+
+let current = null;   // the photo on screen
+function showPhoto(file) {
+  if ($("shown").src) URL.revokeObjectURL($("shown").src);
+  current = file;
+  if (file) $("shown").src = URL.createObjectURL(file);
+  else $("shown").removeAttribute("src");
+  $("shown").alt = file ? file.name : "";
+  $("shown").hidden = !file;
+  $("placeholder").hidden = Boolean(file);
+  $("remove").hidden = !file;
+  showGuesses(null);
+}
+async function tryPhoto(file) {
+  showPhoto(file);
+  const status = (t) => { if (current === file) $("status").textContent = t; };
+  try {
+    await getReady(status);
+  } catch (e) { console.error(e); status(NOT_LOADED); return; }
+  try {
+    status("Both AIs are looking…");
+    const results = await check(file);
+    if (current !== file) return;   // removed, or another photo was picked
+    showGuesses(results);
+    status("Done.");
+  } catch (e) { console.error(e); status("Couldn't check this photo. Try a JPG or PNG picture."); }
+}
+$("pick").onclick = () => $("file").click();
+$("file").onchange = () => {
+  const [file] = $("file").files;
+  $("file").value = "";
+  if (file) tryPhoto(file);
+};
+$("remove").onclick = () => { showPhoto(null); $("status").textContent = "Photo removed."; };
+
+/* ---------- Benchmark: a folder or many photos ---------- */
+// The right answer comes from the file name or a folder name, like "emerald ash borer/photo_01.jpg"
+// or "agrilus_planipennis_003.jpg". The longest insect name found wins.
+const plain = (text) => ` ${text.toLowerCase().replace(/[^a-z]+/g, " ").trim()} `;
+const NAMES = SPECIES.flatMap((s) => [commonName(s), sciName(s), s].map((name) => [plain(name), s]))
+  .sort((a, b) => b[0].length - a[0].length);
+function truthFor(file) {
+  const parts = (file.webkitRelativePath || file.name).split("/").reverse();   // the file name first, then folders
+  for (const part of parts) {
+    const text = plain(part.replace(/\.[a-z0-9]+$/i, ""));
+    const found = NAMES.find(([name]) => text.includes(name));
+    if (found) return found[1];
+  }
+  return null;
+}
+
+// One point per photo: totals so far. Cost stays 0, because both AIs run on this device.
+let totals = [];
+const svg = (tag, attrs, text) => {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text != null) e.textContent = text;
+  return e;
+};
+function drawGraphs() {
+  const last = totals[totals.length - 1];
+  const W = 240, H = 210, left = 14, right = 8, top = 8, bottom = 38;
+  const most = Math.max(10, totals.length);
+  const x = (n) => left + (n / most) * (W - left - right);
+  // Each kind of line has one scale for both AIs: right answers out of the photos, seconds out of the slower AI.
+  const scale = {
+    right: Math.max(1, totals.length),
+    seconds: last ? Math.max(last.pyinsect.seconds, last.clip.seconds) || 1 : 1,
+    cost: 1,
+  };
+  const y = (share) => top + (1 - share) * (H - top - bottom);
+  for (const [ai, id] of AIS) {
+    const graph = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+    graph.setAttribute("aria-label", `${id}: accuracy, speed and cost as photos are added`);
+    graph.append(svg("path", { class: "axis", d: `M${left} ${top}V${y(0)}H${W - right}` }));
+    for (const n of [0, Math.round(most / 2), most]) graph.append(svg("text", { x: x(n), y: y(0) + 16, "text-anchor": "middle" }, n));
+    graph.append(svg("text", { x: (left + W - right) / 2, y: H - 4, "text-anchor": "middle" }, "Number of photos"));
+    for (const [kind, key] of [["accuracy", "right"], ["speed", "seconds"], ["cost", "cost"]]) {
+      const points = [[0, 0], ...totals.map((t, i) => [i + 1, t[ai][key] / scale[key]])];
+      graph.append(svg("polyline", { class: `line ${kind}`, points: points.map(([n, share]) => `${x(n)},${y(share)}`).join(" ") }));
+    }
+    $(`graph${id}`).replaceChildren(graph);
+    $(`sum${id}`).textContent = last
+      ? `Right: ${last[ai].right} of ${totals.length} (${Math.round((100 * last[ai].right) / totals.length)}%). Time: ${last[ai].seconds.toFixed(1)} s. Cost: $${last[ai].cost}.`
+      : "No photos yet.";
+  }
+}
+drawGraphs();
+
+let running = false, stopped = false;
+async function runBenchmark(files) {
+  const pictures = [...files].filter((f) => f.type.startsWith("image/")).sort((a, b) => a.name.localeCompare(b.name));
+  const status = (t) => { $("benchStatus").textContent = t; };
+  const typed = $("truth").value.trim().toLowerCase();
+  if (typed && !byLabel.has(typed)) { status("Pick the correct insect from the list, or leave that box empty."); return; }
+  const answers = pictures.map((file) => [file, truthFor(file) || byLabel.get(typed) || null]);
+  const known = answers.filter(([, truth]) => truth);
+  if (!pictures.length) { status("No photos found there."); return; }
+  if (!known.length) { status("I can't tell the right answers. Name the folder after the insect, or pick the correct insect above."); return; }
+
+  running = true;
+  stopped = false;
+  totals = [];
+  drawGraphs();
+  for (const id of ["pickFolder", "pickMany"]) $(id).disabled = true;
+  $("stop").hidden = false;
+  let failed = 0;
+  try {
+    await getReady(status);
+    for (const [i, [file, truth]] of known.entries()) {
+      if (stopped) break;
+      status(`Photo ${i + 1} of ${known.length}…`);
+      try {
+        const results = await check(file);
+        const before = totals[totals.length - 1];
+        const point = {};
+        for (const [ai] of AIS) {
+          const was = before ? before[ai] : { right: 0, seconds: 0, cost: 0 };
+          point[ai] = {
+            right: was.right + (results[ai].top3[0].species === truth ? 1 : 0),
+            seconds: was.seconds + results[ai].ms / 1000,
+            cost: was.cost,
+          };
+        }
+        totals.push(point);
+        drawGraphs();
+      } catch (e) { console.error(e); failed++; }
+    }
+    const skipped = pictures.length - known.length;
+    status(`${stopped ? "Stopped" : "Done"}: ${totals.length} photo${totals.length === 1 ? "" : "s"}.`
+      + (skipped ? ` ${skipped} skipped (no insect name).` : "")
+      + (failed ? ` ${failed} couldn't be opened.` : "")
+      + (totals.length < 30 ? " Too few to prove much yet." : ""));
   } catch (e) {
     console.error(e);
-    status("The AIs couldn't be loaded. Check the internet connection and try again.");
-    $("load").disabled = false;
+    status(NOT_LOADED);
+  } finally {
+    running = false;
+    $("stop").hidden = true;
+    for (const id of ["pickFolder", "pickMany"]) $(id).disabled = false;
   }
-};
-$("pick").onclick = () => $("files").click();
-$("files").onchange = () => {
-  for (const f of $("files").files) addPhoto(f);
-  $("files").value = "";
-};
+}
+for (const [button, input] of [["pickFolder", "folder"], ["pickMany", "many"]]) {
+  $(button).onclick = () => $(input).click();
+  $(input).onchange = () => {
+    const files = [...$(input).files];
+    $(input).value = "";
+    if (files.length && !running) runBenchmark(files);
+  };
+}
+$("stop").onclick = () => { stopped = true; };

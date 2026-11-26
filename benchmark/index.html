@@ -10,66 +10,92 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="../assets/site.css?v=20261120a">
-<link rel="stylesheet" href="benchmark.css?v=10">
+<link rel="stylesheet" href="benchmark.css?v=12">
 </head>
 <body>
-<header class="topbar">
-  <a class="brand small" href="../"><img src="../assets/favicon.svg" alt="" width="28" height="28"><span>Pyinsect</span></a>
-</header>
+<main class="wrap">
+  <div class="tabs" role="tablist" aria-label="Pyinsect Benchmark">
+    <button id="tabTry" class="tab-btn" type="button" role="tab" aria-controls="pageTry" aria-selected="true">Try it</button>
+    <button id="tabBench" class="tab-btn" type="button" role="tab" aria-controls="pageBench" aria-selected="false">Benchmark</button>
+  </div>
 
-<main id="screens">
-<div class="screen">
-  <header>
-    <h1>Pyinsect Benchmark</h1>
-    <p>Which AI knows insects better?</p>
-  </header>
-
-  <section class="panel" aria-labelledby="scoreTitle">
-    <h2 id="scoreTitle">Scores</h2>
-    <ul class="legend">
-      <li><span class="swatch pyinsect"></span>Pyinsect</li>
-      <li><span class="swatch clip"></span>CLIP</li>
-    </ul>
-    <div id="chart" class="chart"></div>
-    <div class="table-box">
-      <table>
-        <thead><tr><th></th><th scope="col">Pyinsect</th><th scope="col">CLIP</th></tr></thead>
-        <tbody id="board"></tbody>
-      </table>
+  <section id="pageTry" class="page" role="tabpanel" aria-labelledby="tabTry">
+    <div class="picture panel">
+      <img id="shown" alt="" hidden>
+      <p id="placeholder" class="muted">Image of insect</p>
     </div>
-    <p id="scored" class="muted" role="status"></p>
-    <button id="reset" class="btn" type="button">Reset scores</button>
+    <button id="pick" class="btn primary big" type="button">Select photo</button>
+    <input id="file" type="file" accept="image/*">
+    <button id="remove" class="btn" type="button" hidden>✕ Remove photo</button>
+    <p id="status" class="muted center" role="status">The first time downloads about 300 MB, so use Wi-Fi.</p>
+
+    <h2 class="center">Top 3 insect predictions</h2>
+    <div class="two">
+      <div class="panel">
+        <h3>Pyinsect <small>(specialist)</small></h3>
+        <ol id="guessPyinsect" class="guesses"></ol>
+        <p>Speed <strong id="speedPyinsect">–</strong></p>
+        <p>Cost <strong>$0</strong></p>
+      </div>
+      <div class="panel">
+        <h3>CLIP <small>(generalist)</small></h3>
+        <ol id="guessClip" class="guesses"></ol>
+        <p>Speed <strong id="speedClip">–</strong></p>
+        <p>Cost <strong>$0</strong></p>
+      </div>
+    </div>
   </section>
 
-  <section class="panel" aria-labelledby="tryTitle">
-    <h2 id="tryTitle">Try photos</h2>
-    <p id="status" role="status">First time: about 300 MB, so use Wi-Fi.</p>
-    <button id="load" class="btn primary big" type="button">Get the AIs ready</button>
-    <button id="pick" class="btn primary big" type="button" hidden>📷 Choose photos</button>
-    <input id="files" type="file" accept="image/*" multiple>
-  </section>
+  <section id="pageBench" class="page" role="tabpanel" aria-labelledby="tabBench" hidden>
+    <div class="choose">
+      <button id="pickFolder" class="btn primary big" type="button">Select folder</button>
+      <button id="pickMany" class="btn primary big" type="button">or photos</button>
+      <input id="folder" type="file" webkitdirectory>
+      <input id="many" type="file" accept="image/*" multiple>
+    </div>
+    <label class="truth">Correct insect, if the file names don't say it
+      <input id="truth" list="names" placeholder="Pick from the list (optional)">
+    </label>
+    <p id="benchStatus" class="muted center" role="status">Name each folder or photo after its insect, so the app knows the right answer.</p>
+    <button id="stop" class="btn" type="button" hidden>Stop</button>
 
-  <div id="results" class="results"></div>
-
-  <details class="panel">
-    <summary>How this works</summary>
-    <ul>
-      <li><strong>Pyinsect</strong> is our own model, the one the website uses.</li>
-      <li><strong>CLIP</strong> is a free general AI made by OpenAI, not trained just for insects. We use a smaller, compressed copy.</li>
-      <li>Both get the same photo, cut around the insect, and choose from the same list of insects.</li>
-      <li>Scores count each AI's first guess, even when the website would say "not sure".</li>
-      <li>Try 30 or more photos that Pyinsect didn't learn from.</li>
-      <li>Your photos stay on your device. Scores are saved only in this browser.</li>
+    <ul class="legend">
+      <li><span class="key accuracy"></span>Accuracy</li>
+      <li><span class="key speed"></span>Speed</li>
+      <li><span class="key cost"></span>Cost</li>
     </ul>
-  </details>
+    <div class="two">
+      <div class="panel">
+        <h3>Pyinsect <small>(specialist)</small></h3>
+        <div id="graphPyinsect" class="graph"></div>
+        <p id="sumPyinsect" class="sum">No photos yet.</p>
+      </div>
+      <div class="panel">
+        <h3>CLIP <small>(generalist)</small></h3>
+        <div id="graphClip" class="graph"></div>
+        <p id="sumClip" class="sum">No photos yet.</p>
+      </div>
+    </div>
+    <details class="panel">
+      <summary>How to read this</summary>
+      <ul>
+        <li><strong>Accuracy</strong>: how many photos the first guess got right, added up.</li>
+        <li><strong>Speed</strong>: how many seconds were spent, added up. A lower line is faster.</li>
+        <li><strong>Cost</strong>: dollars spent, added up. Both AIs run on your device, so it stays at $0.</li>
+        <li>Each kind of line uses the same scale on both graphs, so you can compare them.</li>
+        <li>CLIP is a free general AI for pictures. It is not an LLM (a chatbot AI). We use a smaller copy.</li>
+        <li>Pyinsect is our own model. Use photos it didn't learn from, and at least 30 of them.</li>
+        <li>Your photos stay on your device.</li>
+      </ul>
+    </details>
+  </section>
   <datalist id="names"></datalist>
-</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
 <script src="../assets/insect-finder.js?v=20261028a"></script>
 <script src="../assets/species.js?v=20261028a"></script>
 <script src="../assets/models/pyinsect-2.8-oregon.js?v=20261118a"></script>
-<script type="module" src="benchmark.js?v=10"></script>
+<script type="module" src="benchmark.js?v=12"></script>
 </body>
 </html>

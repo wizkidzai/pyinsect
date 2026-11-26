@@ -944,7 +944,7 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   camera). The Pyinsect model the website uses and CLIP (a free general AI) both guess, from the same list of
   insects, on the device. The visitor picks the right answer, and a scoreboard shows how often each AI was
   right (first guess and top 3), how long it took, and how many photos were scored. The page looks like the
-  website, with its top bar and photo header.
+  website, with its top bar.
   A line graph shows how often Pyinsect and CLIP were right first time, after each photo scored.
 - **Other ideas we talked about:**
   - Compare with Pyinsect 2.7: easy, but it isn't a different AI.

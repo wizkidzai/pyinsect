@@ -23,12 +23,9 @@ for (const s of SPECIES) $("names").append(new Option(label(s)));
 
 /* ---------- scores (only counts are saved, never photos) ---------- */
 const blank = () => ({ top1: 0, top3: 0, ms: 0 });
-// gemini: answers a grown-up typed in. It has its own count, because the box is optional.
-const empty = () => ({ n: 0, pyinsect: blank(), clip: blank(), gemini: { n: 0, top1: 0 } });
+const empty = () => ({ n: 0, pyinsect: blank(), clip: blank() });
 let scores = empty();
-try { scores = { ...empty(), ...JSON.parse(localStorage.getItem(SCORES_KEY)) }; } catch { /* private window */ }
-const OTHER_ANSWER = "Something else (not on the list)";
-for (const s of [...SPECIES.map(label), OTHER_ANSWER]) $("gemini-names").append(new Option(s));
+try { scores = JSON.parse(localStorage.getItem(SCORES_KEY)) || empty(); } catch { /* private window */ }
 const saveScores = () => { try { localStorage.setItem(SCORES_KEY, JSON.stringify(scores)); } catch { /* not saved */ } };
 
 function showScores() {
@@ -36,22 +33,41 @@ function showScores() {
   $("scored").textContent = n
     ? `${n} photo${n === 1 ? "" : "s"} scored.${n < 30 ? " Too few to prove much yet." : ""}`
     : "No photos scored yet.";
-  const pct = (k, of = n) => (of ? `${Math.round((100 * k) / of)}% (${k} of ${of})` : "–");
-  const rows = [
-    ["Right first time", (a) => pct(scores[a].top1, a === "gemini" ? scores.gemini.n : n)],
-    ["Right in top 3", (a) => (a === "gemini" ? "–" : pct(scores[a].top3))],
-    ["Time per photo", (a) => (a !== "gemini" && n ? `${(scores[a].ms / n / 1000).toFixed(1)} s` : "–")],
-  ];
-  // The Gemini column only shows once a grown-up has typed in an answer.
-  $("geminiHead").hidden = !scores.gemini.n;
-  fill("board", rows, scores.gemini.n ? ["pyinsect", "clip", "gemini"] : undefined);
+  const pct = (k) => (n ? `${Math.round((100 * k) / n)}% (${k} of ${n})` : "–");
+  fill("board", [
+    ["Right first time", (a) => pct(scores[a].top1)],
+    ["Right in top 3", (a) => pct(scores[a].top3)],
+    ["Time per photo", (a) => (n ? `${(scores[a].ms / n / 1000).toFixed(1)} s` : "–")],
+  ]);
+  drawChart();
 }
-function fill(id, rows, columns = ["pyinsect", "clip"]) {
+function fill(id, rows) {
   $(id).replaceChildren(...rows.map(([name, value]) => {
     const tr = el("tr"), th = el("th", null, name);
     th.scope = "row";
-    tr.append(th, ...columns.map((a) => el("td", null, value(a))));
+    tr.append(th, el("td", null, value("pyinsect")), el("td", null, value("clip")));
     return tr;
+  }));
+}
+// Bar graph of how often each AI was right. Both groups use the same scale: 0 to 100%.
+function drawChart() {
+  const { n } = scores;
+  if (!n) { $("chart").replaceChildren(el("p", "muted", "Score a photo to see the graph.")); return; }
+  $("chart").replaceChildren(...[["Right first time", "top1"], ["Right in top 3", "top3"]].map(([title, key]) => {
+    const group = el("div", "group");
+    group.append(el("p", "group-title", title));
+    for (const [ai, name] of [["pyinsect", "Pyinsect"], ["clip", "CLIP"]]) {
+      const right = scores[ai][key], percent = Math.round((100 * right) / n);
+      const row = el("div", "bar-row"), track = el("div", "track-box"), bar = el("div", `bar ${ai}`);
+      row.title = `${name}: ${right} of ${n} right`;
+      row.setAttribute("role", "img");
+      row.setAttribute("aria-label", `${title}, ${name}: ${percent}%, ${right} of ${n}`);
+      bar.style.width = `${percent}%`;
+      track.append(bar);
+      row.append(track, el("span", "bar-value", `${percent}%`));
+      group.append(row);
+    }
+    return group;
   }));
 }
 $("reset").onclick = () => {
@@ -243,23 +259,10 @@ function answerRow(card, results) {
   input.setAttribute("list", "names");
   input.setAttribute("aria-label", "The correct insect");
   input.placeholder = "The correct insect";
-  const gemini = el("input", "gemini");
-  gemini.setAttribute("list", "gemini-names");
-  gemini.setAttribute("aria-label", "Gemini's answer, typed by a grown-up (optional)");
-  gemini.placeholder = "Gemini's answer (grown-up, optional)";
   ok.type = skip.type = "button";
   ok.onclick = () => {
     const truth = byLabel.get(input.value.trim().toLowerCase());
     if (!truth) { note.textContent = "Pick a name from the list. If it isn't there, tap I don't know."; return; }
-    const typed = gemini.value.trim().toLowerCase();
-    if (typed && !byLabel.has(typed) && typed !== OTHER_ANSWER.toLowerCase()) {
-      note.textContent = `For Gemini's answer, pick from the list, or pick "${OTHER_ANSWER}", or leave it empty.`;
-      return;
-    }
-    if (typed) {
-      scores.gemini.n++;
-      scores.gemini.top1 += byLabel.get(typed) === truth ? 1 : 0;
-    }
     scores.n++;
     for (const ai of ["pyinsect", "clip"]) {
       const { top3, ms } = results[ai];
@@ -274,7 +277,7 @@ function answerRow(card, results) {
     note.textContent = `Scored. The answer was ${label(truth)}. Right guesses are shown in green.`;
   };
   skip.onclick = () => { row.remove(); note.textContent = "Not scored."; };
-  row.append(input, gemini, ok, skip);
+  row.append(input, ok, skip);
   card.append(note, row);
 }
 

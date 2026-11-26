@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="../assets/site.css?v=20261120a">
-<link rel="stylesheet" href="benchmark.css?v=4">
+<link rel="stylesheet" href="benchmark.css?v=5">
 </head>
 <body>
 <header class="topbar">
@@ -29,9 +29,14 @@
 
   <section class="panel" aria-labelledby="scoreTitle">
     <h2 id="scoreTitle">Scores</h2>
+    <ul class="legend">
+      <li><span class="swatch pyinsect"></span>Pyinsect</li>
+      <li><span class="swatch clip"></span>CLIP</li>
+    </ul>
+    <div id="chart" class="chart"></div>
     <div class="table-box">
       <table>
-        <thead><tr><th></th><th scope="col">Pyinsect</th><th scope="col">CLIP</th><th scope="col" id="geminiHead" hidden>Gemini (typed in)</th></tr></thead>
+        <thead><tr><th></th><th scope="col">Pyinsect</th><th scope="col">CLIP</th></tr></thead>
         <tbody id="board"></tbody>
       </table>
     </div>
@@ -56,13 +61,11 @@
       <li><strong>CLIP</strong> is a free general AI made by OpenAI, not trained just for insects. We use a smaller, compressed copy.</li>
       <li>Both get the same photo, cut around the insect, and choose from the same list of insects.</li>
       <li>Scores count each AI's first guess, even when the website would say "not sure".</li>
-      <li>Gemini is optional: a grown-up (18+) can ask it in their own account and type its answer. Ask the same question every time, and never use photos with people or private details. It's not a perfectly fair test.</li>
       <li>Try 30 or more photos that Pyinsect didn't learn from.</li>
       <li>Your photos stay on your device. Scores are saved only in this browser.</li>
     </ul>
   </details>
   <datalist id="names"></datalist>
-  <datalist id="gemini-names"></datalist>
   <p class="source">Beetle photo: Sam Droege, USGS, public domain.</p>
 </div>
 </main>
@@ -71,6 +74,6 @@
 <script src="../assets/insect-finder.js?v=20261028a"></script>
 <script src="../assets/species.js?v=20261028a"></script>
 <script src="../assets/models/pyinsect-2.8-oregon.js?v=20261118a"></script>
-<script type="module" src="benchmark.js?v=6"></script>
+<script type="module" src="benchmark.js?v=7"></script>
 </body>
 </html>

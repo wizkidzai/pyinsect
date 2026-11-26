@@ -18,3 +18,18 @@ summary { cursor: pointer; min-height: 28px; font-family: var(--display); font-s
 details[open] > summary { margin-bottom: 12px; }
 .home-hero { min-height: 220px; }
 .panel > .btn.big { width: 100%; }
+/* Graph: one color for each AI, checked to be safe for color blindness. The names and numbers say it too. */
+:root { --pyinsect: #1e7a45; --clip: #3b7dd8; }
+@media (prefers-color-scheme: dark) { :root { --pyinsect: #3a9d63; --clip: #4a8fe0; } }
+.legend { list-style: none; margin: 0 0 8px; padding: 0; display: flex; gap: 16px; font-size: 13px; }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; }
+.pyinsect.swatch, .pyinsect.bar { background: var(--pyinsect); }
+.clip.swatch, .clip.bar { background: var(--clip); }
+.chart { margin-bottom: 16px; }
+.group + .group { margin-top: 12px; }
+.chart .group-title { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
+.bar-row { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; gap: 8px; margin-top: 2px; }
+.track-box { border-left: 1px solid var(--muted); }
+.chart .bar { height: 18px; border-radius: 0 4px 4px 0; }
+.bar-value { font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }

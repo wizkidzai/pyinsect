@@ -945,8 +945,7 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   insects, on the device. The visitor picks the right answer, and a scoreboard shows how often each AI was
   right (first guess and top 3), how long it took, and how many photos were scored. The page looks like the
   website, with its top bar and photo header.
-  An optional box lets a grown-up (18+) type in the answer they got from Gemini in their own account. Gemini then
-  gets its own "right first time" score. The page never contacts Google.
+  A bar graph shows how often Pyinsect and CLIP were right.
 - **Other ideas we talked about:**
   - Compare with Pyinsect 2.7: easy, but it isn't a different AI.
   - Compare with a chatbot AI: needs a secret key and a server.

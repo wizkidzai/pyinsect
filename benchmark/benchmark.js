@@ -23,7 +23,7 @@ for (const s of SPECIES) $("names").append(new Option(label(s)));
 
 /* ---------- scores (only counts are saved, never photos) ---------- */
 const blank = () => ({ top1: 0, top3: 0, ms: 0 });
-const empty = () => ({ n: 0, pyinsect: blank(), clip: blank() });
+const empty = () => ({ n: 0, pyinsect: blank(), clip: blank(), history: [] });
 let scores = empty();
 try { scores = JSON.parse(localStorage.getItem(SCORES_KEY)) || empty(); } catch { /* private window */ }
 const saveScores = () => { try { localStorage.setItem(SCORES_KEY, JSON.stringify(scores)); } catch { /* not saved */ } };
@@ -49,26 +49,59 @@ function fill(id, rows) {
     return tr;
   }));
 }
-// Bar graph of how often each AI was right. Both groups use the same scale: 0 to 100%.
+// Line graph: after each scored photo, what percent has each AI got right first time so far?
+// Each point in scores.history is [photos scored, Pyinsect right, CLIP right].
+const svg = (tag, attrs, text) => {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text != null) e.textContent = text;
+  return e;
+};
 function drawChart() {
-  const { n } = scores;
-  if (!n) { $("chart").replaceChildren(el("p", "muted", "Score a photo to see the graph.")); return; }
-  $("chart").replaceChildren(...[["Right first time", "top1"], ["Right in top 3", "top3"]].map(([title, key]) => {
-    const group = el("div", "group");
-    group.append(el("p", "group-title", title));
-    for (const [ai, name] of [["pyinsect", "Pyinsect"], ["clip", "CLIP"]]) {
-      const right = scores[ai][key], percent = Math.round((100 * right) / n);
-      const row = el("div", "bar-row"), track = el("div", "track-box"), bar = el("div", `bar ${ai}`);
-      row.title = `${name}: ${right} of ${n} right`;
-      row.setAttribute("role", "img");
-      row.setAttribute("aria-label", `${title}, ${name}: ${percent}%, ${right} of ${n}`);
-      bar.style.width = `${percent}%`;
-      track.append(bar);
-      row.append(track, el("span", "bar-value", `${percent}%`));
-      group.append(row);
+  const points = scores.history || [];
+  if (!points.length) { $("chart").replaceChildren(el("p", "muted", "Score a photo to see the graph.")); return; }
+  const W = 440, H = 220, left = 40, right = 44, top = 10, bottom = 36;
+  const first = points[0][0], last = points[points.length - 1][0];
+  const x = (n) => (first === last ? (left + W - right) / 2 : left + ((n - first) / (last - first)) * (W - left - right));
+  const y = (percent) => top + (1 - percent / 100) * (H - top - bottom);
+  const percent = (point, i) => Math.round((100 * point[i]) / point[0]);
+  const say = (point) => `After ${point[0]} photo${point[0] === 1 ? "" : "s"}: Pyinsect ${percent(point, 1)}%, CLIP ${percent(point, 2)}%`;
+
+  const graph = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Right first time. ${say(points[points.length - 1])}` });
+  for (const p of [0, 50, 100]) {
+    graph.append(svg("line", { class: "grid", x1: left, x2: W - right, y1: y(p), y2: y(p) }));
+    graph.append(svg("text", { x: left - 6, y: y(p) + 4, "text-anchor": "end" }, `${p}%`));
+  }
+  for (const n of first === last ? [first] : [first, last]) graph.append(svg("text", { x: x(n), y: H - 20, "text-anchor": "middle" }, n));
+  graph.append(svg("text", { x: (left + W - right) / 2, y: H - 4, "text-anchor": "middle" }, "Photos scored"));
+  // CLIP is dashed, so both lines can still be seen when they sit on top of each other.
+  for (const [ai, i] of [["pyinsect", 1], ["clip", 2]]) {
+    graph.append(svg("polyline", { class: `line ${ai}`, points: points.map((p) => `${x(p[0])},${y(percent(p, i))}`).join(" ") }));
+    for (const p of points.length > 20 ? [points[points.length - 1]] : points) {
+      graph.append(svg("circle", { class: `dot ${ai}`, cx: x(p[0]), cy: y(percent(p, i)), r: 4 }));
     }
-    return group;
-  }));
+  }
+  // The latest numbers at the end of each line, pushed apart if they would overlap.
+  const end = points[points.length - 1];
+  const ends = [y(percent(end, 1)), y(percent(end, 2))];
+  if (Math.abs(ends[0] - ends[1]) < 14) {
+    const middle = (ends[0] + ends[1]) / 2, up = ends[0] <= ends[1] ? 0 : 1;
+    ends[up] = middle - 7;
+    ends[1 - up] = middle + 7;
+  }
+  ends.forEach((at, i) => graph.append(svg("text", { class: "end", x: x(end[0]) + 8, y: at + 4 }, `${percent(end, i + 1)}%`)));
+
+  // Point at (or tap) the graph to read the numbers for one photo.
+  const readout = el("p", "readout muted", say(end));
+  const slot = points.length > 1 ? (W - left - right) / (points.length - 1) : W - left - right;
+  for (const p of points) {
+    const hit = svg("rect", { x: x(p[0]) - slot / 2, y: top, width: slot, height: H - top - bottom, fill: "transparent" });
+    hit.append(svg("title", {}, say(p)));
+    hit.addEventListener("pointerenter", () => { readout.textContent = say(p); });
+    hit.addEventListener("click", () => { readout.textContent = say(p); });
+    graph.append(hit);
+  }
+  $("chart").replaceChildren(el("p", "group-title", "Right first time, so far"), graph, readout);
 }
 $("reset").onclick = () => {
   if (!confirm("Reset all the scores?")) return;
@@ -270,6 +303,7 @@ function answerRow(card, results) {
       scores[ai].top3 += top3.some((g) => g.species === truth) ? 1 : 0;
       scores[ai].ms += ms;
     }
+    (scores.history ||= []).push([scores.n, scores.pyinsect.top1, scores.clip.top1]);
     saveScores();
     showScores();
     for (const li of card.querySelectorAll("li")) li.classList.toggle("right", li.dataset.species === truth);

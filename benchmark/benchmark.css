@@ -26,12 +26,16 @@ details[open] > summary { margin-bottom: 12px; }
 .legend { list-style: none; margin: 0 0 8px; padding: 0; display: flex; gap: 16px; font-size: 13px; }
 .legend li { display: flex; align-items: center; gap: 6px; }
 .swatch { width: 12px; height: 12px; border-radius: 3px; }
-.pyinsect.swatch, .pyinsect.bar { background: var(--pyinsect); }
-.clip.swatch, .clip.bar { background: var(--clip); }
+.pyinsect.swatch { background: var(--pyinsect); }
+.clip.swatch { background: var(--clip); }
 .chart { margin-bottom: 16px; }
-.group + .group { margin-top: 12px; }
-.chart .group-title { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
-.bar-row { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; gap: 8px; margin-top: 2px; }
-.track-box { border-left: 1px solid var(--muted); }
-.chart .bar { height: 18px; border-radius: 0 4px 4px 0; }
-.bar-value { font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
+.chart svg { display: block; width: 100%; height: auto; }
+.chart .group-title, .chart .readout { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
+.chart text { font: 12px var(--body); fill: var(--muted); }
+.chart text.end { fill: var(--ink); font-weight: 600; }
+.chart .grid { stroke: var(--muted); stroke-width: 1; opacity: .25; }
+.chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .line.pyinsect { stroke: var(--pyinsect); }
+.chart .line.clip { stroke: var(--clip); stroke-dasharray: 7 5; }
+.chart .dot.pyinsect { fill: var(--pyinsect); }
+.chart .dot.clip { fill: var(--clip); }

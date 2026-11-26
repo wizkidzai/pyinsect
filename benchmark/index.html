@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="../assets/site.css?v=20261120a">
-<link rel="stylesheet" href="benchmark.css?v=1">
+<link rel="stylesheet" href="benchmark.css?v=2">
 </head>
 <body>
 <main class="wrap">
@@ -40,6 +40,20 @@
       </table>
     </div>
     <p class="muted">$0 per photo means no fee and no server. It doesn't count the phone, the internet data for the download, or the time spent building the AI.</p>
+  </section>
+
+  <section class="panel" aria-labelledby="costTitle">
+    <h2 id="costTitle">AI cost calculator (estimate)</h2>
+    <p>What if a paid chatbot AI named the insects? Pick a Google Gemini model. Each photo you score adds to the total.</p>
+    <p><label for="llm">Gemini model</label> <select id="llm"></select></p>
+    <div class="table-box">
+      <table>
+        <thead><tr><th></th><th scope="col">Pyinsect</th><th scope="col" id="llmName">Gemini</th></tr></thead>
+        <tbody id="cost"></tbody>
+      </table>
+    </div>
+    <p class="muted" id="costHow"></p>
+    <p class="muted">This is only arithmetic: no photo is sent to Google, nothing is charged, and we haven't tested how often Gemini is right. Prices are from <a href="https://aistudio.google.com/docs/pricing" target="_blank" rel="noopener">Google's price list</a>, checked November 2026, and can change.</p>
   </section>
 
   <section class="panel">
@@ -73,6 +87,6 @@
 <script src="../assets/insect-finder.js?v=20261028a"></script>
 <script src="../assets/species.js?v=20261028a"></script>
 <script src="../assets/models/pyinsect-2.8-oregon.js?v=20261118a"></script>
-<script type="module" src="benchmark.js?v=1"></script>
+<script type="module" src="benchmark.js?v=3"></script>
 </body>
 </html>

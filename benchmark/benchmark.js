@@ -5,7 +5,6 @@ const TRANSFORMERS = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7
 const CLIP_ID = "Xenova/clip-vit-base-patch32";
 const CLIP_VERSION = "6b7c523703ae26e39be4b03774966f8571c7f523";   // always the same copy, so scores stay comparable
 const SCORES_KEY = "pyinsect.compare.2";
-const SURE = 80;   // "very sure" starts at this %
 
 const MODEL = window.PYINSECT_MODEL;
 const $ = (id) => document.getElementById(id);
@@ -22,9 +21,40 @@ const label = (s) => (s === MODEL.otherClass ? commonName(s) : `${commonName(s)}
 const byLabel = new Map(SPECIES.map((s) => [label(s).toLowerCase(), s]));
 for (const s of SPECIES) $("names").append(new Option(label(s)));
 
+/* ---------- AI cost calculator: arithmetic only, nothing is sent to Google ---------- */
+// Dollars per 1 million tokens (in, out), from https://aistudio.google.com/docs/pricing (checked Nov 2026).
+// A price with `from` starts on that day.
+const LLMS = [
+  { name: "gemini-3.5-flash-lite", free: true, prices: [{ in: 0.30, out: 2.50 }] },
+  { name: "gemini-3.8-flash", free: true, prices: [{ in: 0.75, out: 3.75 }, { from: "2027-01-01", in: 1.50, out: 7.50 }] },
+  { name: "gemini-4-argon", free: false, prices: [{ in: 2, out: 10 }, { from: "2026-12-01", in: 4, out: 20 }] },
+];
+// Guesses for one photo. A photo is 1,120 tokens (https://aistudio.google.com/docs/media-resolution).
+// The question holds the same insect names the other AIs choose from (about 4 letters per token).
+const PHOTO_TOKENS = 1120;
+const ANSWER_TOKENS = 300;   // the answer, plus the model's thinking, which is billed too
+const QUESTION_TOKENS = Math.round(SPECIES.map(label).join(", ").length / 4);
+
+for (const m of LLMS) $("llm").append(new Option(m.name));
+const dollars = (v) => (v === 0 ? "$0" : v < 0.1 ? `$${v.toFixed(4)}` : `$${v.toFixed(2)}`);
+function showCost(n) {
+  const model = LLMS[$("llm").selectedIndex], today = new Date().toLocaleDateString("sv");   // sv: year-month-day
+  const price = model.prices.filter((p) => !p.from || p.from <= today).pop();
+  const each = ((PHOTO_TOKENS + QUESTION_TOKENS) * price.in + ANSWER_TOKENS * price.out) / 1e6;
+  $("llmName").textContent = model.name;
+  const rows = [["One photo", 1], [`Your total so far (${n} scored)`, n], ["100 photos", 100], ["1,000 photos", 1000]]
+    .map(([name, count]) => [name, (a) => (a === "pyinsect" ? "$0" : dollars(each * count))]);
+  rows.push(["Free allowance", (a) => (a === "pyinsect" ? "No limit" : model.free ? "Yes, with limits" : "No")]);
+  fill("cost", rows);   // the first column is Pyinsect, the second the chosen model
+  $("costHow").textContent = `Estimate for one photo: about ${(PHOTO_TOKENS + QUESTION_TOKENS).toLocaleString("en-US")} tokens in `
+    + `(the photo and the list of insect names) and ${ANSWER_TOKENS} out, at $${price.in} in and $${price.out} out per million. `
+    + "Tokens are small chunks of text or picture. A real bill could be higher or lower.";
+}
+$("llm").onchange = () => showCost(scores.n);
+
 /* ---------- scores (only counts are saved, never photos) ---------- */
-// sureRight / sureWrong add up how sure the first guess was; oops counts "very sure, but wrong".
-const blank = () => ({ top1: 0, top3: 0, ms: 0, sureRight: 0, sureWrong: 0, oops: 0 });
+// sureRight / sureWrong add up how sure the first guess was.
+const blank = () => ({ top1: 0, top3: 0, ms: 0, sureRight: 0, sureWrong: 0 });
 const empty = () => ({ n: 0, pyinsect: blank(), clip: blank() });
 let scores = empty();
 try { scores = JSON.parse(localStorage.getItem(SCORES_KEY)) || empty(); } catch { /* private window */ }
@@ -47,8 +77,8 @@ function showScores() {
     ["Average time per photo", (a) => (n ? `${(scores[a].ms / n / 1000).toFixed(1)} s` : "–")],
     ["How sure when right", (a) => average(scores[a].sureRight, scores[a].top1)],
     ["How sure when wrong", (a) => average(scores[a].sureWrong, n - scores[a].top1)],
-    [`Very sure (${SURE}%+) but wrong`, (a) => (n ? `${scores[a].oops} of ${n}` : "–")],
   ];
+  showCost(n);
   fill("board", rows);
   fill("facts", [
     ["Cost per photo", () => "$0 (runs on your device)"],
@@ -273,7 +303,6 @@ function answerRow(card, results) {
       scores[ai].ms += ms;
       const right = top3[0].species === truth, sure = top3[0].confidence;
       scores[ai][right ? "sureRight" : "sureWrong"] += sure;
-      scores[ai].oops += !right && sure >= SURE ? 1 : 0;
     }
     saveScores();
     showScores();

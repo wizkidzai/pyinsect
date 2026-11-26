@@ -1,5 +1,6 @@
 /* Colors, fonts and buttons come from ../assets/site.css. Only this page's layout is here. */
 .table-box { overflow-x: auto; margin-bottom: 12px; }
+select { min-height: 44px; max-width: 100%; padding: 8px 12px; font: 16px var(--body); color: var(--ink); background: var(--glass-strong); border: 1px solid var(--glass-edge); border-radius: 12px; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 td { font-variant-numeric: tabular-nums; }

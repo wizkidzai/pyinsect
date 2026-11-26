@@ -10,83 +10,80 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="../assets/site.css?v=20261120a">
-<link rel="stylesheet" href="benchmark.css?v=2">
+<link rel="stylesheet" href="benchmark.css?v=3">
 </head>
 <body>
 <main class="wrap">
   <header>
     <div class="brand"><img src="../assets/favicon.svg" alt="" width="56" height="56"><h1>Pyinsect Benchmark</h1></div>
-    <p>Pyinsect against a general AI: how often is each one right? Choose insect photos, pick the correct answer, and watch the scores.</p>
+    <p>Which AI knows insects better? Add photos and see.</p>
   </header>
 
   <section class="panel" aria-labelledby="scoreTitle">
-    <h2 id="scoreTitle">Scoreboard</h2>
-    <p id="scored" class="muted" role="status"></p>
+    <h2 id="scoreTitle">Scores</h2>
     <div class="table-box">
       <table>
-        <thead><tr><th></th><th scope="col">Pyinsect</th><th scope="col">CLIP</th></tr></thead>
+        <thead><tr><th></th><th scope="col">Pyinsect</th><th scope="col">CLIP</th><th scope="col" id="geminiHead" hidden>Gemini (typed in)</th></tr></thead>
         <tbody id="board"></tbody>
       </table>
     </div>
-    <button id="reset" class="btn" type="button">Reset scores</button>
+    <p id="scored" class="muted" role="status"></p>
   </section>
 
-  <section class="panel" aria-labelledby="factsTitle">
-    <h2 id="factsTitle">Cost and facts</h2>
-    <div class="table-box">
-      <table>
-        <thead><tr><th></th><th scope="col">Pyinsect</th><th scope="col">CLIP</th></tr></thead>
-        <tbody id="facts"></tbody>
-      </table>
-    </div>
-    <p class="muted">$0 per photo means no fee and no server. It doesn't count the phone, the internet data for the download, or the time spent building the AI.</p>
+  <section class="start">
+    <button id="load" class="btn primary big" type="button">Get the AIs ready</button>
+    <button id="pick" class="btn primary big" type="button" hidden>Choose photos</button>
+    <input id="files" type="file" accept="image/*" multiple>
+    <p id="status" class="muted" role="status">First time: about 300 MB, so use Wi-Fi.</p>
   </section>
 
-  <section class="panel" aria-labelledby="costTitle">
-    <h2 id="costTitle">AI cost calculator (estimate)</h2>
-    <p>What if a paid chatbot AI named the insects? Pick a Google Gemini model. Each photo you score adds to the total.</p>
-    <p><label for="llm">Gemini model</label> <select id="llm"></select></p>
+  <div id="results" class="results"></div>
+
+  <details class="panel">
+    <summary>Cost</summary>
+    <p><label for="llm">Compare with a paid AI:</label> <select id="llm"></select></p>
     <div class="table-box">
       <table>
         <thead><tr><th></th><th scope="col">Pyinsect</th><th scope="col" id="llmName">Gemini</th></tr></thead>
         <tbody id="cost"></tbody>
       </table>
     </div>
+    <p class="muted">Estimates only. This page sends nothing to Google and charges nothing.</p>
     <p class="muted" id="costHow"></p>
-    <p class="muted">This is only arithmetic: no photo is sent to Google, nothing is charged, and we haven't tested how often Gemini is right. Prices are from <a href="https://aistudio.google.com/docs/pricing" target="_blank" rel="noopener">Google's price list</a>, checked November 2026, and can change.</p>
-  </section>
+    <p class="muted">Prices are from <a href="https://aistudio.google.com/docs/pricing" target="_blank" rel="noopener">Google's price list</a>, checked November 2026.</p>
+  </details>
 
-  <section class="panel">
-    <h2>Try photos</h2>
-    <p>The first time, the AIs are downloaded (about 300 MB), so use Wi-Fi.</p>
-    <div class="actions">
-      <button id="load" class="btn primary big" type="button">Get the AIs ready</button>
-      <button id="pick" class="btn primary big" type="button" hidden>Choose photos</button>
-      <input id="files" type="file" accept="image/*" multiple>
+  <details class="panel">
+    <summary>More details</summary>
+    <div class="table-box">
+      <table>
+        <thead><tr><th></th><th scope="col">Pyinsect</th><th scope="col">CLIP</th></tr></thead>
+        <tbody id="facts"></tbody>
+      </table>
     </div>
-    <p id="status" class="muted" role="status"></p>
-  </section>
+    <button id="reset" class="btn" type="button">Reset scores</button>
+  </details>
 
-  <div id="results" class="results"></div>
-
-  <section class="panel">
-    <h2>How this test works</h2>
+  <details class="panel">
+    <summary>How this works</summary>
     <ul>
       <li><strong>Pyinsect</strong> is our own model, the one the website uses.</li>
-      <li><strong>CLIP</strong> is a free general AI made by OpenAI. It was not trained just for insects. We use a smaller, compressed copy.</li>
-      <li>Both get the same photo, cut around the insect by our insect finder, and choose from the same list of insects.</li>
-      <li>The scores count each AI's first guess, even when the website would say "not sure" or "not in my list".</li>
-      <li>A few photos don't prove much. Try 30 or more, and use photos Pyinsect didn't learn from.</li>
+      <li><strong>CLIP</strong> is a free general AI made by OpenAI, not trained just for insects. We use a smaller, compressed copy.</li>
+      <li>Both get the same photo, cut around the insect, and choose from the same list of insects.</li>
+      <li>Scores count each AI's first guess, even when the website would say "not sure".</li>
+      <li>Gemini is optional: a grown-up (18+) can ask it in their own account and type its answer. Ask the same question every time, and never use photos with people or private details. It's not a perfectly fair test.</li>
+      <li>Try 30 or more photos that Pyinsect didn't learn from.</li>
       <li>Your photos stay on your device. Scores are saved only in this browser.</li>
     </ul>
-    <datalist id="names"></datalist>
-  </section>
+  </details>
+  <datalist id="names"></datalist>
+  <datalist id="gemini-names"></datalist>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
 <script src="../assets/insect-finder.js?v=20261028a"></script>
 <script src="../assets/species.js?v=20261028a"></script>
 <script src="../assets/models/pyinsect-2.8-oregon.js?v=20261118a"></script>
-<script type="module" src="benchmark.js?v=3"></script>
+<script type="module" src="benchmark.js?v=5"></script>
 </body>
 </html>

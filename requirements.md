@@ -949,6 +949,8 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   An **AI cost calculator** estimates what a chosen Google Gemini model would cost for the photos scored, and
   for 100 and 1,000 photos. It never contacts Google: Google's rules don't allow its AI in apps that people
   under 18 are likely to use.
+  An optional box lets a grown-up type in the answer they got from Gemini in their own account. Gemini then
+  gets its own "right first time" score, with its own count of photos.
 - **Other ideas we talked about:**
   - Compare with Pyinsect 2.7: easy, but it isn't a different AI.
   - Compare with a chatbot AI: needs a secret key and a server.

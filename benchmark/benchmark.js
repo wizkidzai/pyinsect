@@ -60,40 +60,40 @@ const svg = (tag, attrs, text) => {
 function drawChart() {
   const points = scores.history || [];
   if (!points.length) { $("chart").replaceChildren(el("p", "muted", "Score a photo to see the graph.")); return; }
-  const W = 440, H = 220, left = 40, right = 44, top = 10, bottom = 36;
-  const first = points[0][0], last = points[points.length - 1][0];
-  const x = (n) => (first === last ? (left + W - right) / 2 : left + ((n - first) / (last - first)) * (W - left - right));
+  const W = 440, H = 340, left = 48, right = 16, top = 12, bottom = 44;
+  const total = points[points.length - 1][0];
+  // The bottom numbers go from 0 to at least 10 photos, so the line fills the graph as you score more.
+  const step = 2 * Math.max(1, Math.ceil(total / 10)), most = Math.max(10, step * Math.ceil(total / step));
+  const x = (n) => left + (n / most) * (W - left - right);
   const y = (percent) => top + (1 - percent / 100) * (H - top - bottom);
   const percent = (point, i) => Math.round((100 * point[i]) / point[0]);
   const say = (point) => `After ${point[0]} photo${point[0] === 1 ? "" : "s"}: Pyinsect ${percent(point, 1)}%, CLIP ${percent(point, 2)}%`;
+  const end = points[points.length - 1];
 
-  const graph = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Right first time. ${say(points[points.length - 1])}` });
-  for (const p of [0, 50, 100]) {
-    graph.append(svg("line", { class: "grid", x1: left, x2: W - right, y1: y(p), y2: y(p) }));
-    graph.append(svg("text", { x: left - 6, y: y(p) + 4, "text-anchor": "end" }, `${p}%`));
+  const graph = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `Right first time. ${say(end)}` });
+  // The two axis lines, with a small tick at each number
+  graph.append(svg("path", { class: "axis", d: `M${left} ${top}V${y(0)}H${W - right}` }));
+  for (let p = 0; p <= 100; p += 20) {
+    graph.append(svg("line", { class: "axis", x1: left - 6, x2: left, y1: y(p), y2: y(p) }));
+    graph.append(svg("text", { x: left - 12, y: y(p) + 4, "text-anchor": "end" }, `${p}%`));
   }
-  for (const n of first === last ? [first] : [first, last]) graph.append(svg("text", { x: x(n), y: H - 20, "text-anchor": "middle" }, n));
+  for (let n = 0; n <= most; n += step) {
+    graph.append(svg("line", { class: "axis", x1: x(n), x2: x(n), y1: y(0), y2: y(0) + 6 }));
+    graph.append(svg("text", { x: x(n), y: y(0) + 22, "text-anchor": "middle" }, n));
+  }
   graph.append(svg("text", { x: (left + W - right) / 2, y: H - 4, "text-anchor": "middle" }, "Photos scored"));
-  // CLIP is dashed, so both lines can still be seen when they sit on top of each other.
-  for (const [ai, i] of [["pyinsect", 1], ["clip", 2]]) {
+  // Pyinsect is drawn thicker underneath, so it still shows when both lines are in the same place.
+  const many = total > 30;
+  for (const [ai, i, size] of [["pyinsect", 1, 4.5], ["clip", 2, 3]]) {
     graph.append(svg("polyline", { class: `line ${ai}`, points: points.map((p) => `${x(p[0])},${y(percent(p, i))}`).join(" ") }));
-    for (const p of points.length > 20 ? [points[points.length - 1]] : points) {
-      graph.append(svg("circle", { class: `dot ${ai}`, cx: x(p[0]), cy: y(percent(p, i)), r: 4 }));
+    for (const p of many ? [end] : points) {
+      graph.append(svg("circle", { class: `dot ${ai}`, cx: x(p[0]), cy: y(percent(p, i)), r: size }));
     }
   }
-  // The latest numbers at the end of each line, pushed apart if they would overlap.
-  const end = points[points.length - 1];
-  const ends = [y(percent(end, 1)), y(percent(end, 2))];
-  if (Math.abs(ends[0] - ends[1]) < 14) {
-    const middle = (ends[0] + ends[1]) / 2, up = ends[0] <= ends[1] ? 0 : 1;
-    ends[up] = middle - 7;
-    ends[1 - up] = middle + 7;
-  }
-  ends.forEach((at, i) => graph.append(svg("text", { class: "end", x: x(end[0]) + 8, y: at + 4 }, `${percent(end, i + 1)}%`)));
 
   // Point at (or tap) the graph to read the numbers for one photo.
   const readout = el("p", "readout muted", say(end));
-  const slot = points.length > 1 ? (W - left - right) / (points.length - 1) : W - left - right;
+  const slot = (W - left - right) / most;
   for (const p of points) {
     const hit = svg("rect", { x: x(p[0]) - slot / 2, y: top, width: slot, height: H - top - bottom, fill: "transparent" });
     hit.append(svg("title", {}, say(p)));

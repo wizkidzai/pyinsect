@@ -21,21 +21,21 @@ details[open] > summary { margin-bottom: 12px; }
 .home-hero .parallax { top: 0; height: 100%; transform: none; background-position: center; }
 .panel > .btn.big { width: 100%; }
 /* Graph: one color for each AI, checked to be safe for color blindness. The names and numbers say it too. */
-:root { --pyinsect: #1e7a45; --clip: #3b7dd8; }
-@media (prefers-color-scheme: dark) { :root { --pyinsect: #3a9d63; --clip: #4a8fe0; } }
+:root { --pyinsect: #f4483a; --clip: #2f6fd6; --graph: #fff; --axis: #d5d9de; }
+@media (prefers-color-scheme: dark) { :root { --pyinsect: #e5554a; --clip: #4a8fe0; --graph: #121a17; --axis: #3a4640; } }
 .legend { list-style: none; margin: 0 0 8px; padding: 0; display: flex; gap: 16px; font-size: 13px; }
 .legend li { display: flex; align-items: center; gap: 6px; }
 .swatch { width: 12px; height: 12px; border-radius: 3px; }
 .pyinsect.swatch { background: var(--pyinsect); }
 .clip.swatch { background: var(--clip); }
 .chart { margin-bottom: 16px; }
-.chart svg { display: block; width: 100%; height: auto; }
+.chart svg { display: block; width: 100%; height: auto; background: var(--graph); border-radius: 12px; margin-bottom: 6px; }
 .chart .group-title, .chart .readout { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
 .chart text { font: 12px var(--body); fill: var(--muted); }
-.chart text.end { fill: var(--ink); font-weight: 600; }
-.chart .grid { stroke: var(--muted); stroke-width: 1; opacity: .25; }
-.chart .line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.chart .line.pyinsect { stroke: var(--pyinsect); }
-.chart .line.clip { stroke: var(--clip); stroke-dasharray: 7 5; }
+.chart .axis { fill: none; stroke: var(--axis); stroke-width: 1; }
+.chart .line { fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.chart .line.pyinsect { stroke: var(--pyinsect); stroke-width: 3.5; }
+.chart .line.clip { stroke: var(--clip); stroke-width: 2; }
+.chart .dot { stroke: var(--graph); stroke-width: 1.5; }
 .chart .dot.pyinsect { fill: var(--pyinsect); }
 .chart .dot.clip { fill: var(--clip); }

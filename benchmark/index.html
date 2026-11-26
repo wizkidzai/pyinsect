@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pyinsect Benchmark</title>
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#2f6b45">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/site.css?v=20261120a">
+<link rel="stylesheet" href="benchmark.css?v=1">
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <div class="brand"><img src="../assets/favicon.svg" alt="" width="56" height="56"><h1>Pyinsect Benchmark</h1></div>
+    <p>Pyinsect against a general AI: how often is each one right? Choose insect photos, pick the correct answer, and watch the scores.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="scoreTitle">
+    <h2 id="scoreTitle">Scoreboard</h2>
+    <p id="scored" class="muted" role="status"></p>
+    <div class="table-box">
+      <table>
+        <thead><tr><th></th><th scope="col">Pyinsect</th><th scope="col">CLIP</th></tr></thead>
+        <tbody id="board"></tbody>
+      </table>
+    </div>
+    <button id="reset" class="btn" type="button">Reset scores</button>
+  </section>
+
+  <section class="panel" aria-labelledby="factsTitle">
+    <h2 id="factsTitle">Cost and facts</h2>
+    <div class="table-box">
+      <table>
+        <thead><tr><th></th><th scope="col">Pyinsect</th><th scope="col">CLIP</th></tr></thead>
+        <tbody id="facts"></tbody>
+      </table>
+    </div>
+    <p class="muted">$0 per photo means no fee and no server. It doesn't count the phone, the internet data for the download, or the time spent building the AI.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Try photos</h2>
+    <p>The first time, the AIs are downloaded (about 300 MB), so use Wi-Fi.</p>
+    <div class="actions">
+      <button id="load" class="btn primary big" type="button">Get the AIs ready</button>
+      <button id="pick" class="btn primary big" type="button" hidden>Choose photos</button>
+      <input id="files" type="file" accept="image/*" multiple>
+    </div>
+    <p id="status" class="muted" role="status"></p>
+  </section>
+
+  <div id="results" class="results"></div>
+
+  <section class="panel">
+    <h2>How this test works</h2>
+    <ul>
+      <li><strong>Pyinsect</strong> is our own model, the one the website uses.</li>
+      <li><strong>CLIP</strong> is a free general AI made by OpenAI. It was not trained just for insects. We use a smaller, compressed copy.</li>
+      <li>Both get the same photo, cut around the insect by our insect finder, and choose from the same list of insects.</li>
+      <li>The scores count each AI's first guess, even when the website would say "not sure" or "not in my list".</li>
+      <li>A few photos don't prove much. Try 30 or more, and use photos Pyinsect didn't learn from.</li>
+      <li>Your photos stay on your device. Scores are saved only in this browser.</li>
+    </ul>
+    <datalist id="names"></datalist>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.wasm.min.js"></script>
+<script src="../assets/insect-finder.js?v=20261028a"></script>
+<script src="../assets/species.js?v=20261028a"></script>
+<script src="../assets/models/pyinsect-2.8-oregon.js?v=20261118a"></script>
+<script type="module" src="benchmark.js?v=1"></script>
+</body>
+</html>

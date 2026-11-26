@@ -1,0 +1,16 @@
+/* Colors, fonts and buttons come from ../assets/site.css. Only this page's layout is here. */
+.table-box { overflow-x: auto; margin-bottom: 12px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+td { font-variant-numeric: tabular-nums; }
+tbody th { font-weight: 500; color: var(--muted); }
+.results { display: flex; flex-direction: column; gap: 16px; }
+.result { display: flex; flex-direction: column; gap: 12px; }
+.result img { width: 100%; max-height: 280px; object-fit: contain; border-radius: 14px; background: #000; }
+.versus { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.versus h3 { margin: 0 0 4px; font-family: var(--display); font-size: 17px; }
+.versus ol { margin: 0; padding-left: 20px; }
+.versus li.right { color: var(--accent); font-weight: 600; }
+.versus p { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.answer-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.answer-row input { flex: 1 1 220px; min-height: 44px; padding: 8px 12px; font: 16px var(--body); color: var(--ink); background: var(--glass-strong); border: 1px solid var(--glass-edge); border-radius: 12px; }

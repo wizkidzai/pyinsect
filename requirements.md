@@ -932,3 +932,31 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   - [ ] The bug stays in the picture while the turntable spins.
   - [ ] With nothing to find, photos are still taken with the full view.
   - [ ] It works offline after opening the app once with internet.
+
+## Pyinsect Benchmark
+
+- **Status:** Building
+- **Asked by:** Aariv, 2026-11-25
+- **Who it's for:** FLL judges and visitors who see our project.
+- **Problem or need:** They need proof of how accurate Pyinsect is.
+- **Why they have it:** They can't tell just by using it, and they want to trust it.
+- **Our idea:** A separate web app in `benchmark/`. The visitor chooses insect photos from their phone (no
+  camera). The Pyinsect model the website uses and CLIP (a free general AI) both guess, from the same list of
+  insects, on the device. The visitor picks the right answer, and a scoreboard shows how often each AI was
+  right (first guess and top 3), how sure it was when right and wrong, how often it was very sure but wrong,
+  how long it took, and how many photos were scored. A cost and facts table shows the cost per photo, download
+  size, time to get ready, and whether photos leave the device.
+- **Other ideas we talked about:**
+  - Compare with Pyinsect 2.7: easy, but it isn't a different AI.
+  - Compare with a chatbot AI: needs a secret key and a server.
+  - A fixed set of test photos: photos can't be saved in this repo.
+- **User flow:**
+  1. Open the app and see the scoreboard (empty the first time).
+  2. Tap **Choose photos** and pick one or more insect photos.
+  3. See both AIs' guesses, how sure they are, and how long they took.
+  4. Pick the correct insect, or "I don't know" (not scored).
+  5. The scoreboard updates. Add more photos, or reset the scores.
+- **Done when:**
+  - [ ] Choosing a photo shows both AIs' guesses side by side.
+  - [ ] After picking the right answer, both scores change correctly.
+  - [ ] There is no camera or "take photo" button.

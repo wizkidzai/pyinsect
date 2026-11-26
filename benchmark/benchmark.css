@@ -8,7 +8,6 @@
 .picture { display: grid; place-items: center; min-height: 220px; }
 .picture img { display: block; max-width: 100%; max-height: 50vh; border-radius: 14px; }
 .page > .btn.big { width: 100%; }
-#remove { align-self: center; }
 .one { padding: 12px; }
 .one h3 { margin: 0 0 8px; font-family: var(--display); font-size: 17px; }
 .one h3 small { font: 400 12px var(--body); color: var(--muted); }
@@ -32,5 +31,21 @@
 .truth { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .truth input { min-height: 44px; padding: 8px 12px; font: 16px var(--body); color: var(--ink); background: var(--glass-strong); border: 1px solid var(--glass-edge); border-radius: 12px; }
 #stop { align-self: center; }
+/* Graph colors, checked for color blindness. The line styles differ too. */
+:root { --accuracy: #1e7a45; --speed: #3b6fd8; --cost: #d9480f; }
+@media (prefers-color-scheme: dark) { :root { --accuracy: #3a9d63; --speed: #5a8fe8; --cost: #e8702a; } }
+.legend { list-style: none; margin: 0; padding: 0; display: flex; justify-content: center; gap: 16px; font-size: 13px; }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.key { width: 18px; border-top: 3px solid var(--accuracy); }
+.key.speed { border-top: 3px dashed var(--speed); }
+.key.cost { border-top: 3px dotted var(--cost); }
+.graph svg { display: block; width: 100%; height: auto; }
+.graph text { font: 11px var(--body); fill: var(--muted); }
+.graph .axis { fill: none; stroke: var(--muted); stroke-width: 1; opacity: .6; }
+.graph .line { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.graph .accuracy { stroke: var(--accuracy); }
+.graph .speed { stroke: var(--speed); stroke-dasharray: 7 5; }
+.graph .cost { stroke: var(--cost); stroke-width: 4; stroke-dasharray: 1 7; }
+.graph { margin-top: 10px; }
 summary { cursor: pointer; min-height: 28px; font-family: var(--display); font-size: 19px; }
 details[open] > summary { margin-bottom: 12px; }

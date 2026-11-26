@@ -299,7 +299,7 @@ function showPhoto(file) {
   $("shown").alt = file ? file.name : "";
   $("shown").hidden = !file;
   $("placeholder").hidden = Boolean(file);
-  $("remove").hidden = !file;
+  $("pick").textContent = file ? "Reselect photo" : "Select photo";
   showGuesses(null);
 }
 async function tryPhoto(file) {
@@ -314,7 +314,7 @@ async function tryPhoto(file) {
   try {
     status("Looking…");
     const results = await check(file);
-    if (current !== file) return;   // removed, or another photo was picked
+    if (current !== file) return;   // another photo was picked
     showGuesses(results);
     status(results.theirs ? "Done." : `${other.name} couldn't answer. ${other.overLimit?.() ? "The spending limit is used up." : "Try again."}`);
   } catch (e) { console.error(e); status("Couldn't check this photo. Try a JPG or PNG picture."); }
@@ -325,7 +325,6 @@ $("file").onchange = () => {
   $("file").value = "";
   if (file) tryPhoto(file);
 };
-$("remove").onclick = () => { showPhoto(null); $("status").textContent = "Photo removed."; };
 
 /* ---------- Benchmark: a folder or many photos ---------- */
 // The right answer comes from the file name or a folder name, like "emerald ash borer/photo_01.jpg"
@@ -346,8 +345,40 @@ function truthFor(file) {
 // One point per photo: totals so far. Pyinsect's cost stays 0, because it runs on this device.
 let totals = [];
 const money = (v) => (v === 0 ? "$0" : `$${v.toFixed(v < 0.1 ? 4 : 2)}`);
+const svg = (tag, attrs, text) => {
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (text != null) e.textContent = text;
+  return e;
+};
+function drawGraphs() {
+  const last = totals[totals.length - 1];
+  const W = 240, H = 210, left = 14, right = 8, top = 8, bottom = 38;
+  const most = Math.max(10, totals.length);
+  const x = (n) => left + (n / most) * (W - left - right);
+  // Each kind of line has one scale for both graphs.
+  const biggest = (key) => (last ? Math.max(last.pyinsect[key], last.other[key]) : 0) || 1;
+  const scale = { right: Math.max(1, totals.length), seconds: biggest("seconds"), cost: biggest("cost") };
+  const y = (share) => top + (1 - share) * (H - top - bottom);
+  for (const [ai, id] of AIS) {
+    const graph = svg("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+    graph.setAttribute("aria-label", `${ai === "other" ? other.name : "Pyinsect"}: accuracy, speed and cost as photos are added`);
+    graph.append(svg("path", { class: "axis", d: `M${left} ${top}V${y(0)}H${W - right}` }));
+    for (const n of [0, Math.round(most / 2), most]) graph.append(svg("text", { x: x(n), y: y(0) + 16, "text-anchor": "middle" }, n));
+    graph.append(svg("text", { x: (left + W - right) / 2, y: H - 4, "text-anchor": "middle" }, "Number of photos"));
+    {
+      for (const [kind, key] of [["accuracy", "right"], ["speed", "seconds"], ["cost", "cost"]]) {
+        const points = [[0, 0], ...totals.map((t, i) => [i + 1, t[ai][key] / scale[key]])];
+        graph.append(svg("polyline", { class: `line ${kind}`, points: points.map(([n, share]) => `${x(n)},${y(share)}`).join(" ") }));
+      }
+    }
+    $(`graph${id}`).replaceChildren(graph);
+  }
+}
+
 const short = (n) => (n < 1000 ? String(n) : `${Math.round(n / 1000)}K`);
 function drawBoxes() {
+  drawGraphs();
   const last = totals[totals.length - 1];
   const fastest = last ? Math.min(last.pyinsect.seconds, last.other.seconds) : 0;
   for (const [ai, id] of AIS) {

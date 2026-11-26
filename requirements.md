@@ -956,6 +956,7 @@ To add one, ask your AI helper to help you plan a new feature. It will use
   3. See both AIs' guesses, how sure they are, and how long they took.
   4. Pick the correct insect, or "I don't know" (not scored).
   5. The scoreboard updates. Add more photos, or reset the scores.
+  6. Tap **Remove photo** to take a photo off the page. Its score is taken out too.
 - **Done when:**
   - [ ] Choosing a photo shows both AIs' guesses side by side.
   - [ ] After picking the right answer, both scores change correctly.

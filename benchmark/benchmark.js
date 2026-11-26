@@ -303,7 +303,9 @@ function answerRow(card, results) {
       scores[ai].top3 += top3.some((g) => g.species === truth) ? 1 : 0;
       scores[ai].ms += ms;
     }
-    (scores.history ||= []).push([scores.n, scores.pyinsect.top1, scores.clip.top1]);
+    const point = [scores.n, scores.pyinsect.top1, scores.clip.top1];
+    (scores.history ||= []).push(point);
+    card.scored = { point, truth, results };   // so Remove photo can take this score out again
     saveScores();
     showScores();
     for (const li of card.querySelectorAll("li")) li.classList.toggle("right", li.dataset.species === truth);
@@ -315,14 +317,49 @@ function answerRow(card, results) {
   card.append(note, row);
 }
 
+// Takes a scored photo back out of the totals and the graph.
+function unscore({ point, truth, results }) {
+  const at = (scores.history || []).indexOf(point);
+  if (at < 0) return;   // the scores were reset after this photo
+  const had = {};
+  scores.n--;
+  for (const ai of ["pyinsect", "clip"]) {
+    const { top3, ms } = results[ai];
+    had[ai] = top3[0].species === truth ? 1 : 0;
+    scores[ai].top1 -= had[ai];
+    scores[ai].top3 -= top3.some((g) => g.species === truth) ? 1 : 0;
+    scores[ai].ms -= ms;
+  }
+  for (const later of scores.history.slice(at + 1)) {
+    later[0]--;
+    later[1] -= had.pyinsect;
+    later[2] -= had.clip;
+  }
+  scores.history.splice(at, 1);
+  saveScores();
+  showScores();
+}
+
+function removeButton(card, img) {
+  const button = el("button", "btn remove", "✕ Remove photo");
+  button.type = "button";
+  button.onclick = () => {
+    if (card.scored) unscore(card.scored);
+    URL.revokeObjectURL(img.src);
+    card.remove();
+  };
+  return button;
+}
+
 let queue = Promise.resolve();
 function addPhoto(file) {
   const card = el("section", "panel result"), img = el("img"), wait = el("p", "muted", "Waiting…");
   img.src = URL.createObjectURL(file);
   img.alt = file.name;
-  card.append(img, wait);
+  card.append(img, removeButton(card, img), wait);
   $("results").prepend(card);
   queue = queue.then(async () => {
+    if (!card.isConnected) return;   // removed while waiting
     try {
       wait.textContent = "Both AIs are looking…";
       const cut = await cutOut(file);

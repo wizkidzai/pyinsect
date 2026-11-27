@@ -51,6 +51,7 @@ summary { cursor: pointer; min-height: 28px; font-family: var(--display); font-s
 details[open] > summary { margin-bottom: 12px; }
 .pair, .results { display: flex; flex-direction: column; gap: 16px; }
 .graph + .boxes { margin-top: 8px; }
+.box small { font-size: 12px; color: var(--muted); }
 /* Phones: fit both AIs on one screen */
 @media (max-width: 600px) {
   #app.wrap { padding-top: max(8px, env(safe-area-inset-top)); }

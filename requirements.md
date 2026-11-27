@@ -985,6 +985,7 @@ To add one, ask your AI helper to help you plan a new feature. It will use
 - **Change, 2026-11-26:** Smaller layout on phones, so both AIs fit on one screen.
 - **Change, 2026-11-26:** The result boxes are below each graph. On phones the two AIs are side by side on
   **Benchmark**, so there is less scrolling.
+- **Change, 2026-11-26:** The Accuracy box also says how many photos were right, like "7 of 10 right".
 - **User flow:**
   1. The judge sees the start screen and picks CLIP or OpenRouter.
   2. OpenRouter: a grown-up types the key and taps **Start**, or taps **Back**.

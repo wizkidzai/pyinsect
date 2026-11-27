@@ -385,14 +385,15 @@ function drawBoxes() {
   for (const [ai, id] of AIS) {
     const mine = last && last[ai];
     const boxes = [
-      ["Accuracy", mine && `${Math.round((100 * mine.right) / totals.length)}%`],
+      ["Accuracy", mine && `${Math.round((100 * mine.right) / totals.length)}%`, mine && `${mine.right} of ${totals.length} right`],
       ["Speed", mine && `${Math.round((100 * fastest) / mine.seconds) || 0}%`],
       ["Cost", mine && money(mine.cost)],
       ["Tokens", mine && short(mine.tokens)],
     ];
-    $(`boxes${id}`).replaceChildren(...boxes.map(([name, value]) => {
+    $(`boxes${id}`).replaceChildren(...boxes.map(([name, value, note]) => {
       const box = el("div", "box");
       box.append(el("span", null, name), el("b", null, value || "–"));
+      if (note) box.append(el("small", null, note));
       return box;
     }));
   }

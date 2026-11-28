@@ -57,3 +57,5 @@ The app no longer has calibration controls. It uses the settings already stored 
 
 ## Using it offline on a phone
 Open https://wizkidzai.github.io/pyinsect/datacollector/ once with internet, then use the browser menu's **Add to Home screen**. After that it opens and takes photos with no internet.
+
+

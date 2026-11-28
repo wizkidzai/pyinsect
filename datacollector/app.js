@@ -2,14 +2,15 @@
 
 /* PyInsect Data Collector
  * Step 1: Start   — type the insect's name (optional) and press Start, the only button
- * Step 2: capture — a burst of PHOTO_TARGET photos (50) in INTERVAL seconds (8) while the turntable
+ * Step 2: capture — a burst of photos (20, changed in Settings) in INTERVAL seconds (8) while the turntable
  *         (ESP32-C3 over USB serial) spins continuously and the lighting changes automatically
  * Step 3: send    — the photos are zipped and sent to the computer by themselves
  */
 
 const $ = (sel) => document.querySelector(sel);
 
-const PHOTO_TARGET = 50;      // photos per dataset
+const DEFAULT_PHOTOS = 20;    // photos per dataset, until changed in Settings
+const MAX_PHOTOS = 100;       // most that Settings allows
 const INTERVAL = 8;           // seconds the whole burst takes
 const STROBE_MS = 200;        // flashlight stays on this long, then off this long
 const DEFAULT_NAME = 'insect'; // names the files and folder when no name is typed
@@ -60,7 +61,7 @@ const COLOR_FILTERS = [
   { id: 'shade',     look: { brightness: 0.88, contrast: 0.95, saturate: 0.85 }, tint: '#bfd0ee' },
   { id: 'dusk',      look: { brightness: 0.78, contrast: 0.95, saturate: 0.9 },  glow: ['multiply', '#ffb27a', '#8a78b8'] },
 ];
-const FILTER_SHARE = [0.1, 0.3];  // filter a random 10–30% of the photos (5 to 15 of 50)
+const FILTER_SHARE = [0.1, 0.3];  // filter a random 10–30% of the photos (2 to 6 of 20)
 const FILTER_STRENGTH = [0.6, 1]; // each filtered photo gets a random strength, so no two look the same
 const FILTER_TIME_MS = 900;       // the whole step stops before this, even on a slow phone
 let zoom = 1;                 // how much the preview is zoomed in
@@ -726,8 +727,20 @@ function hudProgress(done, total) {
   $('#hud-bar').style.width = `${total ? Math.min(100, (100 * done) / total) : 0}%`;
 }
 
+// The number of photos to take, from Settings. It is remembered on this phone.
+function photoTarget() {
+  const n = Math.round(Number($('#photo-count').value));
+  return n >= 1 ? Math.min(MAX_PHOTOS, n) : DEFAULT_PHOTOS;
+}
+try { $('#photo-count').value = localStorage.getItem('pyinsect-photo-count') || DEFAULT_PHOTOS; } catch (_) {}
+$('#photo-count').addEventListener('change', () => {
+  $('#photo-count').value = photoTarget();
+  try { localStorage.setItem('pyinsect-photo-count', photoTarget()); } catch (_) {}
+});
+
 async function runCapture() {
   if (state.running) return;
+  const target = photoTarget();
   state.name = cleanName($('#insect-name').value) || DEFAULT_NAME;
 
   // Pressing the button is what lets the browser show the serial-port picker.
@@ -743,7 +756,7 @@ async function runCapture() {
   zoom = 1;
   show('camera');
   hud('Starting camera…');
-  hudProgress(0, PHOTO_TARGET);
+  hudProgress(0, target);
   await keepScreenOn(true);
 
   let spun = 0;          // degrees the turntable turned during the burst
@@ -774,7 +787,7 @@ async function runCapture() {
     if (state.abort) throw new Error('stopped');
 
     const durationMs = INTERVAL * 1000;
-    const gapMs = durationMs / PHOTO_TARGET;        // 160 ms for 50 photos in 8 s
+    const gapMs = durationMs / target;              // 400 ms for 20 photos in 8 s
     const lightMs = durationMs / lights.length;     // each lighting gets an equal slice of the burst
     const strobe = !!state.caps.torch && !lights[0].screen;
     let shown = { light: lights[0], torch: false };  // the light the frames really show (photo labels)
@@ -836,19 +849,25 @@ async function runCapture() {
     })();
 
     let encodingNow = 0;   // photos still being turned into JPEGs
-    for (let i = 0; i < PHOTO_TARGET && !state.abort; i++) {
-      const due = t0 + i * gapMs;
+    let lastFrame = -1;    // the camera frame used by the previous photo
+    for (let i = 0; i < target && !state.abort; i++) {
+      // Each photo is taken at a different point in its time slot. Evenly spaced photos could keep
+      // step with the flashlight strobe (20 photos in 8 s is one every on + off) and all look alike.
+      const due = t0 + (i + 0.8 * ((i * 0.618) % 1)) * gapMs;
       const early = due - performance.now();
       // Always give the browser a turn, even when behind schedule, so the flashlight strobe,
       // the on-screen counter and the JPEG encoding keep running.
       await (early > 1 ? sleep(early) : yieldNow());
       // Too many photos waiting to be encoded uses a lot of phone memory: let them catch up.
       while (encodingNow >= MAX_ENCODING && !state.abort) await sleep(2);
+      // Never use a camera frame twice, or two photos would be the same: wait for the next one.
+      while (hasFrameTiming && frames === lastFrame && !state.abort && performance.now() - t0 <= durationMs) await sleep(2);
       // The turntable spins for exactly the burst time. If the phone can't keep up, stop on time
       // with fewer photos rather than take photos after the spin with wrong angles.
       if (performance.now() - t0 > durationMs) break;
 
       const elapsed = performance.now() - t0;
+      lastFrame = frames;
       settle();
       const { light, torch } = shown;
       const shot = pending ? CHANGING : shotLight(light, torch);
@@ -866,12 +885,12 @@ async function runCapture() {
         res();
       }, 'image/jpeg', 0.85)));
 
-      hudProgress(i + 1, PHOTO_TARGET);
+      hudProgress(i + 1, target);
       hud(`${Math.max(0, (durationMs - elapsed) / 1000).toFixed(1)} s left`);
     }
     const burstMs = performance.now() - t0;
     counting = false;
-    hudProgress(state.photos.length, PHOTO_TARGET);
+    hudProgress(state.photos.length, target);
     hud('Saving photos…');
     lightingDone = true;
     await lighting;

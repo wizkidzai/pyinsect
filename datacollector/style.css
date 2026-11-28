@@ -73,8 +73,8 @@ h2 { font-weight: 500; font-size: 19px; }
   border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow), var(--glass-shine);
 }
 #screen-intro .glass-card { display: flex; flex-direction: column; gap: 16px; }
-.brand { display: flex; align-items: center; gap: 12px; }
-.brand svg { width: 56px; height: 56px; flex: none; }
+.brand img { display: block; width: 100%; max-width: 260px; height: auto; margin: 0 auto; border-radius: var(--radius); }
+.brand { display: flex; justify-content: center; }
 .eyebrow { display: block; font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 
 .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
